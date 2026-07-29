@@ -34,6 +34,9 @@ nbdist/
 .opencode
 -p
 
+### models ###
+!models/ppocr-v6/medium/*.zip
+
 ### maven ###
 .flattened-pom.xml
 target/

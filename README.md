@@ -33,8 +33,8 @@ models/ppocr-v6/
 │   ├── rec.onnx
 │   └── dict.txt
 └── medium/      # 高精度档 (det 59.2MB + rec 73.0MB)
-    ├── det.onnx
-    ├── rec.onnx
+    ├── det.onnx.zip # 由于 git 限制，需要解压后使用
+    ├── rec.onnx.zip # 由于 git 限制，需要解压后使用
     └── dict.txt
 ```
 
