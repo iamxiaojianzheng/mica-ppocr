@@ -27,6 +27,11 @@ import java.util.List;
  */
 public record PPOcrV6Result(String text, float score, int[][] box) {
 
+	/**
+	 * 将文本框四顶点转换为嵌套 List 形式。
+	 *
+	 * @return [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]
+	 */
 	public List<List<Integer>> boxAsNestedList() {
 		return List.of(
 			List.of(box[0][0], box[0][1]),

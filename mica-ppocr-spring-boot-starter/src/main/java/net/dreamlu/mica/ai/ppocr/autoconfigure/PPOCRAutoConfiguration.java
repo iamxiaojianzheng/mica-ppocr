@@ -41,6 +41,13 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnProperty(prefix = "mica.ai.ppocr", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PPOCRAutoConfiguration {
 
+	/**
+	 * 组装 PPOcrV6Config。
+	 *
+	 * @param properties   yml 配置属性
+	 * @param customizers  PPOCRPropertiesCustomizer 集合
+	 * @return PPOcrV6Config 实例
+	 */
 	@Bean
 	public PPOcrV6Config ppocrV6Config(PPOCRProperties properties,
 									   ObjectProvider<PPOCRPropertiesCustomizer> customizers) {
@@ -67,6 +74,12 @@ public class PPOCRAutoConfiguration {
 		return builder.build();
 	}
 
+	/**
+	 * 注册 PP-OCR 推理引擎。
+	 *
+	 * @param ppOcrV6Config PP-OCR 配置
+	 * @return PPOcrV6Engine 实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public PPOcrV6Engine ppocrV6Engine(PPOcrV6Config ppOcrV6Config) {

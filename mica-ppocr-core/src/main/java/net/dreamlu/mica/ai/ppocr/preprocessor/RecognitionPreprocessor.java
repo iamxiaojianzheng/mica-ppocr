@@ -36,19 +36,33 @@ import java.util.List;
  */
 @ToString
 public final class RecognitionPreprocessor {
+	/** 通道数（RGB/BGR）。 */
 	public static final int CHANNELS = 3;
+	/** 默认目标高度。 */
 	public static final int HEIGHT = 48;
+	/** 默认最小宽度。 */
 	public static final int W_MIN = 320;
+	/** 默认最大宽度。 */
 	public static final int W_MAX = 3200;
 
 	private final int h;
 	private final int wMin;
 	private final int wMax;
 
+	/**
+	 * 使用默认参数 (h=48, wMin=320, wMax=3200) 创建识别预处理器。
+	 */
 	public RecognitionPreprocessor() {
 		this(HEIGHT, W_MIN, W_MAX);
 	}
 
+	/**
+	 * 创建识别预处理器。
+	 *
+	 * @param h    目标高度
+	 * @param wMin 最小宽度
+	 * @param wMax 最大宽度
+	 */
 	public RecognitionPreprocessor(int h, int wMin, int wMax) {
 		if (h <= 0) {
 			throw new IllegalArgumentException("h must be > 0");
@@ -61,6 +75,12 @@ public final class RecognitionPreprocessor {
 		this.wMax = wMax;
 	}
 
+	/**
+	 * 执行批量预处理。
+	 *
+	 * @param imgs 裁剪后的 BGR 文本行图像
+	 * @return 预处理结果
+	 */
 	public Result call(List<Mat> imgs) {
 		int n = imgs.size();
 		if (n == 0) {
@@ -136,6 +156,12 @@ public final class RecognitionPreprocessor {
 		return new Result(data, new int[]{n, CHANNELS, h, maxW});
 	}
 
+	/**
+	 * rec 预处理结果。
+	 *
+	 * @param data  NCHW flat float[] 数据
+	 * @param shape [N, C, H, W]
+	 */
 	public record Result(float[] data, int[] shape) {
 	}
 }

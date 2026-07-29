@@ -37,6 +37,15 @@ import java.util.List;
 @UtilityClass
 public final class NdArrayUtils {
 
+	/**
+	 * HWC flat 转 CHW flat。
+	 *
+	 * @param hwc HWC 顺序的 flat float[]，长度 h*w*c
+	 * @param h   高
+	 * @param w   宽
+	 * @param c   通道数
+	 * @return CHW 顺序的 flat float[]，长度 c*h*w
+	 */
 	public static float[] hwcFlatToNchw(float[] hwc, int h, int w, int c) {
 		float[] chw = new float[c * h * w];
 		int hw = h * w;
@@ -49,6 +58,12 @@ public final class NdArrayUtils {
 		return chw;
 	}
 
+	/**
+	 * 将 OpenCV Mat 转为 HWC 顺序的 flat float[]。
+	 *
+	 * @param hwc 连续的多通道 Mat
+	 * @return HWC flat float[]
+	 */
 	public static float[] matToFlatHwc(Mat hwc) {
 		Mat m = hwc.isContinuous() ? hwc : hwc.clone();
 		int h = m.rows();
@@ -59,10 +74,22 @@ public final class NdArrayUtils {
 		return data;
 	}
 
+	/**
+	 * 将 flat float[] 包装为 FloatBuffer（供 OnnxTensor 使用）。
+	 *
+	 * @param flat flat float[]
+	 * @return 包装后的 FloatBuffer
+	 */
 	public static FloatBuffer toBuffer(float[] flat) {
 		return FloatBuffer.wrap(flat);
 	}
 
+	/**
+	 * 沿最后一维求 argmax。
+	 *
+	 * @param x (B, T, C) 三维数组
+	 * @return (B, T) 索引数组
+	 */
 	public static int[][] argmaxLastAxis(float[][][] x) {
 		int b = x.length;
 		if (b == 0) {
@@ -89,6 +116,12 @@ public final class NdArrayUtils {
 		return idx;
 	}
 
+	/**
+	 * 沿最后一维求最大值。
+	 *
+	 * @param x (B, T, C) 三维数组
+	 * @return (B, T) 最大值数组
+	 */
 	public static float[][] maxLastAxis(float[][][] x) {
 		int b = x.length;
 		if (b == 0) {
@@ -112,6 +145,12 @@ public final class NdArrayUtils {
 		return m;
 	}
 
+	/**
+	 * 将 N 个 (R, C) 矩阵堆叠为 (N, R, C) 三维数组。
+	 *
+	 * @param list (R, C) 矩阵列表
+	 * @return (N, R, C) 三维数组
+	 */
 	public static float[][][] stack3D(List<float[][]> list) {
 		if (list.isEmpty()) {
 			return new float[0][][];
@@ -129,6 +168,12 @@ public final class NdArrayUtils {
 		return out;
 	}
 
+	/**
+	 * 将 N 个定长数组堆叠为 (N, C) 二维数组。
+	 *
+	 * @param list 等长 float[] 列表
+	 * @return (N, C) 二维数组
+	 */
 	public static float[][] stack2D(List<float[]> list) {
 		if (list.isEmpty()) {
 			return new float[0][];
@@ -142,6 +187,13 @@ public final class NdArrayUtils {
 		return out;
 	}
 
+	/**
+	 * 右侧补零到指定列数。
+	 *
+	 * @param x          (N, C) 输入
+	 * @param targetCols 目标列数
+	 * @return (N, targetCols) 补零后数组
+	 */
 	public static float[][] padRight(float[][] x, int targetCols) {
 		int rows = x.length;
 		float[][] out = new float[rows][targetCols];
@@ -151,18 +203,49 @@ public final class NdArrayUtils {
 		return out;
 	}
 
+	/**
+	 * 整数向上取整除法。
+	 *
+	 * @param a 被除数
+	 * @param b 除数
+	 * @return ceil(a/b)
+	 */
 	public static int ceilDiv(int a, int b) {
 		return (a + b - 1) / b;
 	}
 
+	/**
+	 * int clamp。
+	 *
+	 * @param v   输入值
+	 * @param min 下界
+	 * @param max 上界
+	 * @return 截断后的值
+	 */
 	public static int clamp(int v, int min, int max) {
 		return Math.max(min, Math.min(max, v));
 	}
 
+	/**
+	 * float clamp。
+	 *
+	 * @param v   输入值
+	 * @param min 下界
+	 * @param max 上界
+	 * @return 截断后的值
+	 */
 	public static float clamp(float v, float min, float max) {
 		return Math.max(min, Math.min(max, v));
 	}
 
+	/**
+	 * 对数组中每个元素做 clamp。
+	 *
+	 * @param v   输入数组
+	 * @param min 下界
+	 * @param max 上界
+	 * @return 截断后数组
+	 */
 	public static int[] clipAll(int[] v, int min, int max) {
 		int[] out = new int[v.length];
 		for (int i = 0; i < v.length; i++) {
@@ -171,16 +254,33 @@ public final class NdArrayUtils {
 		return out;
 	}
 
+	/**
+	 * float 四舍五入到 int。
+	 *
+	 * @param v 输入值
+	 * @return 四舍五入后的 int
+	 */
 	public static int roundToInt(float v) {
 		return Math.round(v);
 	}
 
+	/**
+	 * OpenCV Mat 转为 float32 类型。
+	 *
+	 * @param src 源 Mat
+	 * @return 转换后的 Mat（CV_32F）
+	 */
 	public static Mat toFloat32(Mat src) {
 		Mat dst = new Mat();
 		src.convertTo(dst, CvType.CV_32F);
 		return dst;
 	}
 
+	/**
+	 * 创建一个空的三维 int 数组。
+	 *
+	 * @return new int[0][][]
+	 */
 	public static int[][][] empty3D() {
 		return new int[0][][];
 	}

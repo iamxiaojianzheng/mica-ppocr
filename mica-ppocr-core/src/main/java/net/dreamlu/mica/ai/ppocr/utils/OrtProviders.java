@@ -38,6 +38,8 @@ import java.util.List;
 public class OrtProviders {
 
 	/**
+	 * 根据策略解析要启用的 ONNX Runtime provider 列表。
+	 *
 	 * @param preferCpu true 强制 CPU；false 自动选择加速器
 	 * @return ONNX Runtime provider 名称列表
 	 */

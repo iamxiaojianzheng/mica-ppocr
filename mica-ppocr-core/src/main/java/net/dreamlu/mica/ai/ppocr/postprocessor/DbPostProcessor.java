@@ -49,6 +49,13 @@ public final class DbPostProcessor {
 	private final int maxCandidates;
 	private final int minSize;
 
+	/**
+	 * 执行 DB 后处理。
+	 *
+	 * @param prob     det 模型输出的概率图
+	 * @param imgShape 原始图像尺寸与缩放比例 [srcH, srcW, ratioH, ratioW]
+	 * @return 检测结果（boxes + scores）
+	 */
 	public Result call(Mat prob, float[] imgShape) {
 		int srcH = (int) imgShape[0];
 		int srcW = (int) imgShape[1];
@@ -197,5 +204,11 @@ public final class DbPostProcessor {
 		return score;
 	}
 
+	/**
+	 * DB 后处理结果。
+	 *
+	 * @param boxes  文本框 (N, 4, 2)
+	 * @param scores 每框分数，长度 N
+	 */
 	public record Result(int[][][] boxes, float[] scores) {}
 }

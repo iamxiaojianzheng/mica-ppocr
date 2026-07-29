@@ -69,6 +69,11 @@ public final class PPOcrV6Engine implements Closeable {
 
 	private boolean closed = false;
 
+	/**
+	 * 创建 PP-OCRv6 推理引擎。
+	 *
+	 * @param config 配置参数
+	 */
 	public PPOcrV6Engine(PPOcrV6Config config) {
 		requireFile(config.getDetModelPath(), "detModelPath");
 		requireFile(config.getRecModelPath(), "recModelPath");
@@ -337,7 +342,19 @@ public final class PPOcrV6Engine implements Closeable {
 	// 内部记录
 	// ==================================================================
 
+	/**
+	 * 检测结果。
+	 *
+	 * @param boxes  文本框 (N, 4, 2) int
+	 * @param scores 每框分数
+	 */
 	public record DetectResult(int[][][] boxes, float[] scores) {}
 
+	/**
+	 * 识别结果。
+	 *
+	 * @param texts  识别文本
+	 * @param scores 每条文本的置信度
+	 */
 	public record RecognizeResult(String[] texts, float[] scores) {}
 }

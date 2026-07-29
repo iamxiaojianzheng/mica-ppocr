@@ -32,8 +32,8 @@ import org.springframework.context.annotation.Bean;
  * 必须在 Spring 容器刷新早期显式调用 OpenCV.loadShared()，否则首次调用
  * Imgproc.xxx 时会抛 UnsatisfiedLinkError。
  *
- * <p>本类以独立的 @AutoConfiguration 形式注册，并通过
- * @AutoConfigureBefore(PPOCRAutoConfiguration.class)
+ * <p>本类以独立的 {@code @AutoConfiguration} 形式注册，并通过
+ * {@code @AutoConfigureBefore(PPOCRAutoConfiguration.class)}
  * 保证在 PPOCRAutoConfiguration 创建 PPOcrV6Engine 之前完成 native 加载。
  *
  * <p>启用条件：classpath 存在 nu.pattern.OpenCV（由 openpnp/opencv 传递引入）。
@@ -44,6 +44,11 @@ import org.springframework.context.annotation.Bean;
 @AutoConfigureBefore(PPOCRAutoConfiguration.class)
 public class OpenCVNativeLoader {
 
+	/**
+	 * 注册一个早期初始化的 Bean，用于在 PPOCRAutoConfiguration 之前完成 OpenCV native 加载。
+	 *
+	 * @return OpenCV native bootstrap
+	 */
 	@Bean
 	public OpenCVNativeBootstrap openCVNativeBootstrap() {
 		return new OpenCVNativeBootstrap();
@@ -55,6 +60,9 @@ public class OpenCVNativeLoader {
 	 */
 	public static class OpenCVNativeBootstrap {
 
+		/**
+		 * 构造时触发 OpenCV 原生库加载。
+		 */
 		public OpenCVNativeBootstrap() {
 			try {
 				OpenCV.loadShared();

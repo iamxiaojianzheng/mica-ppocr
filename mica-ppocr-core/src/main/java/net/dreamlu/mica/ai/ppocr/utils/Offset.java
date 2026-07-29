@@ -137,6 +137,9 @@ public class Offset {
 
 	/**
 	 * 计算多边形面积（使用 OpenCV contourArea，与 pyclipper 的输入计算保持一致）。
+	 *
+	 * @param polygon (N, 2) 顶点列表
+	 * @return 多边形面积
 	 */
 	public static double area(float[][] polygon) {
 		if (polygon == null || polygon.length < 3) {
@@ -153,6 +156,9 @@ public class Offset {
 
 	/**
 	 * 计算闭合多边形周长（使用 OpenCV arcLength）。
+	 *
+	 * @param polygon (N, 2) 顶点列表
+	 * @return 多边形周长
 	 */
 	public static double perimeter(float[][] polygon) {
 		if (polygon == null || polygon.length < 2) {
@@ -169,6 +175,10 @@ public class Offset {
 
 	/**
 	 * 计算 unclip 距离：area * unclipRatio / length，与 pyclipper 等价。
+	 *
+	 * @param polygon     (N, 2) 顶点列表
+	 * @param unclipRatio unclip 比率
+	 * @return unclip 距离
 	 */
 	public static double unclipDistance(float[][] polygon, double unclipRatio) {
 		double a = area(polygon);
@@ -185,6 +195,9 @@ public class Offset {
 
 	/**
 	 * 调试辅助：列出所有候选几何。
+	 *
+	 * @param result 几何对象（Polygon 或 MultiPolygon）
+	 * @return 全部外环顶点数组
 	 */
 	public static List<float[][]> collectAll(Geometry result) {
 		List<float[][]> all = new ArrayList<>();

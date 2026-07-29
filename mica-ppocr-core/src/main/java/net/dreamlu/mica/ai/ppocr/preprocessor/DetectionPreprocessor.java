@@ -43,6 +43,7 @@ import java.util.Set;
  */
 @ToString
 public final class DetectionPreprocessor {
+	/** 支持的 limitType 取值。 */
 	public static final Set<String> VALID_LIMIT_TYPES = Set.of("min", "max");
 	private static final float SCALE = 1.0f / 255.0f;
 	private static final Scalar MEAN = new Scalar(0.485, 0.456, 0.406);
@@ -53,6 +54,13 @@ public final class DetectionPreprocessor {
 	private final String limitType;
 	private final int maxSideLimit;
 
+	/**
+	 * 创建检测预处理器。
+	 *
+	 * @param limitSideLen 限制边长
+	 * @param limitType    限制类型：min 或 max
+	 * @param maxSideLimit 最大边长
+	 */
 	public DetectionPreprocessor(int limitSideLen, String limitType, int maxSideLimit) {
 		if (!VALID_LIMIT_TYPES.contains(limitType)) {
 			throw new IllegalArgumentException("limitType must be one of " + VALID_LIMIT_TYPES + ", got '" + limitType + "'");
@@ -68,6 +76,12 @@ public final class DetectionPreprocessor {
 		this.maxSideLimit = maxSideLimit;
 	}
 
+	/**
+	 * 执行预处理。
+	 *
+	 * @param imgBgr BGR 图像 (H, W, 3) uint8
+	 * @return 预处理结果
+	 */
 	public Result call(Mat imgBgr) {
 		int srcH = imgBgr.rows();
 		int srcW = imgBgr.cols();
@@ -142,6 +156,13 @@ public final class DetectionPreprocessor {
 
 	/**
 	 * 静态工具：根据给定 (h, w) 计算 resize 后的实际 (rh, rw)。
+	 *
+	 * @param h       原始高
+	 * @param w       原始宽
+	 * @param limit   限制边长
+	 * @param type    限制类型：min 或 max
+	 * @param maxSide 最大边长
+	 * @return [rh, rw]
 	 */
 	public static int[] computeResizedHW(int h, int w, int limit, String type, int maxSide) {
 		double ratio = "max".equals(type)
@@ -159,6 +180,13 @@ public final class DetectionPreprocessor {
 		return new int[]{rh, rw};
 	}
 
+	/**
+	 * det 预处理结果。
+	 *
+	 * @param data     NCHW flat float[] 数据
+	 * @param shape    [N, C, H, W]
+	 * @param imgShape [srcH, srcW, ratioH, ratioW]
+	 */
 	public record Result(float[] data, int[] shape, float[] imgShape) {}
 
 	private record ResizeOutcome(Mat image, double ratioH, double ratioW) {}

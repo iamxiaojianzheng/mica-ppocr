@@ -84,6 +84,9 @@ public class BoxUtil {
 
 	/**
 	 * 重载：接受 float[][] 形式的 (N, 2) 多边形顶点。
+	 *
+	 * @param polygon 多边形顶点 (N, 2)
+	 * @return MinAreaBox 包含 4 顶点（Point）与短边长度
 	 */
 	public static MinAreaBox orderMinAreaBoxPoints(float[][] polygon) {
 		Point[] pts = new Point[polygon.length];
@@ -98,8 +101,8 @@ public class BoxUtil {
 	/**
 	 * 按阅读顺序（从上到下、从左到右）排序文本框。
 	 *
-	 * <p>算法：先按 (y0, x0) 主排序；再对相邻 y0 差值 < 10 的（视为同一行）
-	 * 做插入排序稳定重排。时间复杂度 O(n²)，对典型数十个框可接受。
+	 * <p>算法：先按 (y0, x0) 主排序；再对相邻 y0 差值 {@code < 10} 的（视为同一行）
+	 * 做插入排序稳定重排。时间复杂度 {@code O(n²)}，对典型数十个框可接受。
 	 *
 	 * @param boxes (N, 4, 2) 文本框数组
 	 * @return 排序后的新数组
@@ -148,6 +151,11 @@ public class BoxUtil {
 	 * @param minSideLen 短边长度（像素）
 	 */
 	public record MinAreaBox(Point[] points, float minSideLen) {
+		/**
+		 * 将顶点转换为 (4, 2) 的 float 数组。
+		 *
+		 * @return float[][] 形式的 4 顶点坐标
+		 */
 		public float[][] asFloatArray() {
 			float[][] out = new float[4][2];
 			for (int i = 0; i < 4; i++) {

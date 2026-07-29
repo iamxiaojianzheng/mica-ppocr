@@ -105,6 +105,10 @@ public final class CropUtil {
 
 	/**
 	 * 获取最小面积外接矩形并透视裁剪。
+	 *
+	 * @param img  源图像 (H, W, 3) uint8
+	 * @param poly 四个顶点 (4, 2)
+	 * @return 裁剪后的图像；参数非法或透视失败时返回 null
 	 */
 	public static Mat minAreaRectCrop(Mat img, float[][] poly) {
 		if (poly == null || poly.length < 4) {

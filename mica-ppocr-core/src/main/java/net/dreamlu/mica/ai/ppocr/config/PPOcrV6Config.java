@@ -81,6 +81,11 @@ public final class PPOcrV6Config {
 	@Builder.Default
 	private int interOpNumThreads = 1;
 
+	/**
+	 * 返回使用全部默认字段的 PPOcrV6Config。
+	 *
+	 * @return 默认配置
+	 */
 	public static PPOcrV6Config defaults() {
 		return builder().build();
 	}

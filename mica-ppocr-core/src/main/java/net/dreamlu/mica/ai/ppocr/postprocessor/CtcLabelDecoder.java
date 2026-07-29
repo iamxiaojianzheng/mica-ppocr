@@ -34,14 +34,25 @@ import java.util.List;
 @ToString
 public final class CtcLabelDecoder {
 
+	/** CTC blank 标签索引。 */
 	public static final int BLANK = 0;
 
 	private final String[] chars;
 
+	/**
+	 * 通过字符字典文件路径构造解码器。
+	 *
+	 * @param characterDictPath 字符字典文件路径
+	 */
 	public CtcLabelDecoder(String characterDictPath) {
 		this(Path.of(characterDictPath));
 	}
 
+	/**
+	 * 通过字符字典文件 Path 构造解码器。
+	 *
+	 * @param characterDictPath 字符字典文件
+	 */
 	public CtcLabelDecoder(Path characterDictPath) {
 		if (!Files.isReadable(characterDictPath)) {
 			throw new IllegalArgumentException(
@@ -76,10 +87,22 @@ public final class CtcLabelDecoder {
 		return s.substring(0, end);
 	}
 
+	/**
+	 * 词表大小（包含 blank）。
+	 *
+	 * @return 字符字典大小
+	 */
 	public int vocabSize() {
 		return chars.length;
 	}
 
+	/**
+	 * 解码索引与概率。
+	 *
+	 * @param indices (B, T) int 索引
+	 * @param probs   (B, T) float 概率，可为 null
+	 * @return 解码结果
+	 */
 	public Result decode(int[][] indices, float[][] probs) {
 		int b = indices.length;
 		String[] texts = new String[b];
@@ -128,11 +151,23 @@ public final class CtcLabelDecoder {
 		return new Result(texts, scores);
 	}
 
+	/**
+	 * 直接对模型输出 (B, T, C) 进行解码。
+	 *
+	 * @param modelOutput 模型输出张量
+	 * @return 解码结果
+	 */
 	public Result call(float[][][] modelOutput) {
 		int[][] indices = NdArrayUtils.argmaxLastAxis(modelOutput);
 		float[][] probs = NdArrayUtils.maxLastAxis(modelOutput);
 		return decode(indices, probs);
 	}
 
+	/**
+	 * CTC 解码结果。
+	 *
+	 * @param texts  解码后的字符串数组
+	 * @param scores 每条字符串的平均置信度
+	 */
 	public record Result(String[] texts, float[] scores) {}
 }
