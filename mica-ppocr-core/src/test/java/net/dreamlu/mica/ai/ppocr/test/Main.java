@@ -43,7 +43,7 @@ public class Main {
 	/**
 	 * 模型档位：tiny / small / medium
 	 */
-	private static final String TIER = "medium";
+	private static final String TIER = "tiny";
 	/**
 	 * 推理图片路径，相对工程根目录
 	 */
