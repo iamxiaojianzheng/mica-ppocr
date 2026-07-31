@@ -79,6 +79,14 @@ private static final String IMAGE_PATH = "test_images/general_ocr_002.png";     
 private static final String VIS_PATH  = "test_images/output_vis.png";           // 可视化结果；传 null 跳过
 ```
 
+### 3.1 识别效果示例
+
+以 `test_images/general_ocr_002.png` 为例（模型档次 `medium`），识别结果可视化如下：
+
+| 输入图片 | 识别结果可视化 |
+|---------|---------------|
+| ![general_ocr_002](test_images/general_ocr_002.png) | ![output_vis](test_images/output_vis.png) |
+
 ## 4. 使用
 
 引入依赖：
