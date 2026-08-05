@@ -25,6 +25,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.util.StringUtils;
 
 /**
  * PP-OCR 自动配置。
@@ -87,8 +88,8 @@ public class PPOCRAutoConfiguration {
 	}
 
 	private static void requireNonBlank(String value, String name) {
-		if (value == null || value.isBlank()) {
-			throw new IllegalStateException(
+		if (!StringUtils.hasText(value)) {
+			throw new IllegalArgumentException(
 				"mica-ppocr 启用失败：[" + name + "] 必须配置（可在 application.yml 中设置 mica.ai.ppocr.enabled=false 关闭该 Starter）");
 		}
 	}

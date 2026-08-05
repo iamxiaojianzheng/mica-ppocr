@@ -18,7 +18,6 @@
         <dependency>
             <groupId>net.dreamlu</groupId>
             <artifactId>mica-ppocr-core</artifactId>
-            <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -28,6 +27,11 @@
             <groupId>net.dreamlu</groupId>
             <artifactId>mica-auto</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
