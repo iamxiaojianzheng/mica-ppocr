@@ -74,18 +74,30 @@ mvn -pl mica-ppocr-core exec:java -Dexec.mainClass=net.dreamlu.mica.ai.ppocr.tes
 源码中三个常量按需修改：
 
 ```java
-private static final String TIER      = "tiny";                                  // tiny / small / medium
-private static final String IMAGE_PATH = "test_images/general_ocr_002.png";     // 待推理图片
-private static final String VIS_PATH  = "test_images/output_vis.png";           // 可视化结果；传 null 跳过
+private static final String TIER      = "tiny";                 // tiny / small / medium
+private static final String IMAGE_PATH = "test_images/1.png";   // 待推理图片
+private static final String VIS_PATH  = "test_images/vis.png";  // 可视化结果；传 null 跳过
 ```
 
 ### 3.1 识别效果示例
 
-以 `test_images/general_ocr_002.png` 为例（模型档次 `medium`），识别结果可视化如下：
+以 `test_images/1.png` 为例（模型档次 `tiny`），识别结果可视化如下：
 
 | 输入图片 | 识别结果可视化 |
 |---------|---------------|
-| ![general_ocr_002](test_images/general_ocr_002.png) | ![output_vis](test_images/output_vis.png) |
+| ![1](test_images/1.png) | ![vis](test_images/vis.png) |
+
+**识别结果：**
+
+```text
+--- 行驶证结构化解析 ---
+plateNo:   京N99FF7
+owner:     王涛
+vin:       6677YY441HN001149
+issueDate: 2017-07-25
+```
+
+注意：测试的行驶证来源于网络，如有侵权，请联系删除。
 
 ## 4. 使用
 

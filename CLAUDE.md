@@ -40,11 +40,6 @@ mvn -DskipTests package      # 全量构建
 mvn package                  # 构建 + 运行测试
 mvn test                     # 运行所有测试
 mvn test -Dtest=NpUtilTest   # 运行单个测试
-
-# 运行 CLI（auto-picks an image from test_images/ if none given）
-java -jar mica-ppocr-core/target/mica-ppocr-core-0.1.0-all.jar test_images/general_ocr_002.png
-java -jar mica-ppocr-core/target/mica-ppocr-core-0.1.0-all.jar img.png -v --no-vis
-java -jar mica-ppocr-core/target/mica-ppocr-core-0.1.0-all.jar img.png --tier small     # 切换模型档次
 ```
 
 Native libs (OpenCV, ONNX Runtime) are pulled by Maven for Windows/Linux/macOS — no manual install.

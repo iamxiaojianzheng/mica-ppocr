@@ -47,11 +47,11 @@ public class Main {
 	/**
 	 * 推理图片路径，相对工程根目录
 	 */
-	private static final String IMAGE_PATH = "test_images/general_ocr_002.png";
+	private static final String IMAGE_PATH = "test_images/1.png";
 	/**
 	 * 可视化结果输出路径，传 null 跳过可视化
 	 */
-	private static final String VIS_PATH = "test_images/output_vis.png";
+	private static final String VIS_PATH = "test_images/vis.png";
 
 	public static void main(String[] args) {
 		nu.pattern.OpenCV.loadShared();
@@ -93,6 +93,13 @@ public class Main {
 				i + 1, r.text(), r.score(),
 				b[0][0], b[0][1], b[1][0], b[1][1], b[2][0], b[2][1], b[3][0], b[3][1]);
 		}
+
+		VehicleLicenseResult license = VehicleLicenseParser.parse(results);
+		System.out.println("\n--- 行驶证结构化解析 ---");
+		System.out.println("plateNo:   " + license.getPlateNo());
+		System.out.println("owner:     " + license.getOwner());
+		System.out.println("vin:       " + license.getVin());
+		System.out.println("issueDate: " + license.getIssueDate());
 
 		if (VIS_PATH != null) {
 			saveVis(img, results, VIS_PATH);
