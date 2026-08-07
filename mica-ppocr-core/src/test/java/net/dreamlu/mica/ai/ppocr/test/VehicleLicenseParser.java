@@ -26,12 +26,15 @@ import java.util.regex.Pattern;
 /**
  * 行驶证 OCR 结构化解析工具类。
  *
- * <p>采用"标签定位 + 位置匹配"策略：对每个字段标签（号牌号码/所有人/车辆识别代号/发证日期），
+ * <p>采用"标签定位 + 位置匹配"策略：对每个字段标签（号牌号码/车辆类型/所有人/车辆识别代号/发证日期），
  * 找到标签框后，在 x 起点位于标签右边缘右侧（容忍边界 1px 相接）、y 范围与标签框重叠的
  * 候选值框中，取最靠左（x 最小）的文本作为字段值。
  *
  * <p>找不到标签或值框时字段置 null，不中断。位置匹配天然能区分同值的
  * "注册日期/发证日期"（两个日期文本相同但位于不同标签右侧）。
+ *
+ * <p>车牌/VIN/发证日期在标签定位失败时按内容特征正则兜底；车辆类型为自由中文文本
+ * 无固定格式，仅标签定位，不做正则兜底。
  */
 @Slf4j
 @UtilityClass
@@ -61,6 +64,7 @@ public class VehicleLicenseParser {
 	 *
 	 * <p>车牌/VIN/发证日期采用"标签定位优先、正则兜底"策略：标签匹配失败时，
 	 * 按内容特征（车牌号 7~8 位、VIN 17 位、日期 yyyy-MM-dd）扫描全部结果。
+	 * 车辆类型为自由中文文本无固定格式，仅标签定位，不做正则兜底。
 	 *
 	 * @param results OCR 结果列表
 	 * @return 结构化解析结果
@@ -69,6 +73,7 @@ public class VehicleLicenseParser {
 	   VehicleLicenseResult license = new VehicleLicenseResult();
 	   license.setPlateNo(labelOrFallback(matchValue(results, "号牌号码"), results, PLATE_PATTERN, "车牌", false));
 	   license.setOwner(matchValue(results, "所有人"));
+	   license.setVehicleType(matchValue(results, "车辆类型"));
 
 	   String vin = labelOrFallback(matchValue(results, "车辆识别代号"), results, VIN_PATTERN, "VIN", false);
 	   if (vin == null) {

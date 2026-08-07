@@ -96,9 +96,10 @@ public class Main {
 
 		VehicleLicenseResult license = VehicleLicenseParser.parse(results);
 		System.out.println("\n--- 行驶证结构化解析 ---");
-		System.out.println("plateNo:   " + license.getPlateNo());
-		System.out.println("owner:     " + license.getOwner());
-		System.out.println("vin:       " + license.getVin());
+		System.out.println("plateNo:      " + license.getPlateNo());
+		System.out.println("owner:        " + license.getOwner());
+		System.out.println("vehicleType:  " + license.getVehicleType());
+		System.out.println("vin:          " + license.getVin());
 		System.out.println("issueDate: " + license.getIssueDate());
 
 		if (VIS_PATH != null) {

@@ -32,6 +32,10 @@ public class VehicleLicenseResult {
 	 */
 	private String owner;
 	/**
+	 * 车辆类型
+	 */
+	private String vehicleType;
+	/**
 	 * 车架号/车辆识别代号
 	 */
 	private String vin;

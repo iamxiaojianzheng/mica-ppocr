@@ -91,10 +91,11 @@ private static final String VIS_PATH  = "test_images/vis.png";  // 可视化结�
 
 ```text
 --- 行驶证结构化解析 ---
-plateNo:   京N99FF7
-owner:     王涛
-vin:       6677YY441HN001149
-issueDate: 2017-07-25
+plateNo:      鲁GH9P12
+owner:        盛瑞传动股份有限公司
+vehicleType:  小型普通客车
+vin:          LJ8F3D5H910700001
+issueDate: 2018-02-24
 ```
 
 注意：测试的行驶证来源于网络，如有侵权，请联系删除。
