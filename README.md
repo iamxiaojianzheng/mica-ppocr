@@ -108,7 +108,7 @@ issueDate: 2018-02-24
 <dependency>
     <groupId>net.dreamlu.mica.ai</groupId>
     <artifactId>mica-ppocr-core</artifactId>
-    <version>0.1.0</version>
+    <version>${mica.ppocr.version}</version>
 </dependency>
 ```
 
@@ -154,7 +154,7 @@ public class Demo {
 <dependency>
     <groupId>net.dreamlu.mica.ai</groupId>
     <artifactId>mica-ppocr-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>${mica.ppocr.version}</version>
 </dependency>
 ```
 
