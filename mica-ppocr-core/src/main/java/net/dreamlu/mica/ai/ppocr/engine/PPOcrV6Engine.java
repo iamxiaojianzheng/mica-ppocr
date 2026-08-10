@@ -104,15 +104,19 @@ public final class PPOcrV6Engine implements Closeable {
 			throw new RuntimeException("创建 ONNX Runtime 会话失败: " + e.getMessage(), e);
 		}
 
-		this.detInputName = detSession.getInputNames().iterator().next();
-		this.recInputName = recSession.getInputNames().iterator().next();
-
-		this.detPre = new DetectionPreprocessor(config.getDetLimitSideLen(), config.getDetLimitType(), config.getDetMaxSideLimit());
-		this.detPost = new DbPostProcessor(config.getDetThresh(), config.getDetBoxThresh(), config.getDetUnclipRatio(),
-				1000, 3);
-		this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
-		this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
-		this.recBatchSize = config.getRecBatchSize();
+		try {
+			this.detInputName = detSession.getInputNames().iterator().next();
+			this.recInputName = recSession.getInputNames().iterator().next();
+			this.detPre = new DetectionPreprocessor(config.getDetLimitSideLen(), config.getDetLimitType(), config.getDetMaxSideLimit());
+			this.detPost = new DbPostProcessor(config.getDetThresh(), config.getDetBoxThresh(), config.getDetUnclipRatio(),
+					1000, 3);
+			this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
+			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
+			this.recBatchSize = config.getRecBatchSize();
+		} catch (RuntimeException e) {
+			close();
+			throw e;
+		}
 
 		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}",
 			this.detPre, this.recPre, this.recPost.vocabSize());
