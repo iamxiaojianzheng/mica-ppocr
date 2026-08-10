@@ -110,6 +110,10 @@ class PPOcrV6EngineResourceTest {
 	}
 
 	private static Path findRepositoryRoot() {
+		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
+		if (multiModuleDir != null) {
+			return Path.of(multiModuleDir);
+		}
 		Path current = Path.of("").toAbsolutePath();
 		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
 			current = current.getParent();
