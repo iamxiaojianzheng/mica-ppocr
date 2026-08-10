@@ -18,33 +18,76 @@ package net.dreamlu.mica.ai.ppocr.engine;
 
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.opencv.core.Mat;
+import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Verifies that a long-lived engine remains usable after per-run native resources are released,
+ * and that constructor-failure paths do not leak file descriptors.
+ */
 class PPOcrV6EngineResourceTest {
 	private static final Path PROC_FD_DIR = Path.of("/proc/self/fd");
-	private static final Path DET_MODEL = Path.of("models/ppocr-v6/tiny/det.onnx");
-	private static final Path REC_MODEL = Path.of("models/ppocr-v6/tiny/rec.onnx");
-	private static final Path DICT = Path.of("models/ppocr-v6/tiny/dict.txt");
 	private static final long MAX_FD_DELTA = 2L; // allow tiny /proc fd stream jitter during counting
+
+	@BeforeAll
+	static void loadOpenCv() {
+		nu.pattern.OpenCV.loadShared();
+	}
+
+	@Test
+	void repeatedRunProducesStableResults() {
+		Path root = findRepositoryRoot();
+		Path modelDir = root.resolve("models/ppocr-v6/tiny");
+		Mat image = Imgcodecs.imread(root.resolve("test_images/2.png").toString());
+		try {
+			assertFalse(image.empty(), "test image should load");
+
+			PPOcrV6Config config = PPOcrV6Config.builder()
+				.detModelPath(modelDir.resolve("det.onnx").toString())
+				.recModelPath(modelDir.resolve("rec.onnx").toString())
+				.recCharDictPath(modelDir.resolve("dict.txt").toString())
+				.build();
+
+			try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+				List<String> expected = texts(engine.run(image));
+				assertFalse(expected.isEmpty(), "OCR should return at least one result");
+				for (int i = 0; i < 2; i++) {
+					assertEquals(expected, texts(engine.run(image)));
+				}
+			}
+		} finally {
+			image.release();
+		}
+	}
 
 	@Test
 	void shouldCloseOrtSessionsWhenConstructorFailsAfterSessionCreation() throws IOException {
 		Assumptions.assumeTrue(Files.isDirectory(PROC_FD_DIR), "requires /proc/self/fd");
-		Assumptions.assumeTrue(Files.isRegularFile(DET_MODEL), "requires tiny det model");
-		Assumptions.assumeTrue(Files.isRegularFile(REC_MODEL), "requires tiny rec model");
-		Assumptions.assumeTrue(Files.isRegularFile(DICT), "requires tiny dict");
+		Path root = findRepositoryRoot();
+		Path detModel = root.resolve("models/ppocr-v6/tiny/det.onnx");
+		Path recModel = root.resolve("models/ppocr-v6/tiny/rec.onnx");
+		Path dict = root.resolve("models/ppocr-v6/tiny/dict.txt");
+		Assumptions.assumeTrue(Files.isRegularFile(detModel), "requires tiny det model");
+		Assumptions.assumeTrue(Files.isRegularFile(recModel), "requires tiny rec model");
+		Assumptions.assumeTrue(Files.isRegularFile(dict), "requires tiny dict");
+
 		PPOcrV6Config config = PPOcrV6Config.builder()
-			.detModelPath(DET_MODEL.toString())
-			.recModelPath(REC_MODEL.toString())
-			.recCharDictPath(DICT.toString())
+			.detModelPath(detModel.toString())
+			.recModelPath(recModel.toString())
+			.recCharDictPath(dict.toString())
 			.detLimitType("invalid")
 			.build();
 
@@ -56,9 +99,24 @@ class PPOcrV6EngineResourceTest {
 		assertTrue(after - before <= MAX_FD_DELTA, "constructor failure leaked file descriptors: before=" + before + ", after=" + after);
 	}
 
+	private static List<String> texts(List<PPOcrV6Result> results) {
+		return results.stream().map(PPOcrV6Result::text).toList();
+	}
+
 	private static long openFdCount() throws IOException {
 		try (Stream<Path> files = Files.list(PROC_FD_DIR)) {
 			return files.count();
 		}
+	}
+
+	private static Path findRepositoryRoot() {
+		Path current = Path.of("").toAbsolutePath();
+		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
+			current = current.getParent();
+		}
+		if (current == null) {
+			throw new IllegalStateException("repository root with test models not found");
+		}
+		return current;
 	}
 }

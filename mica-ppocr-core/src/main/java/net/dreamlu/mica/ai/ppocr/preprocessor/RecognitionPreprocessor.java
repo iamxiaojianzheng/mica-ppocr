@@ -98,36 +98,42 @@ public final class RecognitionPreprocessor {
 			int targetW = (int) (h * whRatio);
 
 			int actualW;
-			Mat resized;
-			if (targetW > wMax) {
-				resized = new Mat();
-				Imgproc.resize(img, resized, new Size(wMax, h), 0, 0, Imgproc.INTER_LINEAR);
-				actualW = wMax;
-				targetW = wMax;
-			} else {
-				actualW = Math.min(NdArrayUtils.ceilDiv(h * srcW, srcH), targetW);
-				resized = new Mat();
-				Imgproc.resize(img, resized, new Size(actualW, h), 0, 0, Imgproc.INTER_LINEAR);
-			}
-			widths[i] = targetW;
-			actualWs[i] = actualW;
+			Mat resized = new Mat();
+			try {
+				if (targetW > wMax) {
+					Imgproc.resize(img, resized, new Size(wMax, h), 0, 0, Imgproc.INTER_LINEAR);
+					actualW = wMax;
+					targetW = wMax;
+				} else {
+					actualW = Math.min(NdArrayUtils.ceilDiv(h * srcW, srcH), targetW);
+					Imgproc.resize(img, resized, new Size(actualW, h), 0, 0, Imgproc.INTER_LINEAR);
+				}
+				widths[i] = targetW;
+				actualWs[i] = actualW;
 
-			Mat f = NdArrayUtils.toFloat32(resized);
-			float[] hwcRaw = NdArrayUtils.matToFlatHwc(f);
-			f.release();
-			int nPix = hwcRaw.length;
-			for (int k = 0; k < nPix; k++) {
-				hwcRaw[k] = (hwcRaw[k] / 255.0f - 0.5f) / 0.5f;
+				Mat f = NdArrayUtils.toFloat32(resized);
+				float[] hwcRaw;
+				try {
+					hwcRaw = NdArrayUtils.matToFlatHwc(f);
+				} finally {
+					f.release();
+				}
+				int nPix = hwcRaw.length;
+				for (int k = 0; k < nPix; k++) {
+					hwcRaw[k] = (hwcRaw[k] / 255.0f - 0.5f) / 0.5f;
+				}
+				float[][] chw = new float[CHANNELS][h * actualW];
+				int hw = h * actualW;
+				for (int j = 0; j < hw; j++) {
+					int baseHwc = j * CHANNELS;
+					chw[0][j] = hwcRaw[baseHwc];
+					chw[1][j] = hwcRaw[baseHwc + 1];
+					chw[2][j] = hwcRaw[baseHwc + 2];
+				}
+				perImgChw.add(chw);
+			} finally {
+				resized.release();
 			}
-			float[][] chw = new float[CHANNELS][h * actualW];
-			int hw = h * actualW;
-			for (int j = 0; j < hw; j++) {
-				int baseHwc = j * CHANNELS;
-				chw[0][j] = hwcRaw[baseHwc];
-				chw[1][j] = hwcRaw[baseHwc + 1];
-				chw[2][j] = hwcRaw[baseHwc + 2];
-			}
-			perImgChw.add(chw);
 		}
 
 		int maxW = 0;
