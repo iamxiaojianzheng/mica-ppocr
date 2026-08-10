@@ -67,40 +67,57 @@ public final class CropUtil {
 		}
 
 		Mat src = new Mat(4, 1, CvType.CV_32FC2);
-		for (int i = 0; i < 4; i++) {
-			src.put(i, 0, pts[i][0], pts[i][1]);
-		}
-		Mat dst = new Mat(4, 1, CvType.CV_32FC2);
-		dst.put(0, 0, 0, 0,
-			cropW, 0,
-			cropW, cropH,
-			0, cropH);
-
-		Mat M;
+		Mat dst = null;
+		Mat transform = null;
 		try {
-			M = Imgproc.getPerspectiveTransform(src, dst);
-		} catch (Exception e) {
-			log.debug("Degenerate quadrilateral in perspective crop, skipping: {}", e.getMessage());
+			for (int i = 0; i < 4; i++) {
+				src.put(i, 0, pts[i][0], pts[i][1]);
+			}
+			dst = new Mat(4, 1, CvType.CV_32FC2);
+			dst.put(0, 0, 0, 0,
+				cropW, 0,
+				cropW, cropH,
+				0, cropH);
+
+			try {
+				transform = Imgproc.getPerspectiveTransform(src, dst);
+			} catch (Exception e) {
+				log.debug("Degenerate quadrilateral in perspective crop, skipping: {}", e.getMessage());
+				return null;
+			}
+
+			Mat cropped = new Mat();
+			try {
+				Imgproc.warpPerspective(img, cropped, transform, new Size(cropW, cropH),
+					Imgproc.INTER_CUBIC, Core.BORDER_REPLICATE, new org.opencv.core.Scalar(0));
+			} catch (RuntimeException | Error e) {
+				cropped.release();
+				throw e;
+			}
+
+			if ((double) cropped.rows() / cropped.cols() >= 1.5) {
+				// np.rot90: 逆时针旋转 90°
+				Mat rotated = new Mat();
+				try {
+					Core.rotate(cropped, rotated, Core.ROTATE_90_COUNTERCLOCKWISE);
+					return rotated;
+				} catch (RuntimeException | Error e) {
+					rotated.release();
+					throw e;
+				} finally {
+					cropped.release();
+				}
+			}
+			return cropped;
+		} finally {
+			if (transform != null) {
+				transform.release();
+			}
 			src.release();
-			dst.release();
-			return null;
+			if (dst != null) {
+				dst.release();
+			}
 		}
-
-		Mat cropped = new Mat();
-		Imgproc.warpPerspective(img, cropped, M, new Size(cropW, cropH),
-			Imgproc.INTER_CUBIC, Core.BORDER_REPLICATE, new org.opencv.core.Scalar(0));
-		M.release();
-		src.release();
-		dst.release();
-
-		if ((double) cropped.rows() / cropped.cols() >= 1.5) {
-			// np.rot90: 逆时针旋转 90°
-			Mat rot = new Mat();
-			Core.rotate(cropped, rot, Core.ROTATE_90_COUNTERCLOCKWISE);
-			cropped.release();
-			return rot;
-		}
-		return cropped;
 	}
 
 	/**
@@ -127,15 +144,27 @@ public final class CropUtil {
 	 */
 	public static List<Mat> cropByPolys(Mat img, int[][][] dtPolys) {
 		List<Mat> results = new ArrayList<>(dtPolys.length);
-		for (int[][] poly : dtPolys) {
-			Mat crop = minAreaRectCrop(img, polyToFloat(poly));
-			if (crop != null && !crop.empty() && crop.rows() > 0 && crop.cols() > 0) {
-				results.add(crop);
-			} else {
-				results.add(null);
+		try {
+			for (int[][] poly : dtPolys) {
+				Mat crop = minAreaRectCrop(img, polyToFloat(poly));
+				if (crop != null && !crop.empty() && crop.rows() > 0 && crop.cols() > 0) {
+					results.add(crop);
+				} else {
+					if (crop != null) {
+						crop.release();
+					}
+					results.add(null);
+				}
 			}
+			return results;
+		} catch (RuntimeException | Error e) {
+			for (Mat crop : results) {
+				if (crop != null) {
+					crop.release();
+				}
+			}
+			throw e;
 		}
-		return results;
 	}
 
 	private static float[][] polyToFloat(int[][] poly) {

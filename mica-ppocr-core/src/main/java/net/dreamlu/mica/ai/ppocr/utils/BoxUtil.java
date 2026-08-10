@@ -41,45 +41,53 @@ public class BoxUtil {
 	 */
 	public static MinAreaBox orderMinAreaBoxPoints(MatOfPoint contour) {
 		MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
-		RotatedRect rrect = Imgproc.minAreaRect(contour2f);
-		Mat boxMat = new Mat();
-		Imgproc.boxPoints(rrect, boxMat);
+		Mat boxMat = null;
+		try {
+			boxMat = new Mat();
+			RotatedRect rrect = Imgproc.minAreaRect(contour2f);
+			Imgproc.boxPoints(rrect, boxMat);
 
-		Point[] pts = new Point[4];
-		for (int i = 0; i < 4; i++) {
-			float[] buf = new float[2];
-			boxMat.get(i, 0, buf);
-			pts[i] = new Point(buf[0], buf[1]);
+			Point[] pts = new Point[4];
+			for (int i = 0; i < 4; i++) {
+				float[] buf = new float[2];
+				boxMat.get(i, 0, buf);
+				pts[i] = new Point(buf[0], buf[1]);
+			}
+
+			// 按 x 升序
+			Point[] sorted = pts.clone();
+			Arrays.sort(sorted, Comparator.comparingDouble(p -> p.x));
+
+			// 左侧两个点：y 大者为 TL
+			int tlIdx, blIdx;
+			if (sorted[1].y > sorted[0].y) {
+				tlIdx = 0;
+				blIdx = 1;
+			} else {
+				tlIdx = 1;
+				blIdx = 0;
+			}
+			// 右侧两个点：y 大者为 BR
+			int trIdx, brIdx;
+			if (sorted[3].y > sorted[2].y) {
+				trIdx = 2;
+				brIdx = 3;
+			} else {
+				trIdx = 3;
+				brIdx = 2;
+			}
+
+			Point[] ordered = new Point[]{
+				sorted[tlIdx], sorted[trIdx], sorted[brIdx], sorted[blIdx]
+			};
+			float minSide = (float) Math.min(rrect.size.width, rrect.size.height);
+			return new MinAreaBox(ordered, minSide);
+		} finally {
+			if (boxMat != null) {
+				boxMat.release();
+			}
+			contour2f.release();
 		}
-
-		// 按 x 升序
-		Point[] sorted = pts.clone();
-		Arrays.sort(sorted, Comparator.comparingDouble(p -> p.x));
-
-		// 左侧两个点：y 大者为 TL
-		int tlIdx, blIdx;
-		if (sorted[1].y > sorted[0].y) {
-			tlIdx = 0;
-			blIdx = 1;
-		} else {
-			tlIdx = 1;
-			blIdx = 0;
-		}
-		// 右侧两个点：y 大者为 BR
-		int trIdx, brIdx;
-		if (sorted[3].y > sorted[2].y) {
-			trIdx = 2;
-			brIdx = 3;
-		} else {
-			trIdx = 3;
-			brIdx = 2;
-		}
-
-		Point[] ordered = new Point[]{
-			sorted[tlIdx], sorted[trIdx], sorted[brIdx], sorted[blIdx]
-		};
-		float minSide = (float) Math.min(rrect.size.width, rrect.size.height);
-		return new MinAreaBox(ordered, minSide);
 	}
 
 	/**
@@ -94,8 +102,12 @@ public class BoxUtil {
 			pts[i] = new Point(polygon[i][0], polygon[i][1]);
 		}
 		MatOfPoint mop = new MatOfPoint();
-		mop.fromArray(pts);
-		return orderMinAreaBoxPoints(mop);
+		try {
+			mop.fromArray(pts);
+			return orderMinAreaBoxPoints(mop);
+		} finally {
+			mop.release();
+		}
 	}
 
 	/**
