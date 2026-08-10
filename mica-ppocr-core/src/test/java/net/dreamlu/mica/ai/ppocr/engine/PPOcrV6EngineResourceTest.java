@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PPOcrV6EngineResourceTest {
 	private static final Path PROC_FD_DIR = Path.of("/proc/self/fd");
+	private static final long MAX_FD_DELTA = 2L;
 
 	@Test
 	void shouldCloseOrtSessionsWhenConstructorFailsAfterSessionCreation() throws IOException {
@@ -41,14 +42,12 @@ class PPOcrV6EngineResourceTest {
 			.detLimitType("invalid")
 			.build();
 
-		assertThrows(IllegalArgumentException.class, () -> new PPOcrV6Engine(config));
-
 		long before = openFdCount();
 		for (int i = 0; i < 20; i++) {
 			assertThrows(IllegalArgumentException.class, () -> new PPOcrV6Engine(config));
 		}
 		long after = openFdCount();
-		assertTrue(after - before <= 2, "constructor failure leaked file descriptors: before=" + before + ", after=" + after);
+		assertTrue(after - before <= MAX_FD_DELTA, "constructor failure leaked file descriptors: before=" + before + ", after=" + after);
 	}
 
 	private static long openFdCount() throws IOException {

@@ -113,9 +113,12 @@ public final class PPOcrV6Engine implements Closeable {
 			this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
 			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
 			this.recBatchSize = config.getRecBatchSize();
-		} catch (RuntimeException e) {
+		} catch (Exception e) {
 			close();
-			throw e;
+			if (e instanceof RuntimeException re) {
+				throw re;
+			}
+			throw new RuntimeException("初始化 PPOcrV6Engine 失败: " + e.getMessage(), e);
 		}
 
 		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}",
