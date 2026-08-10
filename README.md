@@ -61,6 +61,10 @@ models/ppocr-v6/
 | 复杂版面 / 低质量图片 | `medium` | 检测与识别精度最高 |
 | 生僻字及全字符集场景 | `medium` | 字符表约 7180 个，覆盖面更广 |
 
+### 2.4 模型评分
+
+![模型评分](docs/images/v6acc_opt.png)
+
 ## 3. 本地 main 测试
 
 [mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/Main.java](mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/Main.java) 是一个**写死路径的本地测试入口**，直接运行即可对一张图片做 OCR 推理，便于快速验证。
@@ -87,6 +91,8 @@ private static final String VIS_PATH  = "test_images/vis.png";  // 可视化结�
 |---------|---------------|
 | ![1](test_images/1.png) | ![vis](test_images/vis.png) |
 
+注意：测试的行驶证来源于网络，如有侵权，请联系删除。
+
 **识别结果：**
 
 ```text
@@ -98,7 +104,7 @@ vin:          LJ8F3D5H910700001
 issueDate: 2018-02-24
 ```
 
-注意：测试的行驶证来源于网络，如有侵权，请联系删除。
+注意：识别结果结构化采用`标签定位 + 位置匹配 + 正则兜底`的四步法，可以参考 [VehicleLicenseParser](mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/VehicleLicenseParser.java) 
 
 ## 4. 使用
 
