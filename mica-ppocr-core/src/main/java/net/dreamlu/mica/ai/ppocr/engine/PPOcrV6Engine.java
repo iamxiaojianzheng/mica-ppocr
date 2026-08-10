@@ -37,6 +37,7 @@ import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * PP-OCRv6 纯 ONNX Runtime 推理引擎。
@@ -110,16 +111,13 @@ public final class PPOcrV6Engine implements Closeable {
 			this.recInputName = recSession.getInputNames().iterator().next();
 			this.detPre = new DetectionPreprocessor(config.getDetLimitSideLen(), config.getDetLimitType(), config.getDetMaxSideLimit());
 			this.detPost = new DbPostProcessor(config.getDetThresh(), config.getDetBoxThresh(), config.getDetUnclipRatio(),
-					1000, 3);
+				1000, 3);
 			this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
 			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
 			this.recBatchSize = config.getRecBatchSize();
-		} catch (Exception e) {
+		} catch (RuntimeException e) {
 			closeOnInitFailure(e);
-			if (e instanceof RuntimeException re) {
-				throw re;
-			}
-			throw new RuntimeException("初始化 PPOcrV6Engine 失败: " + e.getMessage(), e);
+			throw e;
 		}
 
 		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}",
@@ -136,34 +134,33 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	private void closeOnInitFailure(Exception cause) {
-		try {
-			if (detSession != null) detSession.close();
-		} catch (Exception e) {
-			cause.addSuppressed(e);
-		}
-		try {
-			if (recSession != null) recSession.close();
-		} catch (Exception e) {
-			cause.addSuppressed(e);
-		}
+		closeSessions(cause::addSuppressed);
 		closed = true;
 	}
 
 	@Override
 	public void close() {
 		if (!closed) {
-			try {
-				if (detSession != null) detSession.close();
-			} catch (OrtException e) {
-				log.debug("关闭 det session 失败: {}", e.getMessage());
-			}
-			try {
-				if (recSession != null) recSession.close();
-			} catch (OrtException e) {
-				log.debug("关闭 rec session 失败: {}", e.getMessage());
-			}
+			closeSessions(e -> log.debug("关闭 session 失败: {}", e.getMessage()));
 			closed = true;
 			log.info("PPOcrV6Engine 已关闭");
+		}
+	}
+
+	private void closeSessions(Consumer<OrtException> onError) {
+		if (detSession != null) {
+			try {
+				detSession.close();
+			} catch (OrtException e) {
+				onError.accept(e);
+			}
+		}
+		if (recSession != null) {
+			try {
+				recSession.close();
+			} catch (OrtException e) {
+				onError.accept(e);
+			}
 		}
 	}
 
@@ -190,8 +187,10 @@ public final class PPOcrV6Engine implements Closeable {
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
 		long[] detShape = toLongArray(prep.shape());
 		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
-		try (OnnxTensor input = tensor(buf, detShape);
-			 OrtSession.Result result = detSession.run(Collections.singletonMap(detInputName, input))) {
+		try (
+			OnnxTensor input = tensor(buf, detShape);
+			OrtSession.Result result = detSession.run(Collections.singletonMap(detInputName, input))
+		) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(0);
 			float[][] prob = readProb2D(outTensor);
 			Mat probMat = probToMat(prob, prep.imgShape());
@@ -247,8 +246,10 @@ public final class PPOcrV6Engine implements Closeable {
 			RecognitionPreprocessor.Result prep = recPre.call(batch);
 			long[] shape = toLongArray(prep.shape());
 			FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
-			try (OnnxTensor input = tensor(buf, shape);
-				 OrtSession.Result result = recSession.run(Collections.singletonMap(recInputName, input))) {
+			try (
+				OnnxTensor input = tensor(buf, shape);
+				OrtSession.Result result = recSession.run(Collections.singletonMap(recInputName, input))
+			) {
 				OnnxTensor outTensor = (OnnxTensor) result.get(0);
 				float[][][] modelOutput = read3D(outTensor);
 				CtcLabelDecoder.Result decoded = recPost.call(modelOutput);
@@ -387,7 +388,8 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param boxes  文本框 (N, 4, 2) int
 	 * @param scores 每框分数
 	 */
-	public record DetectResult(int[][][] boxes, float[] scores) {}
+	public record DetectResult(int[][][] boxes, float[] scores) {
+	}
 
 	/**
 	 * 识别结果。
@@ -395,5 +397,6 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param texts  识别文本
 	 * @param scores 每条文本的置信度
 	 */
-	public record RecognizeResult(String[] texts, float[] scores) {}
+	public record RecognizeResult(String[] texts, float[] scores) {
+	}
 }

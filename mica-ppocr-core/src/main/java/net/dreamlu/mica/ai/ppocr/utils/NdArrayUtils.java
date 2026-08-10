@@ -35,7 +35,7 @@ import java.util.List;
  * </ul>
  */
 @UtilityClass
-public final class NdArrayUtils {
+public class NdArrayUtils {
 
 	/**
 	 * HWC flat 转 CHW flat。

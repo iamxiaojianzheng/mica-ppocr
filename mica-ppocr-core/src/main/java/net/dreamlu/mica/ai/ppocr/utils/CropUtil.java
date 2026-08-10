@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.utils;
 
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -38,9 +39,8 @@ import java.util.List;
  * </ol>
  */
 @Slf4j
-public final class CropUtil {
-
-	private CropUtil() {}
+@UtilityClass
+public class CropUtil {
 
 	/**
 	 * 透视变换裁剪旋转文本区域。
