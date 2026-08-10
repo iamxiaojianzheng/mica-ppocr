@@ -114,7 +114,7 @@ public final class PPOcrV6Engine implements Closeable {
 			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
 			this.recBatchSize = config.getRecBatchSize();
 		} catch (Exception e) {
-			close();
+			closeOnInitFailure(e);
 			if (e instanceof RuntimeException re) {
 				throw re;
 			}
@@ -132,6 +132,20 @@ public final class PPOcrV6Engine implements Closeable {
 		if (!Files.isRegularFile(Path.of(path))) {
 			throw new IllegalArgumentException(name + ": file not found: " + path);
 		}
+	}
+
+	private void closeOnInitFailure(Exception cause) {
+		try {
+			if (detSession != null) detSession.close();
+		} catch (Exception e) {
+			cause.addSuppressed(e);
+		}
+		try {
+			if (recSession != null) recSession.close();
+		} catch (Exception e) {
+			cause.addSuppressed(e);
+		}
+		closed = true;
 	}
 
 	@Override

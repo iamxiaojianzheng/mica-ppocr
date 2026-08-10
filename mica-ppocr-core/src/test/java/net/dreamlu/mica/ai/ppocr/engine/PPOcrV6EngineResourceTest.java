@@ -30,15 +30,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PPOcrV6EngineResourceTest {
 	private static final Path PROC_FD_DIR = Path.of("/proc/self/fd");
-	private static final long MAX_FD_DELTA = 2L;
+	private static final Path DET_MODEL = Path.of("models/ppocr-v6/tiny/det.onnx");
+	private static final Path REC_MODEL = Path.of("models/ppocr-v6/tiny/rec.onnx");
+	private static final Path DICT = Path.of("models/ppocr-v6/tiny/dict.txt");
+	private static final long MAX_FD_DELTA = 2L; // allow tiny /proc fd stream jitter during counting
 
 	@Test
 	void shouldCloseOrtSessionsWhenConstructorFailsAfterSessionCreation() throws IOException {
 		Assumptions.assumeTrue(Files.isDirectory(PROC_FD_DIR), "requires /proc/self/fd");
+		Assumptions.assumeTrue(Files.isRegularFile(DET_MODEL), "requires tiny det model");
+		Assumptions.assumeTrue(Files.isRegularFile(REC_MODEL), "requires tiny rec model");
+		Assumptions.assumeTrue(Files.isRegularFile(DICT), "requires tiny dict");
 		PPOcrV6Config config = PPOcrV6Config.builder()
-			.detModelPath("models/ppocr-v6/tiny/det.onnx")
-			.recModelPath("models/ppocr-v6/tiny/rec.onnx")
-			.recCharDictPath("models/ppocr-v6/tiny/dict.txt")
+			.detModelPath(DET_MODEL.toString())
+			.recModelPath(REC_MODEL.toString())
+			.recCharDictPath(DICT.toString())
 			.detLimitType("invalid")
 			.build();
 
