@@ -54,7 +54,7 @@ public class Main {
 	private static final String VIS_PATH = "test_images/vis.png";
 
 	public static void main(String[] args) {
-		nu.pattern.OpenCV.loadShared();
+		nu.pattern.OpenCV.loadLocally();
 
 		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
 		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";

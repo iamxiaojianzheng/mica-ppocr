@@ -65,7 +65,7 @@ public class OpenCVNativeLoader {
 		 */
 		public OpenCVNativeBootstrap() {
 			try {
-				OpenCV.loadShared();
+				OpenCV.loadLocally();
 				log.info("[mica-ppocr] OpenCV 原生库加载完成: {}", Core.VERSION);
 			} catch (Throwable t) {
 				log.error("[mica-ppocr] OpenCV 原生库加载失败，PP-OCR Engine 将不可用", t);

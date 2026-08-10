@@ -44,7 +44,7 @@ class PPOcrV6EngineResourceTest {
 
 	@BeforeAll
 	static void loadOpenCv() {
-		nu.pattern.OpenCV.loadShared();
+		nu.pattern.OpenCV.loadLocally();
 	}
 
 	@Test

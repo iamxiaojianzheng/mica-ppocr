@@ -127,7 +127,7 @@ import java.util.List;
 
 public class Demo {
     public static void main(String[] args) {
-        OpenCV.loadShared();
+        OpenCV.loadLocally();
         Mat img = Imgcodecs.imread("test.png");
         PPOcrV6Config config = PPOcrV6Config.builder()
             .detModelPath("models/ppocr-v6/tiny/det.onnx")

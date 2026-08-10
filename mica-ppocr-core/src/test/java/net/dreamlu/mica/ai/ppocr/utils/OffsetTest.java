@@ -28,7 +28,7 @@ class OffsetTest {
 
 	@BeforeAll
 	static void loadOpenCV() {
-		nu.pattern.OpenCV.loadShared();
+		nu.pattern.OpenCV.loadLocally();
 	}
 
 	@Test
