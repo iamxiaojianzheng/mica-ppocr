@@ -185,11 +185,11 @@ public final class PPOcrV6Engine implements Closeable {
 	public DetectResult detect(Mat imgBgr) {
 		requireOpen();
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
-		long[] detShape = toLongArray(prep.shape());
+		long[] shape = toLongArray(prep.shape());
 		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
 		try (
-			OnnxTensor input = tensor(buf, detShape);
-			OrtSession.Result result = detSession.run(Collections.singletonMap(detInputName, input))
+			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
+			OrtSession.Result result = detSession.run(Map.of(detInputName, input))
 		) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(0);
 			float[][] prob = readProb2D(outTensor);
@@ -247,8 +247,8 @@ public final class PPOcrV6Engine implements Closeable {
 			long[] shape = toLongArray(prep.shape());
 			FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
 			try (
-				OnnxTensor input = tensor(buf, shape);
-				OrtSession.Result result = recSession.run(Collections.singletonMap(recInputName, input))
+				OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
+				OrtSession.Result result = recSession.run(Map.of(recInputName, input))
 			) {
 				OnnxTensor outTensor = (OnnxTensor) result.get(0);
 				float[][][] modelOutput = read3D(outTensor);
@@ -307,14 +307,6 @@ public final class PPOcrV6Engine implements Closeable {
 					crop.release();
 				}
 			}
-		}
-	}
-
-	private OnnxTensor tensor(FloatBuffer buf, long[] shape) {
-		try {
-			return OnnxTensor.createTensor(env, buf, shape);
-		} catch (OrtException e) {
-			throw new RuntimeException("创建 OnnxTensor 失败: " + e.getMessage(), e);
 		}
 	}
 
