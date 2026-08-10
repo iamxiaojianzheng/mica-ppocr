@@ -87,18 +87,28 @@ public final class DetectionPreprocessor {
 		int srcW = imgBgr.cols();
 
 		ResizeOutcome ro = resizeImage(imgBgr, srcH, srcW);
-		Mat norm = normalize(ro.image);
-		int hNew = norm.rows();
-		int wNew = norm.cols();
-		int c = norm.channels();
-		float[] hwcFlat = NdArrayUtils.matToFlatHwc(norm);
-		float[] chw = NdArrayUtils.hwcFlatToNchw(hwcFlat, hNew, wNew, c);
+		Mat norm = null;
+		try {
+			norm = normalize(ro.image);
+			int hNew = norm.rows();
+			int wNew = norm.cols();
+			int c = norm.channels();
+			float[] hwcFlat = NdArrayUtils.matToFlatHwc(norm);
+			float[] chw = NdArrayUtils.hwcFlatToNchw(hwcFlat, hNew, wNew, c);
 
-		float[] shape = new float[]{
-			srcH, srcW,
-			(float) ro.ratioH, (float) ro.ratioW
-		};
-		return new Result(chw, new int[]{1, c, hNew, wNew}, shape);
+			float[] shape = new float[]{
+				srcH, srcW,
+				(float) ro.ratioH, (float) ro.ratioW
+			};
+			return new Result(chw, new int[]{1, c, hNew, wNew}, shape);
+		} finally {
+			if (norm != null) {
+				norm.release();
+			}
+			if (ro.image != imgBgr) {
+				ro.image.release();
+			}
+		}
 	}
 
 	private ResizeOutcome resizeImage(Mat img, int h, int w) {
@@ -126,8 +136,13 @@ public final class DetectionPreprocessor {
 			return new ResizeOutcome(img, 1.0, 1.0);
 		}
 		Mat resized = new Mat();
-		Imgproc.resize(img, resized, new Size(rw, rh), 0, 0, Imgproc.INTER_LINEAR);
-		return new ResizeOutcome(resized, (double) rh / h, (double) rw / w);
+		try {
+			Imgproc.resize(img, resized, new Size(rw, rh), 0, 0, Imgproc.INTER_LINEAR);
+			return new ResizeOutcome(resized, (double) rh / h, (double) rw / w);
+		} catch (RuntimeException | Error e) {
+			resized.release();
+			throw e;
+		}
 	}
 
 	private Mat normalize(Mat img) {
@@ -135,8 +150,12 @@ public final class DetectionPreprocessor {
 		// 处理有 bug（G/R 通道会变成 +Inf），所以这里先转 float32 Mat，
 		// 再用 Java 端循环做归一化 (img * (1/255) - mean) / std。
 		Mat f = NdArrayUtils.toFloat32(img);
-		float[] hwc = NdArrayUtils.matToFlatHwc(f);
-		f.release();
+		float[] hwc;
+		try {
+			hwc = NdArrayUtils.matToFlatHwc(f);
+		} finally {
+			f.release();
+		}
 		int n = hwc.length;
 		int c = 3;
 		int hw = n / c;
@@ -150,8 +169,13 @@ public final class DetectionPreprocessor {
 			hwc[b + 2] = (hwc[b + 2] * scale - meanR) / stdR;
 		}
 		Mat out = new Mat(img.rows(), img.cols(), org.opencv.core.CvType.CV_32FC3);
-		out.put(0, 0, hwc);
-		return out;
+		try {
+			out.put(0, 0, hwc);
+			return out;
+		} catch (RuntimeException | Error e) {
+			out.release();
+			throw e;
+		}
 	}
 
 	/**

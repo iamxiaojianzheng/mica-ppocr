@@ -65,13 +65,20 @@ public final class NdArrayUtils {
 	 * @return HWC flat float[]
 	 */
 	public static float[] matToFlatHwc(Mat hwc) {
-		Mat m = hwc.isContinuous() ? hwc : hwc.clone();
-		int h = m.rows();
-		int w = m.cols();
-		int c = m.channels();
-		float[] data = new float[h * w * c];
-		m.get(0, 0, data);
-		return data;
+		boolean cloned = !hwc.isContinuous();
+		Mat m = cloned ? hwc.clone() : hwc;
+		try {
+			int h = m.rows();
+			int w = m.cols();
+			int c = m.channels();
+			float[] data = new float[h * w * c];
+			m.get(0, 0, data);
+			return data;
+		} finally {
+			if (cloned) {
+				m.release();
+			}
+		}
 	}
 
 	/**
@@ -272,8 +279,13 @@ public final class NdArrayUtils {
 	 */
 	public static Mat toFloat32(Mat src) {
 		Mat dst = new Mat();
-		src.convertTo(dst, CvType.CV_32F);
-		return dst;
+		try {
+			src.convertTo(dst, CvType.CV_32F);
+			return dst;
+		} catch (RuntimeException | Error e) {
+			dst.release();
+			throw e;
+		}
 	}
 
 	/**

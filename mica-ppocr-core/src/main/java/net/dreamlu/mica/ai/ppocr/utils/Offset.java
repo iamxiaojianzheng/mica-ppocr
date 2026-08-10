@@ -150,8 +150,12 @@ public class Offset {
 			pts[i] = new org.opencv.core.Point(polygon[i][0], polygon[i][1]);
 		}
 		org.opencv.core.MatOfPoint2f mop = new org.opencv.core.MatOfPoint2f();
-		mop.fromArray(pts);
-		return org.opencv.imgproc.Imgproc.contourArea(mop);
+		try {
+			mop.fromArray(pts);
+			return org.opencv.imgproc.Imgproc.contourArea(mop);
+		} finally {
+			mop.release();
+		}
 	}
 
 	/**
@@ -169,8 +173,12 @@ public class Offset {
 			pts[i] = new org.opencv.core.Point(polygon[i][0], polygon[i][1]);
 		}
 		org.opencv.core.MatOfPoint2f mop = new org.opencv.core.MatOfPoint2f();
-		mop.fromArray(pts);
-		return org.opencv.imgproc.Imgproc.arcLength(mop, true);
+		try {
+			mop.fromArray(pts);
+			return org.opencv.imgproc.Imgproc.arcLength(mop, true);
+		} finally {
+			mop.release();
+		}
 	}
 
 	/**

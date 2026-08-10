@@ -88,20 +88,21 @@ public final class PPOcrV6Engine implements Closeable {
 		log.info("ONNX Runtime provider: {}", String.join(",", providers));
 		this.env = OrtEnvironment.getEnvironment();
 
-		OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
-		try {
-			opts.setIntraOpNumThreads(Math.max(1, config.getIntraOpNumThreads()));
-			opts.setInterOpNumThreads(Math.max(1, config.getInterOpNumThreads()));
-		} catch (OrtException e) {
-			log.warn("设置线程数失败，使用默认值: {}", e.getMessage());
-		}
+		try (OrtSession.SessionOptions opts = new OrtSession.SessionOptions()) {
+			try {
+				opts.setIntraOpNumThreads(Math.max(1, config.getIntraOpNumThreads()));
+				opts.setInterOpNumThreads(Math.max(1, config.getInterOpNumThreads()));
+			} catch (OrtException e) {
+				log.warn("设置线程数失败，使用默认值: {}", e.getMessage());
+			}
 
-		try {
-			this.detSession = env.createSession(config.getDetModelPath(), opts);
-			this.recSession = env.createSession(config.getRecModelPath(), opts);
-		} catch (OrtException e) {
-			close();
-			throw new RuntimeException("创建 ONNX Runtime 会话失败: " + e.getMessage(), e);
+			try {
+				this.detSession = env.createSession(config.getDetModelPath(), opts);
+				this.recSession = env.createSession(config.getRecModelPath(), opts);
+			} catch (OrtException e) {
+				close();
+				throw new RuntimeException("创建 ONNX Runtime 会话失败: " + e.getMessage(), e);
+			}
 		}
 
 		this.detInputName = detSession.getInputNames().iterator().next();
@@ -168,12 +169,17 @@ public final class PPOcrV6Engine implements Closeable {
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
 		long[] detShape = toLongArray(prep.shape());
 		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
-		Map<String, OnnxTensor> inputs = Collections.singletonMap(detInputName, tensor(buf, detShape));
-		try (OrtSession.Result result = detSession.run(inputs)) {
+		try (OnnxTensor input = tensor(buf, detShape);
+			 OrtSession.Result result = detSession.run(Collections.singletonMap(detInputName, input))) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(0);
 			float[][] prob = readProb2D(outTensor);
-			DbPostProcessor.Result post = detPost.call(probToMat(prob, prep.imgShape()), prep.imgShape());
-			return new DetectResult(post.boxes(), post.scores());
+			Mat probMat = probToMat(prob, prep.imgShape());
+			try {
+				DbPostProcessor.Result post = detPost.call(probMat, prep.imgShape());
+				return new DetectResult(post.boxes(), post.scores());
+			} finally {
+				probMat.release();
+			}
 		} catch (OrtException e) {
 			throw new RuntimeException("det 推理失败: " + e.getMessage(), e);
 		}
@@ -220,8 +226,8 @@ public final class PPOcrV6Engine implements Closeable {
 			RecognitionPreprocessor.Result prep = recPre.call(batch);
 			long[] shape = toLongArray(prep.shape());
 			FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
-			Map<String, OnnxTensor> inputs = Collections.singletonMap(recInputName, tensor(buf, shape));
-			try (OrtSession.Result result = recSession.run(inputs)) {
+			try (OnnxTensor input = tensor(buf, shape);
+				 OrtSession.Result result = recSession.run(Collections.singletonMap(recInputName, input))) {
 				OnnxTensor outTensor = (OnnxTensor) result.get(0);
 				float[][][] modelOutput = read3D(outTensor);
 				CtcLabelDecoder.Result decoded = recPost.call(modelOutput);
@@ -253,26 +259,33 @@ public final class PPOcrV6Engine implements Closeable {
 		int[][][] sortedBoxes = BoxUtil.sortQuadBoxes(dr.boxes());
 
 		List<Mat> crops = CropUtil.cropByPolys(imgBgr, sortedBoxes);
+		try {
+			List<int[][]> validBoxes = new ArrayList<>();
+			List<Mat> validCrops = new ArrayList<>();
+			for (int i = 0; i < sortedBoxes.length; i++) {
+				if (crops.get(i) != null) {
+					validBoxes.add(sortedBoxes[i]);
+					validCrops.add(crops.get(i));
+				}
+			}
+			if (validCrops.isEmpty()) {
+				return List.of();
+			}
 
-		List<int[][]> validBoxes = new ArrayList<>();
-		List<Mat> validCrops = new ArrayList<>();
-		for (int i = 0; i < sortedBoxes.length; i++) {
-			if (crops.get(i) != null) {
-				validBoxes.add(sortedBoxes[i]);
-				validCrops.add(crops.get(i));
+			RecognizeResult rr = recognize(validCrops);
+
+			List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
+			for (int i = 0; i < validBoxes.size(); i++) {
+				results.add(new PPOcrV6Result(rr.texts()[i], rr.scores()[i], validBoxes.get(i)));
+			}
+			return results;
+		} finally {
+			for (Mat crop : crops) {
+				if (crop != null) {
+					crop.release();
+				}
 			}
 		}
-		if (validCrops.isEmpty()) {
-			return List.of();
-		}
-
-		RecognizeResult rr = recognize(validCrops);
-
-		List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
-		for (int i = 0; i < validBoxes.size(); i++) {
-			results.add(new PPOcrV6Result(rr.texts()[i], rr.scores()[i], validBoxes.get(i)));
-		}
-		return results;
 	}
 
 	private OnnxTensor tensor(FloatBuffer buf, long[] shape) {
@@ -330,12 +343,17 @@ public final class PPOcrV6Engine implements Closeable {
 		int h = prob.length;
 		int w = prob[0].length;
 		Mat m = new Mat(h, w, org.opencv.core.CvType.CV_32F);
-		float[] flat = new float[h * w];
-		for (int i = 0; i < h; i++) {
-			System.arraycopy(prob[i], 0, flat, i * w, w);
+		try {
+			float[] flat = new float[h * w];
+			for (int i = 0; i < h; i++) {
+				System.arraycopy(prob[i], 0, flat, i * w, w);
+			}
+			m.put(0, 0, flat);
+			return m;
+		} catch (RuntimeException | Error e) {
+			m.release();
+			throw e;
 		}
-		m.put(0, 0, flat);
-		return m;
 	}
 
 	// ==================================================================
