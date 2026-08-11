@@ -66,55 +66,7 @@ issueDate:    2018-02-24
 
 注意：测试的行驶证来源于网络，如有侵权，请联系删除。
 
-## 4. 结构化解析（mica-ppocr-structured）
-
-引入依赖：
-
-```xml
-<dependency>
-    <groupId>net.dreamlu.mica.ai</groupId>
-    <artifactId>mica-ppocr-structured</artifactId>
-    <version>${mica.ppocr.version}</version>
-</dependency>
-```
-
-已实现的解析器：
-
-| 解析器 | 解析类名 | 支持字段 |
-|--------|----------|---------|
-| 行驶证 | `VehicleLicenseParser` | 号牌号码、所有人、车辆类型、VIN、发证日期 |
-| 身份证（正反面自动判定） | `IdCardParser` | 姓名、性别、民族、出生日期、住址、公民身份号码、签发机关、有效期限 |
-| 银行卡 | `BankCardParser` | 卡号、有效期、银行名称 |
-| 机动车驾驶证 | `DriverLicenseParser` | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
-
-通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底。调用示例（行驶证）：
-
-```java
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
-import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
-
-import java.util.List;
-
-public class Demo {
-    public static void main(String[] args) {
-        List<PPOcrV6Result> ocrResults; // 来自 PPOcrV6Engine.run(...)
-        VehicleLicenseResult license = VehicleLicenseParser.parse(ocrResults);
-        System.out.println("车牌: " + license.getPlateNo());
-        System.out.println("VIN:  " + license.getVin());
-    }
-}
-```
-
-如需通过 Spring 注入使用，每个解析器都提供 `INSTANCE` 单例 + `BaseStructuredParser<R>` 实例接口：
-
-```java
-@Bean
-public BaseStructuredParser<VehicleLicenseResult> vehicleLicenseParser() {
-    return VehicleLicenseParser.INSTANCE;
-}
-```
-
-## 5. 核心引擎使用（mica-ppocr-core）
+## 4. 核心引擎使用（mica-ppocr-core）
 
 引入依赖：
 
@@ -159,6 +111,47 @@ public class Demo {
 
 支持更多调参（DB 阈值、识别批大小、ORT 线程数、GPU 加速等），详见 [PPOcrV6Config.java](mica-ppocr-core/src/main/java/net/dreamlu/mica/ai/ppocr/config/PPOcrV6Config.java)。
 
+## 5. 结构化解析（mica-ppocr-structured）
+
+引入依赖：
+
+```xml
+<dependency>
+    <groupId>net.dreamlu.mica.ai</groupId>
+    <artifactId>mica-ppocr-structured</artifactId>
+    <version>${mica.ppocr.version}</version>
+</dependency>
+```
+
+已实现的解析器：
+
+| 解析器 | 解析类名 | 支持字段 |
+|--------|----------|---------|
+| 行驶证 | `VehicleLicenseParser` | 号牌号码、所有人、车辆类型、VIN、发证日期 |
+| 身份证（正反面自动判定） | `IdCardParser` | 姓名、性别、民族、出生日期、住址、公民身份号码、签发机关、有效期限 |
+| 银行卡 | `BankCardParser` | 卡号、有效期、银行名称 |
+| 机动车驾驶证 | `DriverLicenseParser` | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
+
+通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底。调用示例（行驶证）：
+
+```java
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+
+import java.util.List;
+
+public class Demo {
+    public static void main(String[] args) {
+        List<PPOcrV6Result> ocrResults; // 来自 PPOcrV6Engine.run(...)
+        VehicleLicenseResult license = VehicleLicenseParser.parse(ocrResults);
+        System.out.println("车牌: " + license.getPlateNo());
+        System.out.println("VIN:  " + license.getVin());
+    }
+}
+```
+
+> Spring 场景下推荐直接使用 [`PPOcrTemplate`](#6-spring-boot-starter)，无需手动注册 parser bean。
+
 ## 6. Spring Boot Starter
 
 引入依赖：
@@ -185,6 +178,47 @@ mica:
       #         rec-batch-size / prefer-accelerator / intra-op-num-threads / ...
 ```
 
+Starter 自动注册以下 bean（依赖 `mica-ppocr-structured`，已传递引入）：
+
+| Bean | 类型 | 说明 |
+|------|------|------|
+| `PPOcrV6Engine` | engine | OCR 推理引擎（Closeable，由容器管理生命周期） |
+| `VehicleLicenseParser` / `IdCardParser` / `BankCardParser` / `DriverLicenseParser` | `BaseStructuredParser<R>` | 4 个内置结构化解析器（无状态单例） |
+| `PPOcrTemplate` | template | 一站式模板，封装 "OCR 推理 + 结构化解析" |
+
+`PPOcrTemplate` API：
+
+| 方法 | 返回类型 | 说明 |
+|------|----------|------|
+| `run(Mat)` | `List<PPOcrV6Result>` | 纯 OCR 识别 |
+| `parse(Mat, BaseStructuredParser<R>)` | `R` | 通用结构化解析（支持自定义解析器） |
+| `parseVehicleLicense(Mat)` | `VehicleLicenseResult` | 行驶证 |
+| `parseIdCard(Mat)` | `IdCardResult` | 身份证（正反面自动判定） |
+| `parseBankCard(Mat)` | `BankCardResult` | 银行卡 |
+| `parseDriverLicense(Mat)` | `DriverLicenseResult` | 驾驶证 |
+
+注入即用：
+
+```java
+import net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class OcrService {
+    @Autowired
+    private PPOcrTemplate ppocr;
+
+    public void recognize(Mat image) {
+        // 一行完成 "检测 → 识别 → 结构化"
+        var license = ppocr.parseVehicleLicense(image);
+        var idCard = ppocr.parseIdCard(image);
+        // 或自定义解析器
+        // var result = ppocr.parse(image, myParser);
+    }
+}
+```
+
 业务方可通过 `PPOCRPropertiesCustomizer` 对配置做旁路覆盖（环境变量 / 配置中心等）：
 
 ```java
@@ -207,7 +241,7 @@ PPOCRPropertiesCustomizer tierEnvCustomizer() {
 mica-ppocr/                                       # 父 pom（packaging=pom）
 ├── mica-ppocr-core/                              # 核心引擎，零 Spring 依赖
 │   └── engine/PPOcrV6Engine.java                 # 唯一公开入口（Closeable）
-├── mica-ppocr-structured/                        # 结构化解析模块
+├── mica-ppocr-structured/                        # 结构化解析模块（零 Spring 依赖）
 │   └── parser/
 │       ├── core/LabelMatcher.java                # 标签定位 + 位置匹配 + 正则兜底 公共骨架
 │       ├── vehicle/VehicleLicenseParser.java     # 行驶证
@@ -215,6 +249,9 @@ mica-ppocr/                                       # 父 pom（packaging=pom）
 │       ├── bankcard/BankCardParser.java          # 银行卡
 │       └── driver/DriverLicenseParser.java       # 机动车驾驶证
 └── mica-ppocr-spring-boot-starter/               # Spring Boot 自动配置
+    ├── PPOCRAutoConfiguration.java               # 引擎 + 配置 自动装配
+    ├── StructuredParserAutoConfiguration.java    # 4 个解析器 + PPOcrTemplate 自动装配
+    └── PPOcrTemplate.java                        # 一站式模板：run + parse + 4 类证件便捷方法
 ```
 
 ## 8. 许可证
