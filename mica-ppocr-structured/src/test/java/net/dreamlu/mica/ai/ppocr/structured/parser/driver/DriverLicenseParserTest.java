@@ -118,7 +118,7 @@ class DriverLicenseParserTest {
 		assertEquals("2015-05-18", r.getValidFrom());
 		assertEquals("2021-05-18", r.getValidTo());
 		// 签发机关：≥4 字的行按 y 升序拼接
-		assertEquals("北京市公 安局公安 交通管理局", r.getIssuingAuthority());
+		assertEquals("北京市公安局公安交通管理局", r.getIssuingAuthority());
 	}
 
 	@Test
