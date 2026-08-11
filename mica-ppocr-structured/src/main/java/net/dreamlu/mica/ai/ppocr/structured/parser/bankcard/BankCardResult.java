@@ -17,14 +17,23 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 
 /**
  * 银行卡 OCR 结构化解析结果。
  *
  * <p>典型字段：卡号、有效期、持卡人姓名、发卡行、卡片类型（借记/信用卡）。
+ *
+ * <p>继承 {@link BaseStructuredResult}：
+ * <ul>
+ *   <li>{@code rawResults} —— 原始 OCR 结果（含所有文字框）</li>
+ *   <li>{@code fieldBoxes} —— 字段名 → 对应 OCR 框坐标（key: cardNumber/validDate/holderName/bankName/cardType）</li>
+ * </ul>
  */
 @Data
-public class BankCardResult {
+@EqualsAndHashCode(callSuper = true)
+public class BankCardResult extends BaseStructuredResult {
 	/**
 	 * 卡号（一般为 16~19 位数字）
 	 */

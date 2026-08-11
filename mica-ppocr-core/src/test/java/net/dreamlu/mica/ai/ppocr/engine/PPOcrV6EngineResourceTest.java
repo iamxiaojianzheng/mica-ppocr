@@ -62,10 +62,10 @@ class PPOcrV6EngineResourceTest {
 				.build();
 
 			try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-				List<String> expected = texts(engine.run(image));
+				List<String> expected = texts(engine.runMat(image));
 				assertFalse(expected.isEmpty(), "OCR should return at least one result");
 				for (int i = 0; i < 2; i++) {
-					assertEquals(expected, texts(engine.run(image)));
+					assertEquals(expected, texts(engine.runMat(image)));
 				}
 			}
 		} finally {

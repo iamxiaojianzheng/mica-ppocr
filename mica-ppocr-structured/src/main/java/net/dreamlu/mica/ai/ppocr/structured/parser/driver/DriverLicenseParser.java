@@ -81,6 +81,7 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 	@Override
 	public DriverLicenseResult parseResults(List<PPOcrV6Result> results) {
 		DriverLicenseResult r = new DriverLicenseResult();
+		r.setRawResults(new java.util.ArrayList<>(results));
 		r.setLicenseNumber(parseLicenseNumber(results));
 		r.setName(parseName(results));
 		r.setGender(parseGender(results));

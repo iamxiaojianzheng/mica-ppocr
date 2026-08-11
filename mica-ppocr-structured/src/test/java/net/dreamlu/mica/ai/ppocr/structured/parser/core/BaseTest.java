@@ -70,7 +70,7 @@ public abstract class BaseTest {
 		List<PPOcrV6Result> results;
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
 			System.out.println("Running OCR...");
-			results = engine.run(image);
+			results = engine.runMat(image);
 		}
 		long elapsed = System.currentTimeMillis() - t0;
 		System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");

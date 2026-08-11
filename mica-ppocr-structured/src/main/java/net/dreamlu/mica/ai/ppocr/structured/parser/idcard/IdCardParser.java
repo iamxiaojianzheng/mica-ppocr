@@ -75,6 +75,7 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 	public IdCardResult parseResults(List<PPOcrV6Result> results) {
 		IdCardSide side = detectSide(results);
 		IdCardResult r = new IdCardResult();
+		r.setRawResults(new java.util.ArrayList<>(results));
 		r.setSide(side);
 		if (side == IdCardSide.FRONT) {
 			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));

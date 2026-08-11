@@ -80,12 +80,12 @@ issueDate:    2018-02-24
 
 核心 API：`net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine`，实现 `Closeable`，推荐 try-with-resources。
 
+公开入口 **只暴露 `String` / `File` / `byte[]`** 三种入参，内部自动完成 OpenCV Mat 的解码与 release，调用方**无需关心 native 内存**：
+
 ```java
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
-import org.opencv.core.Mat;
-import org.opencv.imgcodecs.Imgcodecs;
 import nu.pattern.OpenCV;
 
 import java.util.List;
@@ -93,21 +93,32 @@ import java.util.List;
 public class Demo {
     public static void main(String[] args) {
         OpenCV.loadLocally();
-        Mat img = Imgcodecs.imread("test.png");
         PPOcrV6Config config = PPOcrV6Config.builder()
             .detModelPath("models/ppocr-v6/tiny/det.onnx")
             .recModelPath("models/ppocr-v6/tiny/rec.onnx")
             .recCharDictPath("models/ppocr-v6/tiny/dict.txt")
             .build();
         try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-            List<PPOcrV6Result> results = engine.run(img);
+            // ① 推荐：直接传文件路径
+            List<PPOcrV6Result> results = engine.run("test_images/vehicle/vehicle1.png");
             for (PPOcrV6Result r : results) {
                 System.out.printf("%s  (%.3f)%n", r.text(), r.score());
             }
+            // ② 也支持 engine.run(new File("test.png")) / engine.run(multipartFile.getBytes())
         }
     }
 }
 ```
+
+Engine 公开 API（每个方法 4 种入参）：
+
+| 方法组 | 入参 1 `String` | 入参 2 `File` | 入参 3 `Path` | 入参 4 `byte[]` | 说明 |
+|--------|-----------------|---------------|---------------|-----------------|------|
+| `run(...)` | `run(String imagePath)` | `run(File imageFile)` | `run(Path imagePath)` | `run(byte[] imgBytes)` | 完整 OCR（检测+排序+裁剪+识别） |
+| `detect(...)` | `detect(String imagePath)` | `detect(File imageFile)` | `detect(Path imagePath)` | `detect(byte[] imgBytes)` | 仅检测（返回 boxes+scores） |
+
+> - `Path` 重载兼容非默认文件系统（如 ZIP / JIMFS / 内存 FS）：优先走 native 文件读取，不支持的 FileSystem 自动退回 `Files.readAllBytes`。
+> - 确需复用已加载 Mat 的高级场景（如同一图跑多次推理），可使用 `runMat(Mat)` / `detectMat(Mat)` / `recognizeMat(List<Mat>)`（Mat 的 release 由调用方负责）。
 
 支持更多调参（DB 阈值、识别批大小、ORT 线程数、GPU 加速等），详见 [PPOcrV6Config.java](mica-ppocr-core/src/main/java/net/dreamlu/mica/ai/ppocr/config/PPOcrV6Config.java)。
 
@@ -132,7 +143,16 @@ public class Demo {
 | 银行卡 | `BankCardParser` | 卡号、有效期、银行名称 |
 | 机动车驾驶证 | `DriverLicenseParser` | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
 
-通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底。调用示例（行驶证）：
+所有结构化结果统一继承 [`BaseStructuredResult`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/BaseStructuredResult.java)，带两个**可视化友好的通用字段**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `rawResults` | `List<PPOcrV6Result>` | 完整原始 OCR 结果（含每个文字框的文本/置信度/四角坐标），可直接在页面上绘制全部文字框 |
+| `fieldBoxes` | `Map<String, List<int[][]>>` | 字段名 → 该字段对应的 OCR 框坐标列表（一个字段可能跨多个框），方便高亮"这个字段来自画面哪几块" |
+
+> 行驶证解析器已完整填充 `fieldBoxes`（车牌/车主/车型/VIN/发证日期 共 5 个字段）。其他解析器目前保证 `rawResults` 填充，`fieldBoxes` 逐步完善；未填充时可通过 `rawResults` 自行按文本内容做二次匹配。
+
+通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底，并提供 `WithBox` 系列重载（返回 `LabeledMatch(value, box)`，便于解析器回填 `fieldBoxes`）。调用示例（行驶证）：
 
 ```java
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -186,16 +206,19 @@ Starter 自动注册以下 bean（依赖 `mica-ppocr-structured`，已传递引�
 | `VehicleLicenseParser` / `IdCardParser` / `BankCardParser` / `DriverLicenseParser` | `BaseStructuredParser<R>` | 4 个内置结构化解析器（无状态单例） |
 | `PPOcrTemplate` | template | 一站式模板，封装 "OCR 推理 + 结构化解析" |
 
-`PPOcrTemplate` API：
+`PPOcrTemplate` API（**每个方法提供 5 种入参重载**：`String` 路径 / `File` / `Path` / `byte[]` / `InputStream`）：
 
-| 方法 | 返回类型 | 说明 |
-|------|----------|------|
-| `run(Mat)` | `List<PPOcrV6Result>` | 纯 OCR 识别 |
-| `parse(Mat, BaseStructuredParser<R>)` | `R` | 通用结构化解析（支持自定义解析器） |
-| `parseVehicleLicense(Mat)` | `VehicleLicenseResult` | 行驶证 |
-| `parseIdCard(Mat)` | `IdCardResult` | 身份证（正反面自动判定） |
-| `parseBankCard(Mat)` | `BankCardResult` | 银行卡 |
-| `parseDriverLicense(Mat)` | `DriverLicenseResult` | 驾驶证 |
+| 方法（× 5 种入参） | 返回类型 | 说明 |
+|-------------------|----------|------|
+| `run(...)` | `List<PPOcrV6Result>` | 纯 OCR 识别 |
+| `parse(..., parser)` | `R` | 通用结构化解析（支持自定义解析器） |
+| `parseVehicleLicense(...)` | `VehicleLicenseResult` | 行驶证 |
+| `parseIdCard(...)` | `IdCardResult` | 身份证（正反面自动判定） |
+| `parseBankCard(...)` | `BankCardResult` | 银行卡 |
+| `parseDriverLicense(...)` | `DriverLicenseResult` | 驾驶证 |
+
+> - 内部自动处理 OpenCV Mat 解码与 release，**调用方完全不需要关心 native 内存管理**。
+> - `Path` 重载兼容 ZIP / JIMFS / 内存 FS 等非默认文件系统。
 
 注入即用：
 
@@ -203,19 +226,60 @@ Starter 自动注册以下 bean（依赖 `mica-ppocr-structured`，已传递引�
 import net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 
 @Service
 public class OcrService {
     @Autowired
     private PPOcrTemplate ppocr;
 
-    public void recognize(Mat image) {
-        // 一行完成 "检测 → 识别 → 结构化"
-        var license = ppocr.parseVehicleLicense(image);
-        var idCard = ppocr.parseIdCard(image);
-        // 或自定义解析器
-        // var result = ppocr.parse(image, myParser);
+    // ① Spring Boot 上传（最常用）
+    public VehicleLicenseResult recognizeVehicle(MultipartFile file) throws IOException {
+        return ppocr.parseVehicleLicense(file.getBytes());
     }
+
+    // ② 本地上传文件路径
+    public IdCardResult recognizeIdCard(String imagePath) {
+        return ppocr.parseIdCard(imagePath);
+    }
+
+    // ③ File 对象
+    public BankCardResult recognizeBankCard(File imageFile) {
+        return ppocr.parseBankCard(imageFile);
+    }
+
+    // ④ 网络流 / S3 下载流
+    public DriverLicenseResult recognizeDriver(URL url) throws IOException {
+        try (InputStream in = url.openStream()) {
+            return ppocr.parseDriverLicense(in);
+        }
+    }
+
+    // ⑤ 自定义解析器场景（任何入参都支持）
+    public <R> R recognize(String imagePath, BaseStructuredParser<R> parser) {
+        return ppocr.parse(imagePath, parser);
+    }
+}
+```
+
+**结构化结果可视化示例**（利用 `rawResults` + `fieldBoxes`）：
+
+```java
+VehicleLicenseResult r = ppocr.parseVehicleLicense(file.getBytes());
+
+// 画所有文字框（绿线）
+for (PPOcrV6Result ocr : r.getRawResults()) {
+    drawPolyline(ocr.box(), Color.GREEN);
+}
+// 高亮车牌字段（红线）
+List<int[][]> plateBoxes = r.getFieldBoxes().get("plateNo");
+if (plateBoxes != null) {
+    for (int[][] box : plateBoxes) drawPolyline(box, Color.RED);
 }
 ```
 

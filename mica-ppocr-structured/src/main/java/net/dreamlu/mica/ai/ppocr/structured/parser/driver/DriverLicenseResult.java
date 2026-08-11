@@ -17,15 +17,24 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 
 /**
  * 机动车驾驶证 OCR 结构化解析结果。
  *
  * <p>典型字段：证号、姓名、性别、国籍、住址、出生日期、首次领证日期、准驾车型、
  * 有效期限起始、有效期限截止。
+ *
+ * <p>继承 {@link BaseStructuredResult}：
+ * <ul>
+ *   <li>{@code rawResults} —— 原始 OCR 结果（含所有文字框）</li>
+ *   <li>{@code fieldBoxes} —— 字段名 → 对应 OCR 框坐标（key 即上面的字段名）</li>
+ * </ul>
  */
 @Data
-public class DriverLicenseResult {
+@EqualsAndHashCode(callSuper = true)
+public class DriverLicenseResult extends BaseStructuredResult {
 	/**
 	 * 证号
 	 */

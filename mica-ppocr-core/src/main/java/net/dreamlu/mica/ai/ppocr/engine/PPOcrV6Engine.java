@@ -31,8 +31,13 @@ import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
+import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,9 +55,14 @@ import java.util.function.Consumer;
  *     .recCharDictPath("dict.txt")
  *     .build();
  * try (var engine = new PPOcrV6Engine(config)) {
- *     List<PPOcrV6Result> results = engine.run(image);
+ *     // 推荐：直接传文件路径 / byte[]，内部自动处理 native 内存释放
+ *     List<PPOcrV6Result> results = engine.run("test_images/vehicle/vehicle1.png");
  * }
  * }</pre>
+ *
+ * <p>公开 API 只暴露 {@code byte[]} / {@link File} / {@link String} 三种入参，
+ * 内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+ * 如确需复用已加载的 Mat，可使用 {@link #runMat(Mat)} 等方法。
  */
 @Slf4j
 public final class PPOcrV6Engine implements Closeable {
@@ -176,13 +186,189 @@ public final class PPOcrV6Engine implements Closeable {
 			+ ", vocab=" + recPost.vocabSize() + ", closed=" + closed + ")";
 	}
 
+	// ==================================================================
+	// 推荐公开 API：byte[] / File / String，内部自动管理 Mat 生命周期
+	// ==================================================================
+
 	/**
-	 * 文本检测。
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 *
+	 * @param imagePath 图片路径（PNG / JPG / BMP 等任意 OpenCV 支持的格式）
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 路径为空、文件不存在或解码失败
+	 */
+	public List<PPOcrV6Result> run(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return run(Path.of(imagePath));
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 文件不存在或解码失败
+	 */
+	public List<PPOcrV6Result> run(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return run(imageFile.toPath());
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>兼容非默认文件系统的 {@link Path}（如 ZIP/JIMFS 等）：优先走 native 文件读取，
+	 * 不支持的 FileSystem 自动退回 {@code Files.readAllBytes}。
+	 *
+	 * @param imagePath 图片路径
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws UncheckedIOException 读取字节时发生 IO 异常
+	 */
+	public List<PPOcrV6Result> run(Path imagePath) {
+		if (imagePath == null) {
+			throw new IllegalArgumentException("imagePath must not be null");
+		}
+		try {
+			// 默认 FileSystem → native 读取 OpenCV（省内存，不经过 JVM heap 中转）
+			Mat mat = Imgcodecs.imread(imagePath.toFile().getAbsolutePath());
+			if (mat.empty()) {
+				mat.release();
+				throw new IllegalArgumentException("Failed to load image: " + imagePath);
+			}
+			try {
+				return runMat(mat);
+			} finally {
+				mat.release();
+			}
+		} catch (UnsupportedOperationException ignore) {
+			// 非默认 FileSystem（ZIP / JIMFS / 内存 FS 等）：退回字节流
+			try {
+				return run(Files.readAllBytes(imagePath));
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 * 典型场景：Spring Boot 上传 {@code MultipartFile.getBytes()}。
+	 *
+	 * @param imgBytes 图片字节（PNG / JPG / BMP 等任意 OpenCV 支持的格式）
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 字节为空或解码失败
+	 */
+	public List<PPOcrV6Result> run(byte[] imgBytes) {
+		Mat mat = decodeMat(imgBytes);
+		try {
+			return runMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release。
+	 *
+	 * @param imagePath 图片路径
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return detect(Path.of(imagePath));
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return detect(imageFile.toPath());
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>兼容非默认文件系统的 {@link Path}（如 ZIP/JIMFS 等）。
+	 *
+	 * @param imagePath 图片路径
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 * @throws UncheckedIOException 读取字节时发生 IO 异常
+	 */
+	public DetectResult detect(Path imagePath) {
+		if (imagePath == null) {
+			throw new IllegalArgumentException("imagePath must not be null");
+		}
+		try {
+			Mat mat = Imgcodecs.imread(imagePath.toFile().getAbsolutePath());
+			if (mat.empty()) {
+				mat.release();
+				throw new IllegalArgumentException("Failed to load image: " + imagePath);
+			}
+			try {
+				return detectMat(mat);
+			} finally {
+				mat.release();
+			}
+		} catch (UnsupportedOperationException ignore) {
+			try {
+				return detect(Files.readAllBytes(imagePath));
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+		}
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>典型场景：Spring Boot 上传 {@code MultipartFile.getBytes()}。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(byte[] imgBytes) {
+		Mat mat = decodeMat(imgBytes);
+		try {
+			return detectMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	// ==================================================================
+	// 内部/高级用法：Mat 入参，调用方负责 release
+	// ==================================================================
+
+	/**
+	 * 文本检测（Mat 版）。
+	 *
+	 * <p>注意：本方法仅用于调用方已持有 Mat 并需要复用它的场景；
+	 * Mat 的 release 由调用方负责。推荐使用 {@link #detect(String)} 等公开重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
 	 */
-	public DetectResult detect(Mat imgBgr) {
+	public DetectResult detectMat(Mat imgBgr) {
 		requireOpen();
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
 		long[] shape = toLongArray(prep.shape());
@@ -206,12 +392,15 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	/**
-	 * 文本识别（支持批量）。
+	 * 文本识别（Mat 版，支持批量）。
+	 *
+	 * <p>注意：本方法仅用于内部流程（detect → crop → recognize）或高级用户；
+	 * 每个 crop Mat 的 release 由调用方负责。公开入口推荐使用 {@link #run(String)}。
 	 *
 	 * @param imgList 裁剪后的 BGR 文本行图像列表
 	 * @return texts 与 scores 长度一致
 	 */
-	public RecognizeResult recognize(List<Mat> imgList) {
+	public RecognizeResult recognizeMat(List<Mat> imgList) {
 		requireOpen();
 		int n = imgList.size();
 		if (n == 0) {
@@ -266,14 +455,17 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	/**
-	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 * 完整 OCR 流程（Mat 版）：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>注意：本方法仅用于调用方已持有 Mat 并需要复用它的场景；
+	 * Mat 的 release 由调用方负责。推荐使用 {@link #run(String)} / {@link #run(byte[])} 等公开重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return 识别结果列表（按阅读顺序排列）
 	 */
-	public List<PPOcrV6Result> run(Mat imgBgr) {
+	public List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
-		DetectResult dr = detect(imgBgr);
+		DetectResult dr = detectMat(imgBgr);
 		if (dr.boxes().length == 0) {
 			return List.of();
 		}
@@ -294,7 +486,7 @@ public final class PPOcrV6Engine implements Closeable {
 				return List.of();
 			}
 
-			RecognizeResult rr = recognize(validCrops);
+			RecognizeResult rr = recognizeMat(validCrops);
 
 			List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
 			for (int i = 0; i < validBoxes.size(); i++) {
@@ -308,6 +500,29 @@ public final class PPOcrV6Engine implements Closeable {
 				}
 			}
 		}
+	}
+
+	// ==================================================================
+	// 内部工具
+	// ==================================================================
+
+	/**
+	 * 将图片字节解码为 BGR Mat。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return BGR 格式的 Mat（非空）
+	 * @throws IllegalArgumentException 字节为空或解码失败
+	 */
+	private static Mat decodeMat(byte[] imgBytes) {
+		if (imgBytes == null || imgBytes.length == 0) {
+			throw new IllegalArgumentException("imgBytes must not be empty");
+		}
+		Mat mat = Imgcodecs.imdecode(new MatOfByte(imgBytes), Imgcodecs.IMREAD_COLOR);
+		if (mat.empty()) {
+			mat.release();
+			throw new IllegalArgumentException("Failed to decode image from byte[] (unsupported format or corrupted data)");
+		}
+		return mat;
 	}
 
 	private long[] toLongArray(int[] arr) {

@@ -17,12 +17,20 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.idcard;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 
 /**
  * 身份证 OCR 结构化解析结果（正反面合一）。
  *
  * <p>正面字段：name / gender / nation / birthDate / address / idNumber。
  * <p>反面字段：issuingAuthority / validFrom / validTo。
+ *
+ * <p>继承 {@link BaseStructuredResult}：
+ * <ul>
+ *   <li>{@code rawResults} —— 原始 OCR 结果（含所有文字框）</li>
+ *   <li>{@code fieldBoxes} —— 字段名 → 对应 OCR 框坐标（key 即上面的字段名）</li>
+ * </ul>
  *
  * <p>{@link #side} 指明解析出的实际版面，便于调用方区分字段有效性：
  * <ul>
@@ -31,7 +39,8 @@ import lombok.Data;
  * </ul>
  */
 @Data
-public class IdCardResult {
+@EqualsAndHashCode(callSuper = true)
+public class IdCardResult extends BaseStructuredResult {
 
 	/**
 	 * 身份证版面：正面 / 反面。

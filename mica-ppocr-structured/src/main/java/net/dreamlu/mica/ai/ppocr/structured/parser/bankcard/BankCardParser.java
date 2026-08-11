@@ -86,6 +86,7 @@ public class BankCardParser implements BaseStructuredParser<BankCardResult> {
 	@Override
 	public BankCardResult parseResults(List<PPOcrV6Result> results) {
 		BankCardResult r = new BankCardResult();
+		r.setRawResults(new java.util.ArrayList<>(results));
 		r.setCardNumber(parseCardNumber(results));
 		r.setValidDate(parseValidDate(results));
 		r.setHolderName(parseHolderName(results));
