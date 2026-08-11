@@ -198,13 +198,7 @@ mica:
       #         rec-batch-size / prefer-accelerator / intra-op-num-threads / ...
 ```
 
-Starter 自动注册以下 bean（依赖 `mica-ppocr-structured`，已传递引入）：
-
-| Bean | 类型 | 说明 |
-|------|------|------|
-| `PPOcrV6Engine` | engine | OCR 推理引擎（Closeable，由容器管理生命周期） |
-| `VehicleLicenseParser` / `IdCardParser` / `BankCardParser` / `DriverLicenseParser` | `BaseStructuredParser<R>` | 4 个内置结构化解析器（无状态单例） |
-| `PPOcrTemplate` | template | 一站式模板，封装 "OCR 推理 + 结构化解析" |
+直接注入 `PPOcrTemplate` 即可使用（内部持有 Engine 与 4 个证件解析器，无需手工装配）：
 
 `PPOcrTemplate` API（**每个方法提供 5 种入参重载**：`String` 路径 / `File` / `Path` / `byte[]` / `InputStream`）：
 
