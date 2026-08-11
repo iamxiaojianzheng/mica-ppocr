@@ -51,7 +51,7 @@ class PPOcrV6EngineResourceTest {
 	void repeatedRunProducesStableResults() {
 		Path root = findRepositoryRoot();
 		Path modelDir = root.resolve("models/ppocr-v6/tiny");
-		Mat image = Imgcodecs.imread(root.resolve("test_images/2.png").toString());
+		Mat image = Imgcodecs.imread(root.resolve("test_images/vehicle/vehicle1.png").toString());
 		try {
 			assertFalse(image.empty(), "test image should load");
 
