@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net.dreamlu.mica.ai.ppocr.test;
+package net.dreamlu.mica.ai.ppocr.structured.parser.vehicle;
 
 import lombok.Data;
 

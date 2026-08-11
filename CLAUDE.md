@@ -20,12 +20,19 @@ When changing numeric logic, verify against the Python implementation rather tha
 mica-ppocr/                     ← parent pom (packaging=pom)
 ├── mica-ppocr-core/            ← 核心引擎，零 Spring 依赖
 │   └── src/main/java/net/dreamlu/mica/ai/ppocr/
-│       ├── engine/PPOcrV6Engine.java
-│       ├── config/PPOcrV6Config.java, PPOcrV6Result.java
+│       ├── engine/PPOcrV6Engine.java, PPOcrV6Result.java
+│       ├── config/PPOcrV6Config.java
 │       ├── preprocessor/DetectionPreprocessor.java, RecognitionPreprocessor.java
 │       ├── postprocessor/DbPostProcessor.java, CtcLabelDecoder.java
-│       ├── utils/{BoxUtil, CropUtil, Offset, NdArrayUtils, OrtProviders}.java
-│       └── cli/Main.java
+│       └── utils/{BoxUtil, CropUtil, Offset, NdArrayUtils, OrtProviders}.java
+├── mica-ppocr-structured/      ← 结构化解析模块：把 OCR 散落文字框组织成业务字段
+│   └── src/main/java/net/dreamlu/mica/ai/ppocr/structured/
+│       ├── BaseStructuredParser.java    ← SPI 接口 (parseResults)
+│       ├── LabelMatcher.java            ← 标签定位 + 位置匹配 + 正则兜底公共骨架
+│       └── parser/
+│           └── vehicle/                 ← 行驶证解析器（首个实现）
+│               ├── VehicleLicenseParser.java
+│               └── VehicleLicenseResult.java
 └── mica-ppocr-spring-boot-starter/  ← Spring Boot 自动配置
     └── src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/
         ├── PPOCRAutoConfiguration.java
@@ -78,7 +85,7 @@ The pipeline flows: **detect → sort boxes → crop → recognize**.
   `OrtSession`s (det + rec), is `Closeable` (use try-with-resources), and exposes `detect()`,
   `recognize()`, and the full `run(Mat)`. Accepts a `PPOcrV6Config` (Lombok `@Builder`).
 - **`config/PPOcrV6Config`** — `@Getter @Builder` config for all tunables.
-- **`config/PPOcrV6Result`** — Java 17 `record` (text, score, box) returned to callers.
+- **`engine/PPOcrV6Result`** — Java 17 `record` (text, score, box) returned to callers.
 - **`preprocessor/DetectionPreprocessor`** — resize to limit-side constraints, normalize, HWC→NCHW.
 - **`postprocessor/DbPostProcessor`** — DB binary-map → contours → boxes.
 - **`preprocessor/RecognitionPreprocessor`** — batches crops, resizes, pads to common width.
@@ -91,7 +98,21 @@ The pipeline flows: **detect → sort boxes → crop → recognize**.
     `run()` filters these `null`s out — preserve this null-skip contract.
   - `OrtProviders` — picks the ORT execution provider; `forceCpu` (negation of
     `preferAccelerator`) is the default.
-- **`cli/Main`** — arg parsing, validation, image auto-discovery, OpenCV visualization.
+
+### mica-ppocr-structured
+
+- **`BaseStructuredParser<R>`** — `@FunctionalInterface` SPI 接口，规范所有解析器的入口签名 `parseResults(List<PPOcrV6Result>) → R`。
+- **`LabelMatcher`** — 公共骨架（`@UtilityClass`）：
+  - `matchValue` 标签定位 + 位置匹配；
+  - `findLabelBox` 支持 OCR 残缺标签模糊匹配；
+  - `matchPattern` / `labelOrFallback` 内容正则兜底；
+  - `matchSubstring` OCR 噪声场景的子串提取；
+  - 几何工具 `minX/maxX/minY/maxY`。
+- **`parser.vehicle.VehicleLicenseParser`** — 首个实现（行驶证）。同时提供：
+  - 静态 `parse(List)` 工具类风格入口；
+  - 实例方法 `parseResults` 实现 SPI；
+  - `INSTANCE` 单例，便于 Spring 注入。
+- **新解析器待办**：身份证（正反面） / 银行卡 / 驾照。
 
 ### mica-ppocr-spring-boot-starter
 

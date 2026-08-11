@@ -67,29 +67,38 @@ models/ppocr-v6/
 
 ## 3. 本地 main 测试
 
-[mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/Main.java](mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/Main.java) 是一个**写死路径的本地测试入口**，直接运行即可对一张图片做 OCR 推理，便于快速验证。
+每个解析器都提供了对应的 `XxxMain` 调试入口（如行驶证 [VehicleLicenseMain](mica-ppocr-structured/src/test/java/net/dreamlu/mica/ai/ppocr/structured/parser/vehicle/VehicleLicenseMain.java)），**直接运行 main 方法**即可做 OCR 推理 + 结构化解析，便于快速验证。
 
 ```bash
-mvn -pl mica-ppocr-core test-compile
-mvn -pl mica-ppocr-core exec:java -Dexec.mainClass=net.dreamlu.mica.ai.ppocr.test.Main
-# 或在 IDE 中直接 Run 'Main'
+mvn -pl mica-ppocr-structured test-compile
+mvn -pl mica-ppocr-structured exec:java -Dexec.mainClass=net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseMain
+# 或在 IDE 中直接 Run 'VehicleLicenseMain'
 ```
 
-源码中三个常量按需修改：
+各 `XxxMain` 的源码中按需修改图片路径和可视化输出路径（例：行驶证）：
 
 ```java
-private static final String TIER      = "tiny";                 // tiny / small / medium
-private static final String IMAGE_PATH = "test_images/1.png";   // 待推理图片
-private static final String VIS_PATH  = "test_images/vis.png";  // 可视化结果；传 null 跳过
+private static final String TIER       = "tiny";                        // tiny / small / medium
+private static final String IMAGE_PATH = "test_images/vehicle/vehicle1.png";  // 待推理图片
+private static final String VIS_PATH   = "test_images/vehicle/vis.png";       // 可视化输出；传 null 跳过
 ```
+
+提供的测试图片（`test_images/{vehicle,idcard,driver,bankcard}/*.png`）：
+
+| 证件 | 示例图片 | 说明 |
+|------|---------|------|
+| 行驶证 | `vehicle1.png` / `vehicle2.png` / `vehicle3.png` | 中文标签版式，鲁GH9P12 / 京CAA966 等 |
+| 身份证 | `idcard` 目录 | 正反面自动判定 |
+| 银行卡 | `bankcard1.png` ~ `bankcard5.png` | 不同银行版式 |
+| 驾驶证 | `driver` 目录 | 正页结构化 |
 
 ### 3.1 识别效果示例
 
-以 `test_images/1.png` 为例（模型档次 `tiny`），识别结果可视化如下：
+以 `test_images/vehicle/vehicle1.png` 为例（模型档次 `tiny`），识别结果可视化如下：
 
 | 输入图片 | 识别结果可视化 |
 |---------|---------------|
-| ![1](test_images/1.png) | ![vis](test_images/vis.png) |
+| ![vehicle1](test_images/vehicle/vehicle1.png) | ![vis](test_images/vehicle/vis.png) |
 
 注意：测试的行驶证来源于网络，如有侵权，请联系删除。
 
@@ -101,10 +110,70 @@ plateNo:      鲁GH9P12
 owner:        盛瑞传动股份有限公司
 vehicleType:  小型普通客车
 vin:          LJ8F3D5H910700001
-issueDate: 2018-02-24
+issueDate:    2018-02-24
 ```
 
-注意：识别结果结构化采用`标签定位 + 位置匹配 + 正则兜底`的四步法，可以参考 [VehicleLicenseParser](mica-ppocr-core/src/test/java/net/dreamlu/mica/ai/ppocr/test/VehicleLicenseParser.java) 
+结构化解析采用 `标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底` 的多层策略（详见 [VehicleLicenseParser](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/vehicle/VehicleLicenseParser.java)）：
+
+- 标签残缺片段（如「所有人」被拆成「所」+「人」）会被自动过滤，不再误选为值
+- 中英文标签互为 fallback（如「所有人」缺失时尝试「Owner」）
+- 仍失败时按版面结构兜底（所有人位于「车辆类型」值行下方、「住址」标签行上方）
+- 日期 / VIN / 车牌支持子串抽取，容忍 OCR 把两个字段合成一个框
+
+## 3.2 结构化解析（mica-ppocr-structured）
+
+引入依赖：
+
+```xml
+<dependency>
+    <groupId>net.dreamlu.mica.ai</groupId>
+    <artifactId>mica-ppocr-structured</artifactId>
+    <version>${mica.ppocr.version}</version>
+</dependency>
+```
+
+本模块把 OCR 识别出的散落文字框，按业务版面组织成结构化字段。
+通用能力已下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：
+
+- **标签定位**：按左侧标签找右侧值框，支持 OCR 残缺标签模糊匹配
+- **位置匹配**：值框 x 起点必须在标签右边缘右侧、y 范围与标签重叠
+- **正则兜底**：标签定位失败时按内容特征扫描全部结果
+
+已实现的解析器：
+
+| 解析器 | 包 | 状态 | 支持字段 |
+|--------|----|------|---------|
+| 行驶证 | `net.dreamlu.mica.ai.ppocr.structured.parser.vehicle` | ✅ 已实现 | 号牌号码、所有人、车辆类型、VIN、发证日期 |
+| 身份证（正反面自动判定） | `…structured.parser.idcard` | ✅ 已实现 | 姓名、性别、民族、出生日期、住址、公民身份号码、签发机关、有效期限（优先判定反面，规避残片误判）|
+| 银行卡 | `…structured.parser.bankcard` | ✅ 已实现 | 卡号、有效期、银行名称 |
+| 机动车驾驶证 | `…structured.parser.driver` | ✅ 已实现 | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
+
+调用示例（行驶证）：
+
+```java
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+
+import java.util.List;
+
+public class Demo {
+    public static void main(String[] args) {
+        List<PPOcrV6Result> ocrResults; // 来自 PPOcrV6Engine.run(...)
+        VehicleLicenseResult license = VehicleLicenseParser.parse(ocrResults);
+        System.out.println("车牌: " + license.getPlateNo());
+        System.out.println("VIN:  " + license.getVin());
+    }
+}
+```
+
+如需通过 Spring 注入使用，每个解析器都提供 `INSTANCE` 单例 + `BaseStructuredParser<R>` 实例接口：
+
+```java
+@Bean
+public BaseStructuredParser<VehicleLicenseResult> vehicleLicenseParser() {
+    return VehicleLicenseParser.INSTANCE;
+}
+```
 
 ## 4. 使用
 
@@ -122,7 +191,7 @@ issueDate: 2018-02-24
 
 ```java
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
-import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
 import org.opencv.core.Mat;
@@ -240,8 +309,8 @@ mica-ppocr/                                       # 父 pom（packaging=pom）
 ├── mica-ppocr-core/
 │   └── src/main/java/net/dreamlu/mica/ai/ppocr/
 │       ├── engine/PPOcrV6Engine.java             # 唯一公开入口（Closeable）
+│       ├── engine/PPOcrV6Result.java             # record (text, score, box)
 │       ├── config/PPOcrV6Config.java             # Lombok @Builder 配置
-│       ├── config/PPOcrV6Result.java             # record (text, score, box)
 │       ├── preprocessor/DetectionPreprocessor.java
 │       ├── preprocessor/RecognitionPreprocessor.java
 │       ├── postprocessor/DbPostProcessor.java
@@ -252,7 +321,16 @@ mica-ppocr/                                       # 父 pom（packaging=pom）
 │           ├── Offset.java                       # JTS BufferOp（pyclipper 等价）
 │           ├── NdArrayUtils.java                 # numpy 风格轻量子集
 │           └── OrtProviders.java                 # ORT 执行提供者选择
-│       └── cli/Main.java                         # CLI 入口
+├── mica-ppocr-structured/                        # 结构化解析模块
+│   └── src/main/java/net/dreamlu/mica/ai/ppocr/structured/
+│       ├── parser/core/
+│       │   ├── BaseStructuredParser.java         # 解析器 SPI 接口
+│       │   └── LabelMatcher.java                 # 标签定位 + 位置匹配 + 正则兜底 公共骨架
+│       └── parser/
+│           ├── vehicle/VehicleLicenseParser.java # 行驶证
+│           ├── idcard/IdCardParser.java          # 身份证（正反面自动判定）
+│           ├── bankcard/BankCardParser.java      # 银行卡
+│           └── driver/DriverLicenseParser.java   # 机动车驾驶证
 └── mica-ppocr-spring-boot-starter/
     └── src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/
         ├── PPOCRAutoConfiguration.java

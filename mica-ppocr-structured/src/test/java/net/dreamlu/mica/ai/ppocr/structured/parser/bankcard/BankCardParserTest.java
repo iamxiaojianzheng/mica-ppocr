@@ -1,0 +1,118 @@
+/*
+ * Copyright (c) 2019-2026, dreamlu.net All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
+
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+/**
+ * 银行卡解析器单元测试。
+ *
+ * <p>用构造的 OCR 框模拟典型版面（基于 bankcard1.png 工行金卡的实际 OCR 分布）。
+ */
+class BankCardParserTest {
+
+	/**
+	 * 构造 OCR 文本框。
+	 */
+	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
+		return new PPOcrV6Result(text, 1.0f, new int[][]{
+			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
+		});
+	}
+
+	@Test
+	void parse_icbcCreditGold() {
+		// 模拟工行金卡 OCR 框（基于 bankcard1.png）
+		// 图片约 800x500
+		List<PPOcrV6Result> results = List.of(
+			box("ICBC", 50, 60, 130, 90),                    // 顶部英文
+			box("中国工商银行", 160, 60, 350, 90),            // 顶部中文（发卡行）
+			box("GOLD", 360, 60, 420, 90),
+			box("CREDIT", 60, 130, 140, 160),                 // 卡片类型
+			box("环球旅行卡 Global Travel", 200, 130, 460, 160),
+			box("6225 9700 7000 3000", 90, 290, 700, 360),    // 卡号（带空格）
+			box("6225", 90, 380, 130, 400),                   // 卡号小字
+			box("月/年", 200, 380, 240, 400),                  // 有效期标签
+			box("02", 240, 380, 270, 400),
+			box("07/22", 290, 380, 360, 400),                 // 有效期值
+			box("MR.CWENTA", 90, 430, 230, 460)              // 持卡人
+		);
+		BankCardResult r = BankCardParser.parse(results);
+		assertNotNull(r);
+		assertEquals("6225970070003000", r.getCardNumber());
+		assertEquals("07/22", r.getValidDate());
+		assertEquals("MR. CWENTA", r.getHolderName());
+		assertEquals("中国工商银行", r.getBankName());
+		assertEquals("CREDIT", r.getCardType());
+	}
+
+	@Test
+	void parse_huaxiaDebit() {
+		// 模拟华夏借记卡（bankcard2.png）：VALID THRU / MONTH/YEAR 英文标签 + 中文发卡行
+		List<PPOcrV6Result> results = List.of(
+			box("华夏银行", 160, 60, 300, 90),                // 发卡行
+			box("HUAXIA BANK", 300, 60, 460, 90),
+			box("京津冀协同卡", 500, 60, 720, 90),
+			box("借记卡 DEBIT CARD", 220, 130, 460, 160),
+			box("6230 2020 1852 1255", 90, 290, 700, 360),    // 卡号
+			box("VALID THRU", 200, 380, 290, 400),            // 有效期标签（英文）
+			box("MONTH/YEAR", 360, 380, 480, 400),
+			box("12/27", 510, 380, 570, 400)
+		);
+		BankCardResult r = BankCardParser.parse(results);
+		assertNotNull(r);
+		assertEquals("6230202018521255", r.getCardNumber());
+		assertEquals("12/27", r.getValidDate());
+		assertEquals("华夏银行", r.getBankName());
+	}
+
+	@Test
+	void parse_ningbo19DigitCard() {
+		// 模拟宁波银行借记卡（bankcard4.png）：19 位卡号无空格（首字符 OCR 误识别为 '6' 而非 'b'）
+		List<PPOcrV6Result> results = List.of(
+			box("宁波银行", 160, 60, 300, 90),
+			box("BANK OF NINGBO", 300, 60, 480, 90),
+			box("汇通卡", 540, 60, 640, 90),
+			box("借记卡/DEBIT", 280, 100, 460, 130),
+			box("白领通", 540, 130, 660, 160),
+			box("6214180701100538758", 90, 290, 700, 360),    // 19 位连续
+			box("VALID THRU", 200, 380, 290, 400),
+			box("MONTH/YEAR", 360, 380, 480, 400),
+			box("01/25", 510, 380, 570, 400)
+		);
+		BankCardResult r = BankCardParser.parse(results);
+		assertNotNull(r);
+		assertEquals("6214180701100538758", r.getCardNumber());
+		assertEquals("01/25", r.getValidDate());
+		assertEquals("宁波银行", r.getBankName());
+	}
+
+	@Test
+	void parse_emptyResults() {
+		BankCardResult r = BankCardParser.parse(List.of());
+		assertNotNull(r);
+		// 所有字段为 null
+		assertEquals(null, r.getCardNumber());
+		assertEquals(null, r.getValidDate());
+	}
+}

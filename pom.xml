@@ -34,7 +34,7 @@
     </licenses>
 
     <properties>
-        <revision>1.0.1</revision>
+        <revision>1.0.2-SNAPSHOT</revision>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>${java.version}</maven.compiler.source>
@@ -56,6 +56,7 @@
 
     <modules>
         <module>mica-ppocr-core</module>
+        <module>mica-ppocr-structured</module>
         <module>mica-ppocr-spring-boot-starter</module>
     </modules>
 
@@ -96,6 +97,11 @@
             <dependency>
                 <groupId>net.dreamlu</groupId>
                 <artifactId>mica-ppocr-core</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.dreamlu</groupId>
+                <artifactId>mica-ppocr-structured</artifactId>
                 <version>${revision}</version>
             </dependency>
             <dependency>

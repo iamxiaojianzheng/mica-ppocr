@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-package net.dreamlu.mica.ai.ppocr.test;
+package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
-import lombok.experimental.UtilityClass;
-import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -32,45 +30,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 直接运行 main 即可对一张图片进行 OCR 推理，便于本地快速验证。
+ * 结构化解析调试 demo 基类。
  *
- * <p>模型与图片路径写死在源码里，按需修改。
+ * <p>封装 OpenCV 加载、模型初始化、OCR 推理、可视化等通用流程，
+ * 子类只需关注具体的结构化解析逻辑与字段打印。
+ *
+ * <p>使用方式：每个证件类型建一个 {@code XxxMain}，继承本类，重写 {@link #printResults(List)}。
  */
-@Slf4j
-@UtilityClass
-public class Main {
+public abstract class BaseTest {
 
 	/**
 	 * 模型档位：tiny / small / medium
 	 */
-	private static final String TIER = "tiny";
-	/**
-	 * 推理图片路径，相对工程根目录
-	 */
-	private static final String IMAGE_PATH = "test_images/1.png";
-	/**
-	 * 可视化结果输出路径，传 null 跳过可视化
-	 */
-	private static final String VIS_PATH = "test_images/vis.png";
+	protected static final String TIER = "medium";
 
-	public static void main(String[] args) {
-		nu.pattern.OpenCV.loadLocally();
-
+	/**
+	 * 加载 OpenCV 原生库 + 跑 OCR 推理。
+	 *
+	 * @param image 已读取的图片
+	 * @return OCR 结果列表
+	 */
+	protected List<PPOcrV6Result> runOcr(Mat image) {
 		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
 		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
 		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
 
-		System.out.println("Image:  " + IMAGE_PATH);
 		System.out.println("Det:    " + detModel);
 		System.out.println("Rec:    " + recModel);
 		System.out.println("Dict:   " + dict);
-
-		Mat img = Imgcodecs.imread(IMAGE_PATH);
-		if (img == null || img.empty()) {
-			System.err.println("Error: cannot read image: " + IMAGE_PATH);
-			System.exit(1);
-		}
-		System.out.println("Size:   " + img.cols() + "x" + img.rows());
+		System.out.println("Size:   " + image.cols() + "x" + image.rows());
 
 		PPOcrV6Config config = PPOcrV6Config.builder()
 			.detModelPath(detModel)
@@ -82,7 +70,7 @@ public class Main {
 		List<PPOcrV6Result> results;
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
 			System.out.println("Running OCR...");
-			results = engine.run(img);
+			results = engine.run(image);
 		}
 		long elapsed = System.currentTimeMillis() - t0;
 		System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");
@@ -93,24 +81,17 @@ public class Main {
 				i + 1, r.text(), r.score(),
 				b[0][0], b[0][1], b[1][0], b[1][1], b[2][0], b[2][1], b[3][0], b[3][1]);
 		}
-
-		VehicleLicenseResult license = VehicleLicenseParser.parse(results);
-		System.out.println("\n--- 行驶证结构化解析 ---");
-		System.out.println("plateNo:      " + license.getPlateNo());
-		System.out.println("owner:        " + license.getOwner());
-		System.out.println("vehicleType:  " + license.getVehicleType());
-		System.out.println("vin:          " + license.getVin());
-		System.out.println("issueDate: " + license.getIssueDate());
-
-		if (VIS_PATH != null) {
-			saveVis(img, results, VIS_PATH);
-		}
+		return results;
 	}
 
 	/**
 	 * 在原图上绘制检测框并保存为 PNG。
+	 *
+	 * @param img    原图
+	 * @param results OCR 结果列表
+	 * @param out    输出 PNG 路径
 	 */
-	private static void saveVis(Mat img, List<PPOcrV6Result> results, String out) {
+	protected void saveVis(Mat img, List<PPOcrV6Result> results, String out) {
 		Mat canvas = img.clone();
 		for (PPOcrV6Result r : results) {
 			Point[] pts = new Point[4];
@@ -129,5 +110,35 @@ public class Main {
 			System.err.println("Warning: failed to save visualization: " + out);
 		}
 		canvas.release();
+	}
+
+	/**
+	 * 子类实现：打印结构化解析结果。
+	 *
+	 * @param results OCR 结果列表
+	 */
+	protected abstract void printResults(List<PPOcrV6Result> results);
+
+	/**
+	 * demo 入口：跑 OCR + 打印结构化结果 + 可视化。
+	 *
+	 * @param imagePath 推理图片路径
+	 * @param visPath   可视化输出路径（可为 null）
+	 */
+	protected void demo(String imagePath, String visPath) {
+		// 加载 OpenCV 原生库
+		nu.pattern.OpenCV.loadLocally();
+		// 读取图片
+		System.out.println("Image:  " + imagePath);
+		Mat img = Imgcodecs.imread(imagePath);
+		if (img == null || img.empty()) {
+			System.err.println("Error: cannot read image: " + imagePath);
+			System.exit(1);
+		}
+		List<PPOcrV6Result> results = runOcr(img);
+		printResults(results);
+		if (visPath != null) {
+			saveVis(img, results, visPath);
+		}
 	}
 }
