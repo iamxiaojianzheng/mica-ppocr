@@ -195,7 +195,7 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 			sb.append(firstLineFromMerged);
 		}
 		// 按 y 升序拼接后续跨行框
-		candidates.sort((a, b) -> Integer.compare(LabelMatcher.minY(a), LabelMatcher.minY(b)));
+		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
 		for (PPOcrV6Result r : candidates) {
 			if (!sb.isEmpty()) {
 				sb.append(' ');
