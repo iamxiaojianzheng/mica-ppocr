@@ -105,16 +105,23 @@ public abstract class BaseTest {
 	/**
 	 * 在原图上绘制检测框并保存为 PNG。
 	 *
+	 * <p>如果 OCR 启用了 doc_ori（{@link PPOcrV6Result#rotatedDegrees()} 非 0），
+	 * 会先通过 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 把文本框投影回
+	 * 原图坐标系再绘制，避免「原图 vs 旋转后 box」的错位。
+	 *
 	 * @param img    原图
 	 * @param results OCR 结果列表
 	 * @param out    输出 PNG 路径
 	 */
 	protected void saveVis(Mat img, List<PPOcrV6Result> results, String out) {
 		Mat canvas = img.clone();
+		int imgW = img.cols();
+		int imgH = img.rows();
 		for (PPOcrV6Result r : results) {
+			int[][] box = r.boxInOriginalImg(imgW, imgH);
 			Point[] pts = new Point[4];
 			for (int i = 0; i < 4; i++) {
-				pts[i] = new Point(r.box()[i][0], r.box()[i][1]);
+				pts[i] = new Point(box[i][0], box[i][1]);
 			}
 			MatOfPoint mop = new MatOfPoint(pts);
 			List<MatOfPoint> list = new ArrayList<>();

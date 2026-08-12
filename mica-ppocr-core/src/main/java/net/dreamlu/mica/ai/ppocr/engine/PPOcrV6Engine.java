@@ -480,14 +480,27 @@ public final class PPOcrV6Engine implements Closeable {
 	 * Mat 的 release 由调用方负责。一般场景请使用 {@link #run(String)} / {@link #run(byte[])} / {@link #run(Path)} 等重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
-	 * @return 识别结果列表（按阅读顺序排列）
+	 * @return 识别结果列表（按阅读顺序排列）；
+	 *         启用 doc_ori 时每个 {@link PPOcrV6Result#rotatedDegrees()} 记录
+	 *         doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
 	 */
 	public List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
 		// 文档方向分类（可选）：根据整图方向把图片旋转到正向，再走检测
-		Mat rotated = classifyAndRotateDocOrientation(imgBgr);
+		DocOriRotated rotatedInfo = classifyAndRotateDocOrientation(imgBgr);
+		Mat rotated = rotatedInfo.mat();
 		try {
-			return runOnMat(rotated);
+			List<PPOcrV6Result> results = runOnMat(rotated);
+			if (rotatedInfo.degrees() == 0) {
+				return results;
+			}
+			// 把 doc_ori 应用的旋转角度带到每个 result，便于调用方把 box 投影回原图坐标系
+			int deg = rotatedInfo.degrees();
+			List<PPOcrV6Result> wrapped = new ArrayList<>(results.size());
+			for (PPOcrV6Result r : results) {
+				wrapped.add(new PPOcrV6Result(r.text(), r.score(), r.box(), deg));
+			}
+			return wrapped;
 		} finally {
 			if (rotated != imgBgr) {
 				rotated.release();
@@ -536,26 +549,27 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	/**
-	 * 文档方向分类 + 旋转：返回正向的 Mat（与输入可能是同一个对象）。
+	 * 文档方向分类 + 旋转：返回正向的 Mat 与应用到原图的顺时针旋转角度。
 	 *
-	 * <p>如果未启用或判定为 0°，返回原图（不旋转、不 release）。
+	 * <p>如果未启用或判定为 0°，返回原图（不旋转、不 release），degrees=0。
 	 *
 	 * @param imgBgr BGR 图像
-	 * @return 旋转后的 Mat（永远非空，由调用方负责 release；不旋转时返回原图）
+	 * @return (旋转后 Mat, 应用到原图的顺时针旋转角度 0/90/180/270)；
+	 *         Mat 由调用方负责 release（不旋转时返回原图）
 	 */
-	private Mat classifyAndRotateDocOrientation(Mat imgBgr) {
+	private DocOriRotated classifyAndRotateDocOrientation(Mat imgBgr) {
 		if (!docOriEnabled) {
-			return imgBgr;
+			return new DocOriRotated(imgBgr, 0);
 		}
 		DocOrientationPostprocessor.Result ori;
 		try {
 			ori = classifyDocOrientationMat(imgBgr);
 		} catch (RuntimeException e) {
 			log.warn("文档方向分类失败，按 0° 处理: {}", e.getMessage());
-			return imgBgr;
+			return new DocOriRotated(imgBgr, 0);
 		}
 		if (ori.degrees() == 0) {
-			return imgBgr;
+			return new DocOriRotated(imgBgr, 0);
 		}
 		log.debug("文档方向分类: label={}, degrees={}, score={}", ori.label(), ori.degrees(), ori.score());
 		// PaddleX 官方语义：label N 表示图片已经顺时针旋转了 N 度，
@@ -570,12 +584,12 @@ public final class PPOcrV6Engine implements Closeable {
 			default -> -1;
 		};
 		if (code == -1) {
-			return imgBgr;
+			return new DocOriRotated(imgBgr, 0);
 		}
 		Mat rotated = new Mat();
 		try {
 			Core.rotate(imgBgr, rotated, code);
-			return rotated;
+			return new DocOriRotated(rotated, ori.degrees());
 		} catch (RuntimeException | Error e) {
 			rotated.release();
 			throw e;
@@ -724,6 +738,15 @@ public final class PPOcrV6Engine implements Closeable {
 	// ==================================================================
 	// 内部记录
 	// ==================================================================
+
+	/**
+	 * 文档方向分类 + 旋转结果。
+	 *
+	 * @param mat     正向化后的 Mat（不旋转时就是原图）
+	 * @param degrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
+	 */
+	private record DocOriRotated(Mat mat, int degrees) {
+	}
 
 	/**
 	 * 检测结果。
