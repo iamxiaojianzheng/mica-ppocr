@@ -96,11 +96,22 @@ public final class DocOrientationPreprocessor {
 		int srcH = imgBgr.rows();
 		int srcW = imgBgr.cols();
 
+		// resizeShort 会返回「新建 Mat」或「原图」：两种 case 的内存归属不同
 		Mat resized = resizeShort(imgBgr);
+		boolean ownsResized = (resized != imgBgr);
 		Mat cropped = centerCrop(resized, cropSize);
-		float[] normalized = normalizeAndToChw(cropped);
-		// 注意：BGR 输入但按 RGB 顺序应用 mean/std（与官方 PP-LCNet 训练时一致）
-		return new Result(normalized, new int[]{1, CHANNELS, cropSize, cropSize}, srcH, srcW);
+		// cropped 是 resized 的子 Mat 视图（共享底层内存），所以谁是 cropped 的 owner
+		// 取决于 resized 的 owner：ownsResized=true → cropped 是新增的 owner 链
+		// 正常人简化为：cropped 永远不要手动 release（也无需手动 release）
+		try {
+			float[] normalized = normalizeAndToChw(cropped);
+			// 注意：BGR 输入但按 RGB 顺序应用 mean/std（与官方 PP-LCNet 训练时一致）
+			return new Result(normalized, new int[]{1, CHANNELS, cropSize, cropSize}, srcH, srcW);
+		} finally {
+			if (ownsResized) {
+				resized.release();
+			}
+		}
 	}
 
 	/**

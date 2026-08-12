@@ -250,7 +250,7 @@ public final class PPOcrTemplate {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return parseVehicleLicense(Path.of(imagePath));
+		return parse(Path.of(imagePath), VehicleLicenseParser.INSTANCE);
 	}
 
 	/**
@@ -264,7 +264,7 @@ public final class PPOcrTemplate {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
 		}
-		return parseVehicleLicense(imageFile.toPath());
+		return parse(imageFile.toPath(), VehicleLicenseParser.INSTANCE);
 	}
 
 	/**
@@ -313,7 +313,7 @@ public final class PPOcrTemplate {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return parseIdCard(Path.of(imagePath));
+		return parse(Path.of(imagePath), IdCardParser.INSTANCE);
 	}
 
 	/**
@@ -327,7 +327,7 @@ public final class PPOcrTemplate {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
 		}
-		return parseIdCard(imageFile.toPath());
+		return parse(imageFile.toPath(), IdCardParser.INSTANCE);
 	}
 
 	/**
@@ -376,7 +376,7 @@ public final class PPOcrTemplate {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return parseBankCard(Path.of(imagePath));
+		return parse(Path.of(imagePath), BankCardParser.INSTANCE);
 	}
 
 	/**
@@ -390,7 +390,7 @@ public final class PPOcrTemplate {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
 		}
-		return parseBankCard(imageFile.toPath());
+		return parse(imageFile.toPath(), BankCardParser.INSTANCE);
 	}
 
 	/**
@@ -439,7 +439,7 @@ public final class PPOcrTemplate {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return parseDriverLicense(Path.of(imagePath));
+		return parse(Path.of(imagePath), DriverLicenseParser.INSTANCE);
 	}
 
 	/**
@@ -453,7 +453,7 @@ public final class PPOcrTemplate {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
 		}
-		return parseDriverLicense(imageFile.toPath());
+		return parse(imageFile.toPath(), DriverLicenseParser.INSTANCE);
 	}
 
 	/**

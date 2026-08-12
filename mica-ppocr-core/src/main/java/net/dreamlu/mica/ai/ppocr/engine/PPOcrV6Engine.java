@@ -76,6 +76,9 @@ public final class PPOcrV6Engine implements Closeable {
 	private final String detInputName;
 	private final String recInputName;
 	private final String docOriInputName;
+	private final String detOutputName;
+	private final String recOutputName;
+	private final String docOriOutputName;
 
 	private final DetectionPreprocessor detPre;
 	private final DbPostProcessor detPost;
@@ -146,6 +149,8 @@ public final class PPOcrV6Engine implements Closeable {
 		try {
 			this.detInputName = detSession.getInputNames().iterator().next();
 			this.recInputName = recSession.getInputNames().iterator().next();
+			this.detOutputName = detSession.getOutputNames().iterator().next();
+			this.recOutputName = recSession.getOutputNames().iterator().next();
 			this.detPre = new DetectionPreprocessor(config.getDetLimitSideLen(), config.getDetLimitType(), config.getDetMaxSideLimit());
 			this.detPost = new DbPostProcessor(config.getDetThresh(), config.getDetBoxThresh(), config.getDetUnclipRatio(),
 				1000, 3);
@@ -154,7 +159,13 @@ public final class PPOcrV6Engine implements Closeable {
 			this.recBatchSize = config.getRecBatchSize();
 			this.docOriPre = new DocOrientationPreprocessor();
 			this.docOriPost = new DocOrientationPostprocessor(config.getDocOrientationThresh());
-			this.docOriInputName = docOriEnabled ? docOriSession.getInputNames().iterator().next() : null;
+			if (docOriEnabled) {
+				this.docOriInputName = docOriSession.getInputNames().iterator().next();
+				this.docOriOutputName = docOriSession.getOutputNames().iterator().next();
+			} else {
+				this.docOriInputName = null;
+				this.docOriOutputName = null;
+			}
 		} catch (RuntimeException e) {
 			closeOnInitFailure(e);
 			throw e;
@@ -388,7 +399,7 @@ public final class PPOcrV6Engine implements Closeable {
 			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
 			OrtSession.Result result = detSession.run(Map.of(detInputName, input))
 		) {
-			OnnxTensor outTensor = (OnnxTensor) result.get(0);
+			OnnxTensor outTensor = (OnnxTensor) result.get(detOutputName).get();
 			float[][] prob = readProb2D(outTensor);
 			Mat probMat = probToMat(prob, prep.imgShape());
 			try {
@@ -447,7 +458,7 @@ public final class PPOcrV6Engine implements Closeable {
 				OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
 				OrtSession.Result result = recSession.run(Map.of(recInputName, input))
 			) {
-				OnnxTensor outTensor = (OnnxTensor) result.get(0);
+				OnnxTensor outTensor = (OnnxTensor) result.get(recOutputName).get();
 				float[][][] modelOutput = read3D(outTensor);
 				CtcLabelDecoder.Result decoded = recPost.call(modelOutput);
 				for (int j = 0; j < decoded.texts().length; j++) {
@@ -582,7 +593,7 @@ public final class PPOcrV6Engine implements Closeable {
 			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
 			OrtSession.Result result = docOriSession.run(Map.of(docOriInputName, input))
 		) {
-			OnnxTensor outTensor = (OnnxTensor) result.get(0);
+			OnnxTensor outTensor = (OnnxTensor) result.get(docOriOutputName).get();
 			// 输出 shape: [1, 4]，展平为 length=4 的 logits
 			FloatBuffer out = outTensor.getFloatBuffer();
 			float[] logits = new float[4];

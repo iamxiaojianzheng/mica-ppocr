@@ -178,12 +178,10 @@ public final class DbPostProcessor {
 	private float boxScore(Mat bitmap, float[][] polygon) {
 		int h = bitmap.rows();
 		int w = bitmap.cols();
-		float[][] box = new float[polygon.length][2];
-		System.arraycopy(polygon, 0, box, 0, polygon.length);
 
 		float xMinF = Float.POSITIVE_INFINITY, xMaxF = Float.NEGATIVE_INFINITY;
 		float yMinF = Float.POSITIVE_INFINITY, yMaxF = Float.NEGATIVE_INFINITY;
-		for (float[] p : box) {
+		for (float[] p : polygon) {
 			if (p[0] < xMinF) xMinF = p[0];
 			if (p[0] > xMaxF) xMaxF = p[0];
 			if (p[1] < yMinF) yMinF = p[1];
@@ -205,9 +203,9 @@ public final class DbPostProcessor {
 		MatOfPoint mop = null;
 		Mat roi = null;
 		try {
-			Point[] shifted = new Point[box.length];
-			for (int i = 0; i < box.length; i++) {
-				shifted[i] = new Point(box[i][0] - xMin, box[i][1] - yMin);
+			Point[] shifted = new Point[polygon.length];
+			for (int i = 0; i < polygon.length; i++) {
+				shifted[i] = new Point(polygon[i][0] - xMin, polygon[i][1] - yMin);
 			}
 			mop = new MatOfPoint(shifted);
 			ArrayList<MatOfPoint> list = new ArrayList<>();
