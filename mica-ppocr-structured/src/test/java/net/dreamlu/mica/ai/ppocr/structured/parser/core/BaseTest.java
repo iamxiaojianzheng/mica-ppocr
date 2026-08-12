@@ -42,7 +42,7 @@ public abstract class BaseTest {
 	/**
 	 * 模型档位：tiny / small / medium
 	 */
-	protected static final String TIER = "medium";
+	protected static final String TIER = "small";
 
 	/**
 	 * 加载 OpenCV 原生库 + 跑 OCR 推理。
