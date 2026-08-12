@@ -34,6 +34,9 @@
 
 > `medium` 的 det/rec 模型为 `.onnx.zip`，需解压后使用。
 
+**可选**：文档方向分类模型（`PP-LCNet_x1_0_doc_ori` 的 ONNX 导出，6.47 MB），放在 `models/ppocr-v6/doc_ori/doc_ori.onnx`。
+启用后会在检测前对整图方向做 4 分类（0°/90°/180°/270°）并自动旋转到正向，避免用户侧倒拍/横拍导致识别失败；CPU 单张图多 ~3 ms。详见 [§4.3 文档方向分类](#43-文档方向分类-pp-ocrv6-use_doc_orientation_classify)
+
 ![模型评分](docs/images/v6acc_opt.png)
 
 ## 3. 本地 main 测试
@@ -123,6 +126,52 @@ Engine 公开 API（每个方法 4 种入参）：
 
 支持更多调参（DB 阈值、识别批大小、ORT 线程数、GPU 加速等），详见 [PPOcrV6Config.java](mica-ppocr-core/src/main/java/net/dreamlu/mica/ai/ppocr/config/PPOcrV6Config.java)。
 
+### 4.3 文档方向分类（PP-OCRv6 use_doc_orientation_classify）
+
+对齐 PP-OCRv6 官方 PaddleOCR 3.7+ 的 `use_doc_orientation_classify` 开关，使用 `PP-LCNet_x1_0_doc_ori`（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
+
+**模型**：6.47 MB ONNX，shape = `[1, 3, 224, 224]`，输出 `[1, 4]`（softmax + argmax）。可从 [ModelScope `farming789/pp-lcnet-doc-ori`](https://www.modelscope.cn/models/farming789/pp-lcnet-doc-ori) 直接下载 `model.onnx`，零 Paddle 依赖。
+
+**Java 代码**：
+
+```java
+PPOcrV6Config config = PPOcrV6Config.builder()
+    .detModelPath("models/ppocr-v6/tiny/det.onnx")
+    .recModelPath("models/ppocr-v6/tiny/rec.onnx")
+    .recCharDictPath("models/ppocr-v6/tiny/dict.txt")
+    .useDocOrientationClassify(true)                              // 开关
+    .docOrientationModelPath("models/ppocr-v6/doc_ori/doc_ori.onnx")  // 必填
+    .docOrientationThresh(0.9f)                                  // 置信度阈值，< 该值视为 0°；默认 0.5
+    .build();
+try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+    List<PPOcrV6Result> results = engine.run("rotated_180.jpg");
+    // 内部已自动把倒置图旋转到正向再跑检测
+}
+```
+
+**Spring Boot yml**：
+
+```yaml
+mica:
+  ai:
+    ppocr:
+      # 必填三件套
+      det-model-path: models/ppocr-v6/tiny/det.onnx
+      rec-model-path: models/ppocr-v6/tiny/rec.onnx
+      rec-char-dict-path: models/ppocr-v6/tiny/dict.txt
+      # 可选：文档方向分类
+      use-doc-orientation-classify: true
+      doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx
+      doc-orientation-thresh: 0.9
+```
+
+**关于已废弃的 `use_angle_cls`**：PP-OCRv6 已**正式弃用** `use_angle_cls`（文本行 0/180° 分类），新参数 `use_textline_orientation` 取代之。本项目为了证件类（整页、4 向）场景，**只实现更实用的整图方向分类**；`textline_orientation` 暂未支持，如有需求可后续迭代。
+
+**性能与代价**：
+- CPU：单图多 ~3 ms（极小）
+- 内存：多 ~30 MB（加载第三个 ONNX session）
+- 行为：默认关闭（`useDocOrientationClassify=false`），与原版完全 bit-exact，不影响现有调用
+
 ## 5. 结构化解析（mica-ppocr-structured）
 
 引入依赖：
@@ -207,6 +256,10 @@ mica:
       # ===== 识别参数 =====
       # rec-image-shape: [3, 48, 320]                         # 识别输入 shape [C, H, W]
       # rec-batch-size: 6                                     # 识别批处理大小
+      # ===== 可选：文档方向分类（PP-LCNet_x1_0_doc_ori）=====
+      # use-doc-orientation-classify: false                   # 是否启用整图 4 方向分类 + 自动旋转
+      # doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx  # 启用时必填
+      # doc-orientation-thresh: 0.5                           # 置信度阈值 < 此值视为 0°，调高到 0.9 减少误判
       # ===== 性能 / 运行模式 =====
       # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
       # intra-op-num-threads: 1                               # ONNX 内部线程数
