@@ -51,8 +51,7 @@ public abstract class BaseTest {
 
 	/**
 	 * 文档方向分类置信度阈值；低于此值视为 0°（不旋转）。
-	 * 默认 0.5 较保守，PP-OCRv6 实际图片 4 类概率可能接近 25% 随机分布，
-	 * 推荐降到 0.3 以让 doc_ori 在弱信号下也能起效。
+	 * 与 PPOcrV6Config 默认值保持一致（0.3）。
 	 */
 	protected static final float DOC_ORIENTATION_THRESH = 0.3f;
 

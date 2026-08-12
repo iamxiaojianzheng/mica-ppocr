@@ -141,7 +141,7 @@ PPOcrV6Config config = PPOcrV6Config.builder()
     .recCharDictPath("models/ppocr-v6/tiny/dict.txt")
     .useDocOrientationClassify(true)                              // 开关
     .docOrientationModelPath("models/ppocr-v6/doc_ori/doc_ori.onnx")  // 必填
-    .docOrientationThresh(0.9f)                                  // 置信度阈值，< 该值视为 0°；默认 0.5
+    .docOrientationThresh(0.3f)                                  // 置信度阈值，< 此值视为 0°；默认 0.3
     .build();
 try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
     List<PPOcrV6Result> results = engine.run("rotated_180.jpg");
@@ -162,7 +162,7 @@ mica:
       # 可选：文档方向分类
       use-doc-orientation-classify: true
       doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx
-      doc-orientation-thresh: 0.9
+      doc-orientation-thresh: 0.3
 ```
 
 **关于已废弃的 `use_angle_cls`**：PP-OCRv6 已**正式弃用** `use_angle_cls`（文本行 0/180° 分类），新参数 `use_textline_orientation` 取代之。本项目为了证件类（整页、4 向）场景，**只实现更实用的整图方向分类**；`textline_orientation` 暂未支持，如有需求可后续迭代。
@@ -259,7 +259,7 @@ mica:
       # ===== 可选：文档方向分类（PP-LCNet_x1_0_doc_ori）=====
       # use-doc-orientation-classify: false                   # 是否启用整图 4 方向分类 + 自动旋转
       # doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx  # 启用时必填
-      # doc-orientation-thresh: 0.5                           # 置信度阈值 < 此值视为 0°，调高到 0.9 减少误判
+      # doc-orientation-thresh: 0.3                           # 置信度阈值 < 此值视为 0°；实测 0.3 比 0.5 更稳
       # ===== 性能 / 运行模式 =====
       # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
       # intra-op-num-threads: 1                               # ONNX 内部线程数

@@ -76,8 +76,13 @@ public class PPOCRProperties {
 	/** 文档方向分类模型路径（useDocOrientationClassify=true 时必填） */
 	private String docOrientationModelPath;
 
-	/** 文档方向分类置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1] */
-	private float docOrientationThresh = 0.5f;
+	/**
+	 * 文档方向分类置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1]，默认 0.3。
+	 *
+	 * <p>实测 doc_ori 在 4 类问题上可能给出 [0.19, 0.19, 0.19, 0.43] 这种"4 类接近随机"的分布，
+	 * 此时若用 0.5 阈值会触发降级丢失方向；0.3 是更实用的弱信号保留阈值。
+	 */
+	private float docOrientationThresh = 0.3f;
 
 	/** ONNX 内部线程数 */
 	private int intraOpNumThreads = 1;
