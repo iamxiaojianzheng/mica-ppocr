@@ -362,13 +362,13 @@ public final class PPOcrV6Engine implements Closeable {
 	/**
 	 * 文本检测（Mat 版）。
 	 *
-	 * <p>注意：本方法仅用于调用方已持有 Mat 并需要复用它的场景；
-	 * Mat 的 release 由调用方负责。推荐使用 {@link #detect(String)} 等公开重载。
+	 * <p>Engine 内部使用；同包测试可调用。调用方负责 Mat 的 release。
+	 * 公开入口请使用 {@link #detect(String)} / {@link #detect(byte[])} 等重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
 	 */
-	public DetectResult detectMat(Mat imgBgr) {
+	DetectResult detectMat(Mat imgBgr) {
 		requireOpen();
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
 		long[] shape = toLongArray(prep.shape());
@@ -394,13 +394,13 @@ public final class PPOcrV6Engine implements Closeable {
 	/**
 	 * 文本识别（Mat 版，支持批量）。
 	 *
-	 * <p>注意：本方法仅用于内部流程（detect → crop → recognize）或高级用户；
-	 * 每个 crop Mat 的 release 由调用方负责。公开入口推荐使用 {@link #run(String)}。
+	 * <p>Engine 内部使用；同包测试可调用。每个 crop Mat 的 release 由调用方负责。
+	 * 公开入口推荐使用 {@link #run(String)}。
 	 *
 	 * @param imgList 裁剪后的 BGR 文本行图像列表
 	 * @return texts 与 scores 长度一致
 	 */
-	public RecognizeResult recognizeMat(List<Mat> imgList) {
+	RecognizeResult recognizeMat(List<Mat> imgList) {
 		requireOpen();
 		int n = imgList.size();
 		if (n == 0) {
@@ -457,13 +457,13 @@ public final class PPOcrV6Engine implements Closeable {
 	/**
 	 * 完整 OCR 流程（Mat 版）：检测 → 排序 → 裁剪 → 识别。
 	 *
-	 * <p>注意：本方法仅用于调用方已持有 Mat 并需要复用它的场景；
-	 * Mat 的 release 由调用方负责。推荐使用 {@link #run(String)} / {@link #run(byte[])} 等公开重载。
+	 * <p>Engine 内部使用；同包测试可调用。调用方负责 Mat 的 release。
+	 * 公开入口请使用 {@link #run(String)} / {@link #run(byte[])} / {@link #run(Path)} 等重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return 识别结果列表（按阅读顺序排列）
 	 */
-	public List<PPOcrV6Result> runMat(Mat imgBgr) {
+	List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
 		DetectResult dr = detectMat(imgBgr);
 		if (dr.boxes().length == 0) {
