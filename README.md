@@ -190,12 +190,26 @@ public class Demo {
 mica:
   ai:
     ppocr:
-      enabled: true                       # 设为 false 关闭 Starter
-      det-model-path: models/ppocr-v6/tiny/det.onnx
-      rec-model-path: models/ppocr-v6/tiny/rec.onnx
-      rec-char-dict-path: models/ppocr-v6/tiny/dict.txt
-      # 其它可选：det-thresh / det-box-thresh / det-unclip-ratio /
-      #         rec-batch-size / prefer-accelerator / intra-op-num-threads / ...
+      # ===== 开关：设为 false 时整个 Starter 不注入任何 Bean =====
+      # enabled: true                                         # 默认 true
+      # ===== 必填：三个模型文件路径 =====
+      det-model-path: models/ppocr-v6/tiny/det.onnx          # 检测模型
+      rec-model-path: models/ppocr-v6/tiny/rec.onnx          # 识别模型
+      rec-char-dict-path: models/ppocr-v6/tiny/dict.txt      # 识别字符字典
+      # ===== 检测（DB 后处理）参数 =====
+      # det-limit-side-len: 64                                # 检测图像短边限制
+      # det-limit-type: min                                   # 限制类型：min / max
+      # det-max-side-limit: 4000                              # 检测最大边长限制
+      # det-thresh: 0.3                                       # 检测像素阈值
+      # det-box-thresh: 0.6                                   # 检测框阈值
+      # det-unclip-ratio: 1.5                                 # 多边形 unclip 比例
+      # ===== 识别参数 =====
+      # rec-image-shape: [3, 48, 320]                         # 识别输入 shape [C, H, W]
+      # rec-batch-size: 6                                     # 识别批处理大小
+      # ===== 性能 / 运行模式 =====
+      # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
+      # intra-op-num-threads: 1                               # ONNX 内部线程数
+      # inter-op-num-threads: 1                               # ONNX 交互线程数
 ```
 
 直接注入 `PPOcrTemplate` 即可使用（内部持有 Engine 与 4 个证件解析器，无需手工装配）：
