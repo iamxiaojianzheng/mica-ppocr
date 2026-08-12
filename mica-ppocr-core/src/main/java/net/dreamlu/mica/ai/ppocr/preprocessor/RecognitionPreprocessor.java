@@ -87,7 +87,8 @@ public final class RecognitionPreprocessor {
 			return new Result(new float[0], new int[]{0, CHANNELS, h, 0});
 		}
 
-		List<float[][]> perImgChw = new java.util.ArrayList<>(n);
+		// 第一轮：逐图 resize + 归一化，保留 HWC flat 数据
+		List<float[]> perImgHwc = new java.util.ArrayList<>(n);
 		int[] widths = new int[n];
 		int[] actualWs = new int[n];
 		for (int i = 0; i < n; i++) {
@@ -112,30 +113,24 @@ public final class RecognitionPreprocessor {
 				actualWs[i] = actualW;
 
 				Mat f = NdArrayUtils.toFloat32(resized);
-				float[] hwcRaw;
+				float[] hwc;
 				try {
-					hwcRaw = NdArrayUtils.matToFlatHwc(f);
+					hwc = NdArrayUtils.matToFlatHwc(f);
 				} finally {
 					f.release();
 				}
-				int nPix = hwcRaw.length;
+				// 归一化：(img / 255 - 0.5) / 0.5 = img / 127.5 - 1
+				int nPix = hwc.length;
 				for (int k = 0; k < nPix; k++) {
-					hwcRaw[k] = (hwcRaw[k] / 255.0f - 0.5f) / 0.5f;
+					hwc[k] = hwc[k] / 127.5f - 1.0f;
 				}
-				float[][] chw = new float[CHANNELS][h * actualW];
-				int hw = h * actualW;
-				for (int j = 0; j < hw; j++) {
-					int baseHwc = j * CHANNELS;
-					chw[0][j] = hwcRaw[baseHwc];
-					chw[1][j] = hwcRaw[baseHwc + 1];
-					chw[2][j] = hwcRaw[baseHwc + 2];
-				}
-				perImgChw.add(chw);
+				perImgHwc.add(hwc);
 			} finally {
 				resized.release();
 			}
 		}
 
+		// 第二轮：HWC → NCHW + padding，直接写入 data，无中间 float[][] chw
 		int maxW = 0;
 		for (int w : widths) {
 			if (w > maxW) maxW = w;
@@ -146,15 +141,16 @@ public final class RecognitionPreprocessor {
 		for (int i = 0; i < n; i++) {
 			int actualW = actualWs[i];
 			int destBase = i * chwSize;
-			float[][] chw = perImgChw.get(i);
+			float[] hwc = perImgHwc.get(i);
+			// HWC → CHW + padding：用 (row, col) 循环避免 div/mod
 			for (int c = 0; c < CHANNELS; c++) {
-				float[] chwC = chw[c];
 				int cOffset = destBase + c * h * maxW;
-				int hw = h * actualW;
-				for (int j = 0; j < hw; j++) {
-					int hh = j / actualW;
-					int ww = j % actualW;
-					data[cOffset + hh * maxW + ww] = chwC[j];
+				for (int row = 0; row < h; row++) {
+					int srcRowBase = row * actualW * CHANNELS + c;
+					int dstRowBase = cOffset + row * maxW;
+					for (int col = 0; col < actualW; col++) {
+						data[dstRowBase + col] = hwc[srcRowBase + col * CHANNELS];
+					}
 				}
 			}
 		}

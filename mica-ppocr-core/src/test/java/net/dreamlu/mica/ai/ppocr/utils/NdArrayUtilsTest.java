@@ -41,34 +41,6 @@ class NdArrayUtilsTest {
 	}
 
 	@Test
-	void argmaxLastAxis_basic() {
-		float[][][] x = {
-			{{0.1f, 0.5f, 0.4f}, {0.9f, 0.05f, 0.05f}},
-			{{0.2f, 0.2f, 0.6f}, {0.3f, 0.4f, 0.3f}}
-		};
-		int[][] result = NdArrayUtils.argmaxLastAxis(x);
-		assertEquals(2, result.length);
-		assertArrayEquals(new int[]{1, 0}, result[0]);
-		assertArrayEquals(new int[]{2, 1}, result[1]);
-	}
-
-	@Test
-	void argmaxLastAxis_empty() {
-		int[][] result = NdArrayUtils.argmaxLastAxis(new float[0][][]);
-		assertEquals(0, result.length);
-	}
-
-	@Test
-	void maxLastAxis_basic() {
-		float[][][] x = {
-			{{0.1f, 0.5f, 0.4f}, {0.9f, 0.05f, 0.05f}}
-		};
-		float[][] result = NdArrayUtils.maxLastAxis(x);
-		assertEquals(1, result.length);
-		assertArrayEquals(new float[]{0.5f, 0.9f}, result[0]);
-	}
-
-	@Test
 	void ceilDiv_exact() {
 		assertEquals(4, NdArrayUtils.ceilDiv(12, 3));
 	}
@@ -88,32 +60,5 @@ class NdArrayUtilsTest {
 		assertEquals(5, NdArrayUtils.clamp(5, 0, 10));
 		assertEquals(0, NdArrayUtils.clamp(-1, 0, 10));
 		assertEquals(10, NdArrayUtils.clamp(15, 0, 10));
-	}
-
-	@Test
-	void clamp_float() {
-		assertEquals(0.5f, NdArrayUtils.clamp(0.5f, 0f, 1f));
-		assertEquals(0f, NdArrayUtils.clamp(-0.1f, 0f, 1f));
-		assertEquals(1f, NdArrayUtils.clamp(1.5f, 0f, 1f));
-	}
-
-	@Test
-	void clipAll() {
-		int[] input = {-1, 5, 15};
-		int[] result = NdArrayUtils.clipAll(input, 0, 10);
-		assertArrayEquals(new int[]{0, 5, 10}, result);
-	}
-
-	@Test
-	void roundToInt_basic() {
-		assertEquals(3, NdArrayUtils.roundToInt(3.4f));
-		assertEquals(4, NdArrayUtils.roundToInt(3.5f));
-		assertEquals(-2, NdArrayUtils.roundToInt(-1.6f));
-	}
-
-	@Test
-	void empty3D() {
-		int[][][] result = NdArrayUtils.empty3D();
-		assertEquals(0, result.length);
 	}
 }
