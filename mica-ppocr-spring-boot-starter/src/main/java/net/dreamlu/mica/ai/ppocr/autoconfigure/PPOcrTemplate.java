@@ -239,6 +239,13 @@ public final class PPOcrTemplate {
 	// 行驶证
 	// ==================================================================
 
+	/**
+	 * 行驶证结构化解析（图片路径）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 行驶证结构化结果（含 rawResults + fieldBoxes）
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
 	public VehicleLicenseResult parseVehicleLicense(String imagePath) {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
@@ -246,6 +253,13 @@ public final class PPOcrTemplate {
 		return parseVehicleLicense(Path.of(imagePath));
 	}
 
+	/**
+	 * 行驶证结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 行驶证结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
 	public VehicleLicenseResult parseVehicleLicense(File imageFile) {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
@@ -253,14 +267,33 @@ public final class PPOcrTemplate {
 		return parseVehicleLicense(imageFile.toPath());
 	}
 
+	/**
+	 * 行驶证结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径（兼容非默认文件系统）
+	 * @return 行驶证结构化结果
+	 */
 	public VehicleLicenseResult parseVehicleLicense(Path imagePath) {
 		return parse(imagePath, VehicleLicenseParser.INSTANCE);
 	}
 
+	/**
+	 * 行驶证结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节（PNG/JPG 等）
+	 * @return 行驶证结构化结果
+	 */
 	public VehicleLicenseResult parseVehicleLicense(byte[] imgBytes) {
 		return parse(imgBytes, VehicleLicenseParser.INSTANCE);
 	}
 
+	/**
+	 * 行驶证结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流（自动 readAllBytes）
+	 * @return 行驶证结构化结果
+	 * @throws IOException 读取流失败
+	 */
 	public VehicleLicenseResult parseVehicleLicense(InputStream in) throws IOException {
 		return parse(in, VehicleLicenseParser.INSTANCE);
 	}
@@ -269,6 +302,13 @@ public final class PPOcrTemplate {
 	// 身份证（正反面自动判定）
 	// ==================================================================
 
+	/**
+	 * 身份证结构化解析（图片路径，正反面自动判定）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 身份证结构化结果（含 side 字段标识正反面）
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
 	public IdCardResult parseIdCard(String imagePath) {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
@@ -276,6 +316,13 @@ public final class PPOcrTemplate {
 		return parseIdCard(Path.of(imagePath));
 	}
 
+	/**
+	 * 身份证结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 身份证结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
 	public IdCardResult parseIdCard(File imageFile) {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
@@ -283,14 +330,33 @@ public final class PPOcrTemplate {
 		return parseIdCard(imageFile.toPath());
 	}
 
+	/**
+	 * 身份证结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径
+	 * @return 身份证结构化结果
+	 */
 	public IdCardResult parseIdCard(Path imagePath) {
 		return parse(imagePath, IdCardParser.INSTANCE);
 	}
 
+	/**
+	 * 身份证结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return 身份证结构化结果
+	 */
 	public IdCardResult parseIdCard(byte[] imgBytes) {
 		return parse(imgBytes, IdCardParser.INSTANCE);
 	}
 
+	/**
+	 * 身份证结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流
+	 * @return 身份证结构化结果
+	 * @throws IOException 读取流失败
+	 */
 	public IdCardResult parseIdCard(InputStream in) throws IOException {
 		return parse(in, IdCardParser.INSTANCE);
 	}
@@ -299,6 +365,13 @@ public final class PPOcrTemplate {
 	// 银行卡
 	// ==================================================================
 
+	/**
+	 * 银行卡结构化解析（图片路径）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 银行卡结构化结果
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
 	public BankCardResult parseBankCard(String imagePath) {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
@@ -306,6 +379,13 @@ public final class PPOcrTemplate {
 		return parseBankCard(Path.of(imagePath));
 	}
 
+	/**
+	 * 银行卡结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 银行卡结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
 	public BankCardResult parseBankCard(File imageFile) {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
@@ -313,14 +393,33 @@ public final class PPOcrTemplate {
 		return parseBankCard(imageFile.toPath());
 	}
 
+	/**
+	 * 银行卡结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径
+	 * @return 银行卡结构化结果
+	 */
 	public BankCardResult parseBankCard(Path imagePath) {
 		return parse(imagePath, BankCardParser.INSTANCE);
 	}
 
+	/**
+	 * 银行卡结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return 银行卡结构化结果
+	 */
 	public BankCardResult parseBankCard(byte[] imgBytes) {
 		return parse(imgBytes, BankCardParser.INSTANCE);
 	}
 
+	/**
+	 * 银行卡结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流
+	 * @return 银行卡结构化结果
+	 * @throws IOException 读取流失败
+	 */
 	public BankCardResult parseBankCard(InputStream in) throws IOException {
 		return parse(in, BankCardParser.INSTANCE);
 	}
@@ -329,6 +428,13 @@ public final class PPOcrTemplate {
 	// 驾驶证
 	// ==================================================================
 
+	/**
+	 * 驾驶证结构化解析（图片路径）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 驾驶证结构化结果
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
 	public DriverLicenseResult parseDriverLicense(String imagePath) {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
@@ -336,6 +442,13 @@ public final class PPOcrTemplate {
 		return parseDriverLicense(Path.of(imagePath));
 	}
 
+	/**
+	 * 驾驶证结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 驾驶证结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
 	public DriverLicenseResult parseDriverLicense(File imageFile) {
 		if (imageFile == null) {
 			throw new IllegalArgumentException("imageFile must not be null");
@@ -343,14 +456,33 @@ public final class PPOcrTemplate {
 		return parseDriverLicense(imageFile.toPath());
 	}
 
+	/**
+	 * 驾驶证结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径
+	 * @return 驾驶证结构化结果
+	 */
 	public DriverLicenseResult parseDriverLicense(Path imagePath) {
 		return parse(imagePath, DriverLicenseParser.INSTANCE);
 	}
 
+	/**
+	 * 驾驶证结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return 驾驶证结构化结果
+	 */
 	public DriverLicenseResult parseDriverLicense(byte[] imgBytes) {
 		return parse(imgBytes, DriverLicenseParser.INSTANCE);
 	}
 
+	/**
+	 * 驾驶证结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流
+	 * @return 驾驶证结构化结果
+	 * @throws IOException 读取流失败
+	 */
 	public DriverLicenseResult parseDriverLicense(InputStream in) throws IOException {
 		return parse(in, DriverLicenseParser.INSTANCE);
 	}

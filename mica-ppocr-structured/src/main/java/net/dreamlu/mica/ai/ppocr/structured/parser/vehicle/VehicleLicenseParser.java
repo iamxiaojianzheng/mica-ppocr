@@ -34,19 +34,26 @@ import java.util.regex.Pattern;
  * 找到标签框后，在 x 起点位于标签右边缘右侧（容忍边界 1px 相接）、y 范围与标签框重叠的
  * 候选值框中，取最靠左（x 最小）的文本作为字段值。
  *
- * <p>输出结果会填充 {@link VehicleLicenseResult#getRawResults()}（完整 OCR 结果）
- * 与 {@link VehicleLicenseResult#getFieldBoxes()}（字段名 → box 坐标列表），
+ * <p>输出结果会填充 {@code VehicleLicenseResult#getRawResults()}（完整 OCR 结果）
+ * 与 {@code VehicleLicenseResult#getFieldBoxes()}（字段名 → box 坐标列表），
  * 方便调用方在页面上复原并高亮对应字段。
  */
 @Slf4j
 public class VehicleLicenseParser implements BaseStructuredParser<VehicleLicenseResult> {
 
+	/** 全局单例，便于非 Spring 环境直接调用。 */
 	public static final VehicleLicenseParser INSTANCE = new VehicleLicenseParser();
 
 	private static final Pattern PLATE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
 	private static final Pattern VIN_PATTERN = Pattern.compile("[A-Z0-9]{17}");
 	private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
+	/**
+	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
+	 *
+	 * @param results OCR 识别结果列表（按阅读顺序）
+	 * @return 行驶证结构化解析结果
+	 */
 	public static VehicleLicenseResult parse(List<PPOcrV6Result> results) {
 		return INSTANCE.doParse(results);
 	}

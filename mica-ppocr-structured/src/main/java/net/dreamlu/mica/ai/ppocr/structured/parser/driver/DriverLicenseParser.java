@@ -72,7 +72,10 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 	private static final Pattern GENDER_PATTERN = Pattern.compile("[男女]");
 
 	/**
-	 * 静态工具类风格入口。
+	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
+	 *
+	 * @param results OCR 识别结果列表（按阅读顺序）
+	 * @return 驾驶证结构化解析结果
 	 */
 	public static DriverLicenseResult parse(List<PPOcrV6Result> results) {
 		return INSTANCE.parseResults(results);
