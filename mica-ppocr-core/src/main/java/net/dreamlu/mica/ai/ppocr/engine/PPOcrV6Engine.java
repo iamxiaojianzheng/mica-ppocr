@@ -400,8 +400,7 @@ public final class PPOcrV6Engine implements Closeable {
 			OrtSession.Result result = detSession.run(Map.of(detInputName, input))
 		) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(detOutputName).get();
-			float[][] prob = readProb2D(outTensor);
-			Mat probMat = probToMat(prob, prep.imgShape());
+			Mat probMat = readProbToMat(outTensor);
 			try {
 				DbPostProcessor.Result post = detPost.call(probMat, prep.imgShape());
 				return new DetectResult(post.boxes(), post.scores());
@@ -459,8 +458,13 @@ public final class PPOcrV6Engine implements Closeable {
 				OrtSession.Result result = recSession.run(Map.of(recInputName, input))
 			) {
 				OnnxTensor outTensor = (OnnxTensor) result.get(recOutputName).get();
-				float[][][] modelOutput = read3D(outTensor);
-				CtcLabelDecoder.Result decoded = recPost.call(modelOutput);
+				long[] outShape = outTensor.getInfo().getShape();
+				int bOut = (int) outShape[0];
+				int tOut = (int) outShape[1];
+				int cOut = (int) outShape[2];
+				float[] flat = new float[bOut * tOut * cOut];
+				outTensor.getFloatBuffer().get(flat);
+				CtcLabelDecoder.Result decoded = recPost.call(flat, bOut, tOut, cOut);
 				for (int j = 0; j < decoded.texts().length; j++) {
 					int orig = sortedOrder[start + j];
 					texts[orig] = decoded.texts()[j];
@@ -683,51 +687,22 @@ public final class PPOcrV6Engine implements Closeable {
 		return out;
 	}
 
-	private float[][] readProb2D(OnnxTensor tensor) throws OrtException {
+	/**
+	 * 读取 det 模型输出 [1, 1, H, W] → 2D Mat (H, W, CV_32F)。
+	 *
+	 * <p>合并原先的 readProb2D + probToMat 两步，消除 float[][] 中间层：
+	 * tensor FloatBuffer → flat[] → Mat.put()，省掉 2 次冗余拷贝。
+	 */
+	private Mat readProbToMat(OnnxTensor tensor) throws OrtException {
 		FloatBuffer buf = tensor.getFloatBuffer();
 		long[] shape = tensor.getInfo().getShape();
-		int total = (int) (shape[0] * shape[1] * shape[2] * shape[3]);
-		float[] data = new float[total];
-		buf.get(data);
 		int h = (int) shape[2];
 		int w = (int) shape[3];
-		float[][] out = new float[h][w];
-		for (int i = 0; i < h; i++) {
-			System.arraycopy(data, i * w, out[i], 0, w);
-		}
-		return out;
-	}
-
-	private float[][][] read3D(OnnxTensor tensor) throws OrtException {
-		FloatBuffer buf = tensor.getFloatBuffer();
-		long[] shape = tensor.getInfo().getShape();
-		if (shape.length != 3) {
-			throw new IllegalArgumentException("期望 3D rec 输出, 实际 " + shape.length + "D");
-		}
-		int b = (int) shape[0];
-		int t = (int) shape[1];
-		int c = (int) shape[2];
-		float[] data = new float[b * t * c];
+		float[] data = new float[h * w];
 		buf.get(data);
-		float[][][] out = new float[b][t][c];
-		for (int i = 0; i < b; i++) {
-			for (int j = 0; j < t; j++) {
-				System.arraycopy(data, (i * t + j) * c, out[i][j], 0, c);
-			}
-		}
-		return out;
-	}
-
-	private Mat probToMat(float[][] prob, float[] imgShape) {
-		int h = prob.length;
-		int w = prob[0].length;
 		Mat m = new Mat(h, w, org.opencv.core.CvType.CV_32F);
 		try {
-			float[] flat = new float[h * w];
-			for (int i = 0; i < h; i++) {
-				System.arraycopy(prob[i], 0, flat, i * w, w);
-			}
-			m.put(0, 0, flat);
+			m.put(0, 0, data);
 			return m;
 		} catch (RuntimeException | Error e) {
 			m.release();

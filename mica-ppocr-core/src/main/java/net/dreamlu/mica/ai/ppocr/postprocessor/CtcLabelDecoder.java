@@ -202,6 +202,75 @@ public final class CtcLabelDecoder {
 	}
 
 	/**
+	 * 直接对扁平化的模型输出进行解码。
+	 *
+	 * <p>与 {@link #call(float[][][])} 逻辑完全一致，但直接在 flat float[] 上操作，
+	 * 省掉整个 3D 数组（B×T 个 float[] 子对象 + B×T×C 次拷贝）的分配。
+	 *
+	 * @param flat 模型输出扁平数据，长度 = b * t * c，行主序
+	 * @param b    batch size
+	 * @param t    时间步
+	 * @param c    类别数（vocab size）
+	 * @return 解码结果
+	 */
+	public Result call(float[] flat, int b, int t, int c) {
+		String[] texts = new String[b];
+		float[] scores = new float[b];
+		int vocabSize = chars.length;
+		for (int i = 0; i < b; i++) {
+			int base = i * t * c;
+			StringBuilder sb = new StringBuilder();
+			float sum = 0f;
+			int count = 0;
+			if (t > 0) {
+				// 第 0 个时间步的 argmax + max
+				int rowBase = base;
+				int bestIdx = 0;
+				float bestVal = flat[rowBase];
+				for (int k = 1; k < c; k++) {
+					float v = flat[rowBase + k];
+					if (v > bestVal) {
+						bestVal = v;
+						bestIdx = k;
+					}
+				}
+				int prev = bestIdx;
+				if (prev != BLANK) {
+					if (prev >= 0 && prev < vocabSize) {
+						sb.append(chars[prev]);
+					}
+					sum += bestVal;
+					count++;
+				}
+				// 第 1 步起
+				for (int j = 1; j < t; j++) {
+					rowBase = base + j * c;
+					int curIdx = 0;
+					float curVal = flat[rowBase];
+					for (int k = 1; k < c; k++) {
+						float v = flat[rowBase + k];
+						if (v > curVal) {
+							curVal = v;
+							curIdx = k;
+						}
+					}
+					if (curIdx != prev && curIdx != BLANK) {
+						if (curIdx >= 0 && curIdx < vocabSize) {
+							sb.append(chars[curIdx]);
+						}
+						sum += curVal;
+						count++;
+					}
+					prev = curIdx;
+				}
+			}
+			texts[i] = sb.toString();
+			scores[i] = count > 0 ? sum / count : 0.0f;
+		}
+		return new Result(texts, scores);
+	}
+
+	/**
 	 * CTC 解码结果。
 	 *
 	 * @param texts  解码后的字符串数组
