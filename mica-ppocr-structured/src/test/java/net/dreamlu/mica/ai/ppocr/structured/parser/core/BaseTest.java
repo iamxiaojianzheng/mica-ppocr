@@ -45,6 +45,18 @@ public abstract class BaseTest {
 	protected static final String TIER = "small";
 
 	/**
+	 * 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify）
+	 */
+	protected static final boolean USE_DOC_ORIENTATION = true;
+
+	/**
+	 * 文档方向分类置信度阈值；低于此值视为 0°（不旋转）。
+	 * 默认 0.5 较保守，PP-OCRv6 实际图片 4 类概率可能接近 25% 随机分布，
+	 * 推荐降到 0.3 以让 doc_ori 在弱信号下也能起效。
+	 */
+	protected static final float DOC_ORIENTATION_THRESH = 0.3f;
+
+	/**
 	 * 加载 OpenCV 原生库 + 跑 OCR 推理。
 	 *
 	 * @param image 已读取的图片
@@ -54,16 +66,21 @@ public abstract class BaseTest {
 		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
 		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
 		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
+		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
 
 		System.out.println("Det:    " + detModel);
 		System.out.println("Rec:    " + recModel);
 		System.out.println("Dict:   " + dict);
+		System.out.println("DocOri: " + docOriModel + " (enabled=" + USE_DOC_ORIENTATION + ")");
 		System.out.println("Size:   " + image.cols() + "x" + image.rows());
 
 		PPOcrV6Config config = PPOcrV6Config.builder()
 			.detModelPath(detModel)
 			.recModelPath(recModel)
 			.recCharDictPath(dict)
+			.useDocOrientationClassify(USE_DOC_ORIENTATION)
+			.docOrientationModelPath(docOriModel)
+			.docOrientationThresh(DOC_ORIENTATION_THRESH)
 			.build();
 
 		long t0 = System.currentTimeMillis();
@@ -72,6 +89,8 @@ public abstract class BaseTest {
 			System.out.println("Running OCR...");
 			results = engine.runMat(image);
 		}
+		// 调试提示：doc_ori 已集成到 runMat 内部分类旋转，看输出是否变正常
+		System.out.println("Detected " + results.size() + " text regions.");
 		long elapsed = System.currentTimeMillis() - t0;
 		System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");
 		for (int i = 0; i < results.size(); i++) {

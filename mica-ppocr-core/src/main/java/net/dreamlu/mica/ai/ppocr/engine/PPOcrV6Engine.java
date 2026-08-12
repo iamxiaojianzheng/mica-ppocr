@@ -558,12 +558,15 @@ public final class PPOcrV6Engine implements Closeable {
 			return imgBgr;
 		}
 		log.debug("文档方向分类: label={}, degrees={}, score={}", ori.label(), ori.degrees(), ori.score());
-		// PaddleX 官方输出：label 顺时针角度
-		// Core.ROTATE_90_CLOCKWISE = 顺时针 90°
+		// PaddleX 官方语义：label N 表示图片已经顺时针旋转了 N 度，
+		// 要把图片摆正到 0°，需要**逆向**旋转同样的角度：
+		//   90° (图片已顺时针 90°) → 逆时针 90° = ROTATE_90_COUNTERCLOCKWISE
+		//   180°                       → ROTATE_180
+		//   270° (图片已顺时针 270°)  → 逆时针 270° = 顺时针 90° = ROTATE_90_CLOCKWISE
 		int code = switch (ori.degrees()) {
-			case 90 -> Core.ROTATE_90_CLOCKWISE;
+			case 90 -> Core.ROTATE_90_COUNTERCLOCKWISE;
 			case 180 -> Core.ROTATE_180;
-			case 270 -> Core.ROTATE_90_COUNTERCLOCKWISE;
+			case 270 -> Core.ROTATE_90_CLOCKWISE;
 			default -> -1;
 		};
 		if (code == -1) {
