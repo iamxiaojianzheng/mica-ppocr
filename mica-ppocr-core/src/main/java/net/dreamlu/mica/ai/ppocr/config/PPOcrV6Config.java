@@ -73,6 +73,17 @@ public final class PPOcrV6Config {
 	@Builder.Default
 	private boolean preferAccelerator = false;
 
+	/** 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori） */
+	@Builder.Default
+	private boolean useDocOrientationClassify = false;
+
+	/** 文档方向分类模型路径（useDocOrientationClassify=true 时必填） */
+	private String docOrientationModelPath;
+
+	/** 文档方向分类：置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1]，默认 0.5 */
+	@Builder.Default
+	private float docOrientationThresh = 0.5f;
+
 	/** ONNX Runtime 线程数 */
 	@Builder.Default
 	private int intraOpNumThreads = 1;

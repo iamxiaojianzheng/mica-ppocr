@@ -70,6 +70,15 @@ public class PPOCRProperties {
 	/** 是否优先使用 GPU 加速（默认 false，强制 CPU 保证跨平台 bit-exact） */
 	private boolean preferAccelerator = false;
 
+	/** 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori） */
+	private boolean useDocOrientationClassify = false;
+
+	/** 文档方向分类模型路径（useDocOrientationClassify=true 时必填） */
+	private String docOrientationModelPath;
+
+	/** 文档方向分类置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1] */
+	private float docOrientationThresh = 0.5f;
+
 	/** ONNX 内部线程数 */
 	private int intraOpNumThreads = 1;
 

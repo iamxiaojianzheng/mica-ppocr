@@ -24,7 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.postprocessor.CtcLabelDecoder;
 import net.dreamlu.mica.ai.ppocr.postprocessor.DbPostProcessor;
+import net.dreamlu.mica.ai.ppocr.postprocessor.DocOrientationPostprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.DetectionPreprocessor;
+import net.dreamlu.mica.ai.ppocr.preprocessor.DocOrientationPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.RecognitionPreprocessor;
 import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
 import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
@@ -32,6 +34,7 @@ import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
+import org.opencv.core.Core;
 import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.Closeable;
@@ -69,14 +72,19 @@ public final class PPOcrV6Engine implements Closeable {
 	private final OrtEnvironment env;
 	private final OrtSession detSession;
 	private final OrtSession recSession;
+	private final OrtSession docOriSession;
 	private final String detInputName;
 	private final String recInputName;
+	private final String docOriInputName;
 
 	private final DetectionPreprocessor detPre;
 	private final DbPostProcessor detPost;
 	private final RecognitionPreprocessor recPre;
 	private final CtcLabelDecoder recPost;
 	private final int recBatchSize;
+	private final DocOrientationPreprocessor docOriPre;
+	private final DocOrientationPostprocessor docOriPost;
+	private final boolean docOriEnabled;
 
 	private boolean closed = false;
 
@@ -95,10 +103,21 @@ public final class PPOcrV6Engine implements Closeable {
 		if (config.getRecImageShape() == null || config.getRecImageShape().length != 3) {
 			throw new IllegalArgumentException("recImageShape must be [C, H, W]");
 		}
+		this.docOriEnabled = config.isUseDocOrientationClassify();
+		if (docOriEnabled) {
+			if (config.getDocOrientationModelPath() == null || config.getDocOrientationModelPath().isEmpty()) {
+				throw new IllegalArgumentException(
+					"useDocOrientationClassify=true 时必须指定 docOrientationModelPath");
+			}
+			requireFile(config.getDocOrientationModelPath(), "docOrientationModelPath");
+		}
 		String[] providers = OrtProviders.resolve(!config.isPreferAccelerator());
 		log.info("ONNX Runtime provider: {}", String.join(",", providers));
 		this.env = OrtEnvironment.getEnvironment();
 
+		OrtSession detSess = null;
+		OrtSession recSess = null;
+		OrtSession docOriSess = null;
 		try (OrtSession.SessionOptions opts = new OrtSession.SessionOptions()) {
 			try {
 				opts.setIntraOpNumThreads(Math.max(1, config.getIntraOpNumThreads()));
@@ -108,13 +127,21 @@ public final class PPOcrV6Engine implements Closeable {
 			}
 
 			try {
-				this.detSession = env.createSession(config.getDetModelPath(), opts);
-				this.recSession = env.createSession(config.getRecModelPath(), opts);
+				detSess = env.createSession(config.getDetModelPath(), opts);
+				recSess = env.createSession(config.getRecModelPath(), opts);
+				if (docOriEnabled) {
+					docOriSess = env.createSession(config.getDocOrientationModelPath(), opts);
+				}
 			} catch (OrtException e) {
-				close();
+				silentClose(detSess);
+				silentClose(recSess);
+				silentClose(docOriSess);
 				throw new RuntimeException("创建 ONNX Runtime 会话失败: " + e.getMessage(), e);
 			}
 		}
+		this.detSession = detSess;
+		this.recSession = recSess;
+		this.docOriSession = docOriSess;
 
 		try {
 			this.detInputName = detSession.getInputNames().iterator().next();
@@ -125,13 +152,31 @@ public final class PPOcrV6Engine implements Closeable {
 			this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
 			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
 			this.recBatchSize = config.getRecBatchSize();
+			this.docOriPre = new DocOrientationPreprocessor();
+			this.docOriPost = new DocOrientationPostprocessor(config.getDocOrientationThresh());
+			if (docOriEnabled) {
+				this.docOriInputName = docOriSession.getInputNames().iterator().next();
+			} else {
+				this.docOriInputName = null;
+			}
 		} catch (RuntimeException e) {
 			closeOnInitFailure(e);
 			throw e;
 		}
 
-		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}",
-			this.detPre, this.recPre, this.recPost.vocabSize());
+		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}, docOri={}",
+			this.detPre, this.recPre, this.recPost.vocabSize(), docOriEnabled ? "enabled" : "disabled");
+	}
+
+	private static void silentClose(OrtSession session) {
+		if (session == null) {
+			return;
+		}
+		try {
+			session.close();
+		} catch (OrtException e) {
+			log.debug("关闭 session 失败: {}", e.getMessage());
+		}
 	}
 
 	private static void requireFile(String path, String name) {
@@ -168,6 +213,13 @@ public final class PPOcrV6Engine implements Closeable {
 		if (recSession != null) {
 			try {
 				recSession.close();
+			} catch (OrtException e) {
+				onError.accept(e);
+			}
+		}
+		if (docOriSession != null) {
+			try {
+				docOriSession.close();
 			} catch (OrtException e) {
 				onError.accept(e);
 			}
@@ -465,40 +517,122 @@ public final class PPOcrV6Engine implements Closeable {
 	 */
 	public List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
-		DetectResult dr = detectMat(imgBgr);
-		if (dr.boxes().length == 0) {
-			return List.of();
-		}
-
-		int[][][] sortedBoxes = BoxUtil.sortQuadBoxes(dr.boxes());
-
-		List<Mat> crops = CropUtil.cropByPolys(imgBgr, sortedBoxes);
+		// 0. 文档方向分类（可选）：根据整图方向把图片旋转到正向，再走检测
+		Mat rotated = classifyAndRotateDocOrientation(imgBgr);
 		try {
-			List<int[][]> validBoxes = new ArrayList<>();
-			List<Mat> validCrops = new ArrayList<>();
-			for (int i = 0; i < sortedBoxes.length; i++) {
-				if (crops.get(i) != null) {
-					validBoxes.add(sortedBoxes[i]);
-					validCrops.add(crops.get(i));
-				}
-			}
-			if (validCrops.isEmpty()) {
+			DetectResult dr = detectMat(rotated);
+			if (dr.boxes().length == 0) {
 				return List.of();
 			}
 
-			RecognizeResult rr = recognizeMat(validCrops);
+			int[][][] sortedBoxes = BoxUtil.sortQuadBoxes(dr.boxes());
 
-			List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
-			for (int i = 0; i < validBoxes.size(); i++) {
-				results.add(new PPOcrV6Result(rr.texts()[i], rr.scores()[i], validBoxes.get(i)));
-			}
-			return results;
-		} finally {
-			for (Mat crop : crops) {
-				if (crop != null) {
-					crop.release();
+			List<Mat> crops = CropUtil.cropByPolys(rotated, sortedBoxes);
+			try {
+				List<int[][]> validBoxes = new ArrayList<>();
+				List<Mat> validCrops = new ArrayList<>();
+				for (int i = 0; i < sortedBoxes.length; i++) {
+					if (crops.get(i) != null) {
+						validBoxes.add(sortedBoxes[i]);
+						validCrops.add(crops.get(i));
+					}
+				}
+				if (validCrops.isEmpty()) {
+					return List.of();
+				}
+
+				RecognizeResult rr = recognizeMat(validCrops);
+
+				List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
+				for (int i = 0; i < validBoxes.size(); i++) {
+					results.add(new PPOcrV6Result(rr.texts()[i], rr.scores()[i], validBoxes.get(i)));
+				}
+				return results;
+			} finally {
+				for (Mat crop : crops) {
+					if (crop != null) {
+						crop.release();
+					}
 				}
 			}
+		} finally {
+			if (rotated != imgBgr) {
+				rotated.release();
+			}
+		}
+	}
+
+	/**
+	 * 文档方向分类 + 旋转：返回正向的 Mat（与输入可能是同一个对象）。
+	 *
+	 * <p>如果未启用或判定为 0°，返回原图（不旋转、不 release）。
+	 *
+	 * @param imgBgr BGR 图像
+	 * @return 旋转后的 Mat（永远非空，由调用方负责 release；不旋转时返回原图）
+	 */
+	private Mat classifyAndRotateDocOrientation(Mat imgBgr) {
+		if (!docOriEnabled) {
+			return imgBgr;
+		}
+		DocOrientationPostprocessor.Result ori;
+		try {
+			ori = classifyDocOrientationMat(imgBgr);
+		} catch (RuntimeException e) {
+			log.warn("文档方向分类失败，按 0° 处理: {}", e.getMessage());
+			return imgBgr;
+		}
+		if (ori.degrees() == 0) {
+			return imgBgr;
+		}
+		log.debug("文档方向分类: label={}, degrees={}, score={}", ori.label(), ori.degrees(), ori.score());
+		Mat rotated = new Mat();
+		try {
+			// PaddleX 官方输出：label 顺时针角度
+			// Core.ROTATE_90_CLOCKWISE = 顺时针 90°
+			int code;
+			switch (ori.degrees()) {
+				case 90:
+					code = Core.ROTATE_90_CLOCKWISE;
+					break;
+				case 180:
+					code = Core.ROTATE_180;
+					break;
+				case 270:
+					code = Core.ROTATE_90_COUNTERCLOCKWISE;
+					break;
+				default:
+					return imgBgr;
+			}
+			Core.rotate(imgBgr, rotated, code);
+			return rotated;
+		} catch (RuntimeException | Error e) {
+			rotated.release();
+			throw e;
+		}
+	}
+
+	/**
+	 * 文档方向分类推理（仅返回结果，不做任何旋转）。
+	 *
+	 * @param imgBgr BGR 图像
+	 * @return 分类结果
+	 */
+	private DocOrientationPostprocessor.Result classifyDocOrientationMat(Mat imgBgr) {
+		DocOrientationPreprocessor.Result prep = docOriPre.call(imgBgr);
+		long[] shape = toLongArray(prep.shape());
+		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
+		try (
+			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
+			OrtSession.Result result = docOriSession.run(Map.of(docOriInputName, input))
+		) {
+			OnnxTensor outTensor = (OnnxTensor) result.get(0);
+			// 输出 shape: [1, 4]，展平为 length=4 的 logits
+			FloatBuffer out = outTensor.getFloatBuffer();
+			float[] logits = new float[4];
+			out.get(logits);
+			return docOriPost.call(logits);
+		} catch (OrtException e) {
+			throw new RuntimeException("doc_ori 推理失败: " + e.getMessage(), e);
 		}
 	}
 
