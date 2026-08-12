@@ -20,7 +20,6 @@ import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
@@ -71,7 +70,7 @@ public abstract class BaseTest {
 		List<PPOcrV6Result> results;
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
 			System.out.println("Running OCR...");
-			results = engine.run(encodePng(image));
+			results = engine.runMat(image);
 		}
 		long elapsed = System.currentTimeMillis() - t0;
 		System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");
@@ -83,27 +82,6 @@ public abstract class BaseTest {
 				b[0][0], b[0][1], b[1][0], b[1][1], b[2][0], b[2][1], b[3][0], b[3][1]);
 		}
 		return results;
-	}
-
-	/**
-	 * 把任意 Mat 无损编码为 PNG 字节，再通过公开的 {@link PPOcrV6Engine#run(byte[])} 执行识别。
-	 *
-	 * <p>原因：Engine 的 Mat 重载是包级私有，不在同包的调试类必须走公开 API。
-	 *
-	 * @param img 任意格式的 OpenCV Mat
-	 * @return PNG 编码后的字节
-	 */
-	private static byte[] encodePng(Mat img) {
-		MatOfByte mob = new MatOfByte();
-		try {
-			boolean ok = Imgcodecs.imencode(".png", img, mob);
-			if (!ok) {
-				throw new IllegalStateException("imencode .png failed");
-			}
-			return mob.toArray();
-		} finally {
-			mob.release();
-		}
 	}
 
 	/**
