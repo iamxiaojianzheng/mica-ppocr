@@ -116,7 +116,7 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 			return m.find() ? m.group() : null;
 		});
 		if (fallback != null) {
-			log.info("驾驶证解析：证号正则兜底命中 \"{}\"", fallback);
+			log.debug("驾驶证解析：证号正则兜底命中 \"{}\"", fallback);
 		}
 		return fallback;
 	}
@@ -176,7 +176,7 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 			return m.find() ? m.group() : null;
 		});
 		if (fallback != null) {
-			log.info("驾驶证解析：性别正则兜底命中 \"{}\"", fallback);
+			log.debug("驾驶证解析：性别正则兜底命中 \"{}\"", fallback);
 		}
 		return fallback;
 	}
@@ -351,7 +351,7 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
 			if (m.find()) {
 				String extracted = m.group();
-				log.info("驾驶证解析：出生日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
+				log.debug("驾驶证解析：出生日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
 					labelValue, cleaned, extracted);
 				return extracted;
 			}
@@ -371,7 +371,7 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
 			if (m.find()) {
 				String extracted = m.group();
-				log.info("驾驶证解析：初次领证日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
+				log.debug("驾驶证解析：初次领证日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
 					labelValue, cleaned, extracted);
 				return extracted;
 			}

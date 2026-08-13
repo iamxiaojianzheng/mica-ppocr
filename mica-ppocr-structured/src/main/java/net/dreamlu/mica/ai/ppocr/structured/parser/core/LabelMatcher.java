@@ -279,7 +279,7 @@ public class LabelMatcher {
 			if (text.startsWith(label) && text.length() > label.length()) {
 				String stripped = text.substring(label.length());
 				if (stripped.trim().isEmpty()) continue;
-				log.info("结构化解析：标签 \"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, text, stripped);
+				log.debug("结构化解析：标签 \"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, text, stripped);
 				return LabeledMatch.of(stripped, r);
 			}
 		}
@@ -378,7 +378,7 @@ public class LabelMatcher {
 		}
 		LabeledMatch fallback = matchPatternWithBox(results, pattern, last);
 		if (fallback.hasValue()) {
-			log.info("结构化解析：{} 正则兜底命中 \"{}\"", fieldName, fallback.value());
+			log.debug("结构化解析：{} 正则兜底命中 \"{}\"", fieldName, fallback.value());
 		}
 		return fallback;
 	}
@@ -445,7 +445,7 @@ public class LabelMatcher {
 		if (exactBest != null) return exactBest;
 		if (prefixBest != null) return prefixBest;
 		if (fragmentBest != null) {
-			log.warn("[DEBUG-FIND] label='{}' fragment hit: text='{}' (fragment len={})", label, fragmentBest.text(), fragmentBestLen);
+			log.debug("[DEBUG-FIND] label='{}' fragment hit: text='{}' (fragment len={})", label, fragmentBest.text(), fragmentBestLen);
 		}
 		return fragmentBest;
 	}

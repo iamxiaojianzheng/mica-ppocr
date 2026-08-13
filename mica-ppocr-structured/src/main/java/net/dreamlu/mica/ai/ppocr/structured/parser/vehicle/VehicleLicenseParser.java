@@ -80,12 +80,12 @@ public class VehicleLicenseParser implements BaseStructuredParser<VehicleLicense
 		if (!ownerMatch.hasValue()) {
 			ownerMatch = LabelMatcher.matchValueWithBox(results, "Owner");
 			if (ownerMatch.hasValue()) {
-				log.info("行驶证解析：所有人 按英文标签 Owner fallback 命中 \"{}\"", ownerMatch.value());
+				log.debug("行驶证解析：所有人 按英文标签 Owner fallback 命中 \"{}\"", ownerMatch.value());
 			} else {
 				// 布局兜底单独处理
 				String ownerText = matchOwnerByLayoutFallback(results);
 				if (ownerText != null) {
-					log.info("行驶证解析：所有人 按版面布局 fallback 命中 \"{}\"", ownerText);
+					log.debug("行驶证解析：所有人 按版面布局 fallback 命中 \"{}\"", ownerText);
 					ownerMatch = LabeledMatch.textOnly(ownerText);
 				}
 			}
@@ -105,7 +105,7 @@ public class VehicleLicenseParser implements BaseStructuredParser<VehicleLicense
 		if (!vinMatch.hasValue()) {
 			vinMatch = matchVINFallbackWithBox(results);
 			if (vinMatch.hasValue()) {
-				log.info("行驶证解析：VIN 子串搜索兜底命中 \"{}\"", vinMatch.value());
+				log.debug("行驶证解析：VIN 子串搜索兜底命中 \"{}\"", vinMatch.value());
 			}
 		}
 		license.setVin(vinMatch.value());
@@ -118,7 +118,7 @@ public class VehicleLicenseParser implements BaseStructuredParser<VehicleLicense
 		if (!dateMatch.hasValue()) {
 			dateMatch = matchDateFallbackWithBox(results);
 			if (dateMatch.hasValue()) {
-				log.info("行驶证解析：发证日期 子串搜索兜底命中 \"{}\"", dateMatch.value());
+				log.debug("行驶证解析：发证日期 子串搜索兜底命中 \"{}\"", dateMatch.value());
 			}
 		}
 		license.setIssueDate(dateMatch.value());

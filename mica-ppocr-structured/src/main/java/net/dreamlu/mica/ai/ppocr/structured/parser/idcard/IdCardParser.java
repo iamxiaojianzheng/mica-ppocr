@@ -217,7 +217,7 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 		}
 		String fallback = LabelMatcher.matchPattern(results, ID_NUMBER_PATTERN, false);
 		if (fallback != null) {
-			log.info("身份证解析：身份证号正则兜底命中 \"{}\"", fallback);
+			log.debug("身份证解析：身份证号正则兜底命中 \"{}\"", fallback);
 			return fallback;
 		}
 		log.warn("身份证解析：未匹配到身份证号");

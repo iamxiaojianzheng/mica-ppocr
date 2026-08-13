@@ -317,7 +317,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		if (!match.hasValue()) {
 			LabeledMatch noMatch = matchCreditCodeFromNoPrefix(results);
 			if (noMatch.hasValue()) {
-				log.info("营业执照解析：信用代码按 \"编号:\" 合并框兜底 \"{}\"", noMatch.value());
+				log.debug("营业执照解析：信用代码按 \"编号:\" 合并框兜底 \"{}\"", noMatch.value());
 				match = noMatch;
 			}
 		}
@@ -333,7 +333,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 				LabelMatcher.matchValueFromPrefixWithBox(results, LABEL_REGISTER_NO),
 				results, REGISTER_NO_PATTERN, LABEL_REGISTER_NO, false);
 			if (registerMatch.hasValue()) {
-				log.info("营业执照解析：信用代码缺失，按注册号兜底 \"{}\"", registerMatch.value());
+				log.debug("营业执照解析：信用代码缺失，按注册号兜底 \"{}\"", registerMatch.value());
 				match = registerMatch;
 			}
 		}
@@ -386,7 +386,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			} else if (text.startsWith(LABEL_NAME) && text.length() > LABEL_NAME.length()) {
 				String stripped = text.substring(LABEL_NAME.length()).trim();
 				if (stripped.length() >= 2) {
-					log.info("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", LABEL_NAME, text, stripped);
+					log.debug("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", LABEL_NAME, text, stripped);
 					return LabeledMatch.of(stripped, labelBox);
 				}
 			}
@@ -396,7 +396,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		if (chFrag != null && "称".equals(chFrag.text())) {
 			LabeledMatch m = matchRightByLabelBox(chFrag, results, null);
 			if (m.hasValue()) {
-				log.info("营业执照解析：\"{}\" 按 fragment \"称\" 取值 \"{}\"", LABEL_NAME, m.value());
+				log.debug("营业执照解析：\"{}\" 按 fragment \"称\" 取值 \"{}\"", LABEL_NAME, m.value());
 				return m;
 			}
 		}
@@ -406,7 +406,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			if (text.startsWith("称") && text.length() > 1) {
 				String stripped = text.substring(1).trim();
 				if (stripped.length() >= 2) {
-					log.info("营业执照解析：\"{}\" 从 \"{}\" 剥前缀 \"称\" → \"{}\"", LABEL_NAME, text, stripped);
+					log.debug("营业执照解析：\"{}\" 从 \"{}\" 剥前缀 \"称\" → \"{}\"", LABEL_NAME, text, stripped);
 					return LabeledMatch.of(stripped, r);
 				}
 			}
@@ -439,7 +439,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			} else if (text.startsWith(LABEL_TYPE) && text.length() > LABEL_TYPE.length()) {
 				String stripped = text.substring(LABEL_TYPE.length()).trim();
 				if (stripped.length() >= 2) {
-					log.info("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", LABEL_TYPE, text, stripped);
+					log.debug("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", LABEL_TYPE, text, stripped);
 					return LabeledMatch.of(stripped, labelBox);
 				}
 			}
@@ -449,7 +449,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		if (typeFrag != null && "型".equals(typeFrag.text())) {
 			LabeledMatch m = matchRightByLabelBox(typeFrag, results, null);
 			if (m.hasValue()) {
-				log.info("营业执照解析：\"{}\" 按 fragment \"型\" 取值 \"{}\"", LABEL_TYPE, m.value());
+				log.debug("营业执照解析：\"{}\" 按 fragment \"型\" 取值 \"{}\"", LABEL_TYPE, m.value());
 				return m;
 			}
 		}
@@ -459,7 +459,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			if (text.startsWith("型") && text.length() > 1 && text.length() < TYPE_MAX_LEN) {
 				String stripped = text.substring(1).trim();
 				if (isLikelyTypeText(stripped)) {
-					log.info("营业执照解析：\"{}\" 从 \"{}\" 剥前缀 \"型\" → \"{}\"", LABEL_TYPE, text, stripped);
+					log.debug("营业执照解析：\"{}\" 从 \"{}\" 剥前缀 \"型\" → \"{}\"", LABEL_TYPE, text, stripped);
 					return LabeledMatch.of(stripped, r);
 				}
 			}
@@ -501,7 +501,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			}
 		}
 		if (best != null) {
-			log.info("营业执照解析：\"{}\" 全文关键词兜底命中 \"{}\"", LABEL_TYPE, best.text());
+			log.debug("营业执照解析：\"{}\" 全文关键词兜底命中 \"{}\"", LABEL_TYPE, best.text());
 			return LabeledMatch.of(best.text(), best);
 		}
 		return LabeledMatch.textOnly(null);
@@ -534,7 +534,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			} else if (text.startsWith(label) && text.length() > label.length()) {
 				String stripped = text.substring(label.length()).trim();
 				if (isLikelyLegalPersonText(stripped)) {
-					log.info("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, text, stripped);
+					log.debug("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, text, stripped);
 					return LabeledMatch.of(stripped, labelBox);
 				}
 			}
@@ -602,7 +602,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		// 3) 关键字兜底（"长期"/"永久"）
 		String fallback = LabelMatcher.matchPattern(results, PERIOD_KEYWORD, false);
 		if (fallback != null) {
-			log.info("营业执照解析：有效日期至关键字兜底命中 \"{}\"", fallback);
+			log.debug("营业执照解析：有效日期至关键字兜底命中 \"{}\"", fallback);
 			return LabeledMatch.textOnly(fallback);
 		}
 		return LabeledMatch.textOnly(null);
@@ -625,7 +625,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 			// 1) 合并框剥值
 			LabeledMatch merged = stripMergedLabel(results, label);
 			if (merged.hasValue()) {
-				log.info("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, merged.matches().get(0).text(), merged.value());
+				log.debug("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"", label, merged.matches().get(0).text(), merged.value());
 				return merged.value();
 			}
 			// 2) 独立标签
@@ -646,7 +646,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		// 3) fragment 合并框兜底："所XXX" → 剥前缀得地址
 		LabeledMatch fragMerged = stripFragmentPrefix(results, "所");
 		if (fragMerged.hasValue()) {
-			log.info("营业执照解析：\"{}\" 从 fragment 合并框 \"{}\" 剥出值 \"{}\"",
+			log.debug("营业执照解析：\"{}\" 从 fragment 合并框 \"{}\" 剥出值 \"{}\"",
 				LABEL_ADDRESS, fragMerged.matches().get(0).text(), fragMerged.value());
 			return fragMerged.value();
 		}
@@ -655,7 +655,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		if (suoFrag != null && "所".equals(suoFrag.text())) {
 			LabeledMatch m = matchRightByLabelBox(suoFrag, results, SINGLE_CHAR_FRAGMENTS);
 			if (m.hasValue()) {
-				log.info("营业执照解析：\"{}\" 按 fragment \"所\" 取值 \"{}\"", LABEL_ADDRESS, m.value());
+				log.debug("营业执照解析：\"{}\" 按 fragment \"所\" 取值 \"{}\"", LABEL_ADDRESS, m.value());
 				return m.value();
 			}
 		}
@@ -714,7 +714,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		// 1) 合并框剥值
 		LabeledMatch merged = stripMergedScope(results);
 		if (merged.hasValue()) {
-			log.info("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"",
+			log.debug("营业执照解析：\"{}\" 从合并框 \"{}\" 剥出值 \"{}\"",
 				LABEL_SCOPE, merged.matches().get(0).text(), merged.value());
 			return merged.value();
 		}
@@ -729,7 +729,7 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 		// 3) 兜底：底部最大中文文本框
 		PPOcrV6Result best = findScopeByFallback(results);
 		if (best != null) {
-			log.info("营业执照解析：经营范围按底部关键词兜底命中 \"{}\"", best.text());
+			log.debug("营业执照解析：经营范围按底部关键词兜底命中 \"{}\"", best.text());
 			return best.text();
 		}
 		log.warn("营业执照解析：未匹配到经营范围");
