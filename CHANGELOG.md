@@ -2,6 +2,15 @@
 
 ## 发行版本
 
+### v1.1.2 - 2026-08-13
+- feat(solon): 新增 mica-ppocr-solon-plugin Solon 插件适配模块，提供 PPOcrTemplate 一站式封装与结构化解析器自动装配，能力与 Spring Boot Starter 对齐；补充 Solon 端到端集成测试验证插件装配与 OCR 全流程可用性。
+- feat(structured): 新增营业执照结构化解析器（BusinessLicenseParser），抽取社会信用代码、单位名称、住址、法定代表人、有效日期至、成立日期、类型、注册资本、经营范围共 9 个字段；基于"标签定位 + 位置匹配"策略覆盖横版/竖版版式，处理 OCR 常见噪声（信用代码合并/截断、名称与类型 fragment 拆字、经营范围多行拼接等）；LabelMatcher 扩展 matchPattern / findLabelBox / collectMultiLineRight 等基础能力供复用；Spring Boot Starter 自动注册 BusinessLicenseParser bean，PPOcrTemplate 新增 parseBusinessLicense(...) 5 种入参重载；配套 5 张真实样本 + 可视化产物。
+- refactor(structured): 优化 BusinessLicenseParser 编码规范（行为完全等价，47 个单元测试 + 9 个 starter 测试全绿）：所有字段标签字符串提为 LABEL_* 常量（12 个）消除散落字面量；信用代码长度、置信度阈值等魔术数字集中到"调参常量"分组；TYPE_KEYWORD / LEGAL_PERSON_LABELS / SCOPE_SKIP_FRAGMENTS 等从方法局部提升为类常量；parseType / parseLegalPerson / parseBusinessScope / parseAddress 按语义拆出若干子函数便于单测；stripMergedLabel / stripFragmentPrefix / stripMergedScope 改返回 LabeledMatch 便于日志携带原始框；javadoc 字段命名同步修正（住所→住址，营业期限→有效日期至）并补充分拆方法语义；if 单行加花括号、长行按 if/else 分行、fragment 判空逻辑简化等风格统一。
+- feat(structured): 新增增值税发票结构化解析支持（InvoiceParser）；PPOcrTemplate 增添增值税发票多种入参解析方法；Spring Boot 与 Solon 自动配置同步注册 InvoiceParser 解析器单例；测试资源补充 3 张发票 OCR JSON（上海增值税普通发票、湖北增值税普通发票、江苏增值税专用发票）含完整文本及位置信息，为解析器提供多样化版式样本。
+- refactor(logging): 结构化解析模块日志级别全面由 info 调整为 debug：营业执照解析、驾驶证签发机关正则兜底、身份证号正则兜底命中、标签剥值及正则兜底、行驶证各字段兜底匹配等日志统一降为 debug，显著降低控制台输出噪音。
+- chore(build): 优化 solon 插件编译与配置元数据支持；pom.xml 补充 solon-configuration-processor（scope=provided）并调整 maven-compiler-plugin 的 annotationProcessorPaths；新增 src/main/resources/META-INF/solon/additional-solon-configuration-metadata.json，为 detLimitType 字段补充 min/max enum hints，同时支持 camelCase 与 kebab-case 双写法输入；构建时自动合并生成 solon-configuration-metadata.json。
+- docs(readme): 依赖项 groupId 更正为 net.dreamlu；新增营业执照、增值税发票解析器相关说明与代码示例；Solon 插件适配相关文档同步更新。
+
 ### v1.1.1 - 2026-08-13
 - feat(ocr): 支持 PP-OCRv6 文档方向分类（use_doc_orientation_classify）。使用 PP-LCNet_x1_0_doc_ori 模型（4 类：0°/90°/180°/270°），在 OCR 检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。新增 PPOcrV6Config.useDocOrientationClassify / docOrientationModelPath / docOrientationThresh 配置项；PPOcrV6Engine.runMat 在检测前自动完成方向分类 + 旋转；行为完全向后兼容（默认关闭）。gitee #IK86TX 感谢 `@goalsword` 建议。
 - refactor(engine): PPOcrV6Engine 内部代码精简。`run(Path)` / `detect(Path)` 抽出 `loadMat(Path)` 私有方法消除 native-vs-fallback 重复；`closeSessions` 用 for 循环消除 3 段重复 try/catch；`runMat` 拆为"Mat 生命周期管理"和"核心流水线"两层，单层嵌套；`classifyAndRotateDocOrientation` 改用 switch 表达式。净减 12 行，行为完全不变。
