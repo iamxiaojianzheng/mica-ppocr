@@ -68,6 +68,9 @@ public class PPOCRAutoConfiguration {
 			.recImageShape(properties.getRecImageShape())
 			.recBatchSize(properties.getRecBatchSize())
 			.preferAccelerator(properties.isPreferAccelerator())
+			.useDocOrientationClassify(properties.isUseDocOrientationClassify())
+			.docOrientationModelPath(properties.getDocOrientationModelPath())
+			.docOrientationThresh(properties.getDocOrientationThresh())
 			.intraOpNumThreads(properties.getIntraOpNumThreads())
 			.interOpNumThreads(properties.getInterOpNumThreads());
 		// 容器顺序应用 customizer（依赖 @Order / Ordered 即可控）

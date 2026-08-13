@@ -14,33 +14,26 @@
  * limitations under the License.
  */
 
-package net.dreamlu.mica.ai.ppocr.test;
-
-import lombok.Data;
+package net.dreamlu.mica.ai.ppocr.structured.parser.idcard;
 
 /**
- * 行驶证 OCR 结构化解析结果。
+ * 身份证版面枚举。
+ *
+ * <p>FRONT：人像面（姓名/性别/民族/出生日期/住址/公民身份号码）。
+ * <p>BACK：国徽面（签发机关/有效期限）。
+ * <p>UNKNOWN：无法判定（OCR 框异常或全为空）。
  */
-@Data
-public class VehicleLicenseResult {
+public enum IdCardSide {
 	/**
-	 * 车牌号码
+	 * 正面（人像面）
 	 */
-	private String plateNo;
+	FRONT,
 	/**
-	 * 所有人
+	 * 反面（国徽面）
 	 */
-	private String owner;
+	BACK,
 	/**
-	 * 车辆类型
+	 * 无法判定
 	 */
-	private String vehicleType;
-	/**
-	 * 车架号/车辆识别代号
-	 */
-	private String vin;
-	/**
-	 * 发证日期
-	 */
-	private String issueDate;
+	UNKNOWN
 }

@@ -24,15 +24,23 @@ import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.postprocessor.CtcLabelDecoder;
 import net.dreamlu.mica.ai.ppocr.postprocessor.DbPostProcessor;
+import net.dreamlu.mica.ai.ppocr.postprocessor.DocOrientationPostprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.DetectionPreprocessor;
+import net.dreamlu.mica.ai.ppocr.preprocessor.DocOrientationPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.RecognitionPreprocessor;
 import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
 import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
+import org.opencv.core.Core;
+import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,23 +58,36 @@ import java.util.function.Consumer;
  *     .recCharDictPath("dict.txt")
  *     .build();
  * try (var engine = new PPOcrV6Engine(config)) {
- *     List<PPOcrV6Result> results = engine.run(image);
+ *     // 推荐：直接传文件路径 / byte[]，内部自动处理 native 内存释放
+ *     List<PPOcrV6Result> results = engine.run("test_images/vehicle/vehicle1.png");
  * }
  * }</pre>
+ *
+ * <p>公开 API 只暴露 {@code byte[]} / {@link File} / {@link String} 三种入参，
+ * 内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+ * 如确需复用已加载的 Mat，可使用 {@link #runMat(Mat)} 等方法。
  */
 @Slf4j
 public final class PPOcrV6Engine implements Closeable {
 	private final OrtEnvironment env;
 	private final OrtSession detSession;
 	private final OrtSession recSession;
+	private final OrtSession docOriSession;
 	private final String detInputName;
 	private final String recInputName;
+	private final String docOriInputName;
+	private final String detOutputName;
+	private final String recOutputName;
+	private final String docOriOutputName;
 
 	private final DetectionPreprocessor detPre;
 	private final DbPostProcessor detPost;
 	private final RecognitionPreprocessor recPre;
 	private final CtcLabelDecoder recPost;
 	private final int recBatchSize;
+	private final DocOrientationPreprocessor docOriPre;
+	private final DocOrientationPostprocessor docOriPost;
+	private final boolean docOriEnabled;
 
 	private boolean closed = false;
 
@@ -85,10 +106,21 @@ public final class PPOcrV6Engine implements Closeable {
 		if (config.getRecImageShape() == null || config.getRecImageShape().length != 3) {
 			throw new IllegalArgumentException("recImageShape must be [C, H, W]");
 		}
+		this.docOriEnabled = config.isUseDocOrientationClassify();
+		if (docOriEnabled) {
+			if (config.getDocOrientationModelPath() == null || config.getDocOrientationModelPath().isEmpty()) {
+				throw new IllegalArgumentException(
+					"useDocOrientationClassify=true 时必须指定 docOrientationModelPath");
+			}
+			requireFile(config.getDocOrientationModelPath(), "docOrientationModelPath");
+		}
 		String[] providers = OrtProviders.resolve(!config.isPreferAccelerator());
 		log.info("ONNX Runtime provider: {}", String.join(",", providers));
 		this.env = OrtEnvironment.getEnvironment();
 
+		OrtSession detSess = null;
+		OrtSession recSess = null;
+		OrtSession docOriSess = null;
 		try (OrtSession.SessionOptions opts = new OrtSession.SessionOptions()) {
 			try {
 				opts.setIntraOpNumThreads(Math.max(1, config.getIntraOpNumThreads()));
@@ -98,30 +130,60 @@ public final class PPOcrV6Engine implements Closeable {
 			}
 
 			try {
-				this.detSession = env.createSession(config.getDetModelPath(), opts);
-				this.recSession = env.createSession(config.getRecModelPath(), opts);
+				detSess = env.createSession(config.getDetModelPath(), opts);
+				recSess = env.createSession(config.getRecModelPath(), opts);
+				if (docOriEnabled) {
+					docOriSess = env.createSession(config.getDocOrientationModelPath(), opts);
+				}
 			} catch (OrtException e) {
-				close();
+				silentClose(detSess);
+				silentClose(recSess);
+				silentClose(docOriSess);
 				throw new RuntimeException("创建 ONNX Runtime 会话失败: " + e.getMessage(), e);
 			}
 		}
+		this.detSession = detSess;
+		this.recSession = recSess;
+		this.docOriSession = docOriSess;
 
 		try {
 			this.detInputName = detSession.getInputNames().iterator().next();
 			this.recInputName = recSession.getInputNames().iterator().next();
+			this.detOutputName = detSession.getOutputNames().iterator().next();
+			this.recOutputName = recSession.getOutputNames().iterator().next();
 			this.detPre = new DetectionPreprocessor(config.getDetLimitSideLen(), config.getDetLimitType(), config.getDetMaxSideLimit());
 			this.detPost = new DbPostProcessor(config.getDetThresh(), config.getDetBoxThresh(), config.getDetUnclipRatio(),
 				1000, 3);
 			this.recPre = new RecognitionPreprocessor(config.getRecImageShape()[1], 320, 3200);
 			this.recPost = new CtcLabelDecoder(config.getRecCharDictPath());
 			this.recBatchSize = config.getRecBatchSize();
+			this.docOriPre = new DocOrientationPreprocessor();
+			this.docOriPost = new DocOrientationPostprocessor(config.getDocOrientationThresh());
+			if (docOriEnabled) {
+				this.docOriInputName = docOriSession.getInputNames().iterator().next();
+				this.docOriOutputName = docOriSession.getOutputNames().iterator().next();
+			} else {
+				this.docOriInputName = null;
+				this.docOriOutputName = null;
+			}
 		} catch (RuntimeException e) {
 			closeOnInitFailure(e);
 			throw e;
 		}
 
-		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}",
-			this.detPre, this.recPre, this.recPost.vocabSize());
+		log.info("PPOcrV6Engine 初始化完成: det={}, rec={}, vocab={}, docOri={}",
+			this.detPre, this.recPre, this.recPost.vocabSize(), docOriEnabled ? "enabled" : "disabled");
+	}
+
+	private static void silentClose(OrtSession session) {
+		if (session == null) {
+			return;
+		}
+		try {
+			session.close();
+		} catch (OrtException e) {
+			log.debug("关闭 session 失败: {}", e.getMessage());
+		}
 	}
 
 	private static void requireFile(String path, String name) {
@@ -148,16 +210,12 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	private void closeSessions(Consumer<OrtException> onError) {
-		if (detSession != null) {
-			try {
-				detSession.close();
-			} catch (OrtException e) {
-				onError.accept(e);
+		for (OrtSession session : new OrtSession[]{detSession, recSession, docOriSession}) {
+			if (session == null) {
+				continue;
 			}
-		}
-		if (recSession != null) {
 			try {
-				recSession.close();
+				session.close();
 			} catch (OrtException e) {
 				onError.accept(e);
 			}
@@ -176,13 +234,163 @@ public final class PPOcrV6Engine implements Closeable {
 			+ ", vocab=" + recPost.vocabSize() + ", closed=" + closed + ")";
 	}
 
+	// ==================================================================
+	// 推荐公开 API：byte[] / File / String，内部自动管理 Mat 生命周期
+	// ==================================================================
+
 	/**
-	 * 文本检测。
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 *
+	 * @param imagePath 图片路径（PNG / JPG / BMP 等任意 OpenCV 支持的格式）
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 路径为空、文件不存在或解码失败
+	 */
+	public List<PPOcrV6Result> run(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return run(Path.of(imagePath));
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 文件不存在或解码失败
+	 */
+	public List<PPOcrV6Result> run(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return run(imageFile.toPath());
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>兼容非默认文件系统的 {@link Path}（如 ZIP/JIMFS 等）：优先走 native 文件读取，
+	 * 不支持的 FileSystem 自动退回 {@code Files.readAllBytes}。
+	 *
+	 * @param imagePath 图片路径
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws UncheckedIOException 读取字节时发生 IO 异常
+	 */
+	public List<PPOcrV6Result> run(Path imagePath) {
+		if (imagePath == null) {
+			throw new IllegalArgumentException("imagePath must not be null");
+		}
+		Mat mat = loadMat(imagePath);
+		try {
+			return runMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	/**
+	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release，调用方无需管理 native 内存。
+	 * 典型场景：Spring Boot 上传 {@code MultipartFile.getBytes()}。
+	 *
+	 * @param imgBytes 图片字节（PNG / JPG / BMP 等任意 OpenCV 支持的格式）
+	 * @return 识别结果列表（按阅读顺序排列）
+	 * @throws IllegalArgumentException 字节为空或解码失败
+	 */
+	public List<PPOcrV6Result> run(byte[] imgBytes) {
+		Mat mat = decodeMat(imgBytes);
+		try {
+			return runMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>内部自动解码为 BGR Mat 并在方法返回时 release。
+	 *
+	 * @param imagePath 图片路径
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return detect(Path.of(imagePath));
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return detect(imageFile.toPath());
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>兼容非默认文件系统的 {@link Path}（如 ZIP/JIMFS 等）。
+	 *
+	 * @param imagePath 图片路径
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 * @throws UncheckedIOException 读取字节时发生 IO 异常
+	 */
+	public DetectResult detect(Path imagePath) {
+		if (imagePath == null) {
+			throw new IllegalArgumentException("imagePath must not be null");
+		}
+		Mat mat = loadMat(imagePath);
+		try {
+			return detectMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	/**
+	 * 文本检测（仅检测，不识别）。
+	 *
+	 * <p>典型场景：Spring Boot 上传 {@code MultipartFile.getBytes()}。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
+	 */
+	public DetectResult detect(byte[] imgBytes) {
+		Mat mat = decodeMat(imgBytes);
+		try {
+			return detectMat(mat);
+		} finally {
+			mat.release();
+		}
+	}
+
+	// ==================================================================
+	// 内部/高级用法：Mat 入参，调用方负责 release
+	// ==================================================================
+
+	/**
+	 * 文本检测（Mat 版）。
+	 *
+	 * <p>仅适用于「已持有 Mat 并需复用」的高级场景（如同一图跑多次推理）；
+	 * Mat 的 release 由调用方负责。一般场景请使用 {@link #detect(String)} / {@link #detect(byte[])} 等重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return boxes 形状 (N, 4, 2) int，scores 长度 N
 	 */
-	public DetectResult detect(Mat imgBgr) {
+	public DetectResult detectMat(Mat imgBgr) {
 		requireOpen();
 		DetectionPreprocessor.Result prep = detPre.call(imgBgr);
 		long[] shape = toLongArray(prep.shape());
@@ -191,9 +399,8 @@ public final class PPOcrV6Engine implements Closeable {
 			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
 			OrtSession.Result result = detSession.run(Map.of(detInputName, input))
 		) {
-			OnnxTensor outTensor = (OnnxTensor) result.get(0);
-			float[][] prob = readProb2D(outTensor);
-			Mat probMat = probToMat(prob, prep.imgShape());
+			OnnxTensor outTensor = (OnnxTensor) result.get(detOutputName).get();
+			Mat probMat = readProbToMat(outTensor);
 			try {
 				DbPostProcessor.Result post = detPost.call(probMat, prep.imgShape());
 				return new DetectResult(post.boxes(), post.scores());
@@ -206,12 +413,15 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	/**
-	 * 文本识别（支持批量）。
+	 * 文本识别（Mat 版，支持批量）。
+	 *
+	 * <p>仅适用于「已持有 Mat 并需复用」的高级场景（如同一图跑多次推理）；
+	 * 每个 crop Mat 的 release 由调用方负责。一般场景请使用 {@link #run(String)} 等重载。
 	 *
 	 * @param imgList 裁剪后的 BGR 文本行图像列表
 	 * @return texts 与 scores 长度一致
 	 */
-	public RecognizeResult recognize(List<Mat> imgList) {
+	public RecognizeResult recognizeMat(List<Mat> imgList) {
 		requireOpen();
 		int n = imgList.size();
 		if (n == 0) {
@@ -222,27 +432,24 @@ public final class PPOcrV6Engine implements Closeable {
 			log.debug("rec 输入 #0: {}x{}x{} type={} (BGR)", first.rows(), first.cols(), first.channels(), first.type());
 		}
 
-		List<Integer> order = new ArrayList<>(n);
-		List<Double> ratios = new ArrayList<>(n);
+		// 按宽高比排序：让 batch 内尺寸相近，padding 浪费最小
+		Integer[] sortedOrder = new Integer[n];
+		double[] ratios = new double[n];
 		for (int i = 0; i < n; i++) {
-			Mat m = imgList.get(i);
-			order.add(i);
-			ratios.add((double) m.cols() / m.rows());
+			sortedOrder[i] = i;
+			ratios[i] = (double) imgList.get(i).cols() / imgList.get(i).rows();
 		}
-		List<Integer> sortedOrder = new ArrayList<>(order);
-		sortedOrder.sort(Comparator.comparingDouble(ratios::get));
-
-		List<Mat> sortedImgs = new ArrayList<>(n);
-		for (int idx : sortedOrder) {
-			sortedImgs.add(imgList.get(idx));
-		}
+		Arrays.sort(sortedOrder, Comparator.comparingDouble(i -> ratios[i]));
 
 		String[] texts = new String[n];
 		float[] scores = new float[n];
 
 		for (int start = 0; start < n; start += recBatchSize) {
 			int end = Math.min(start + recBatchSize, n);
-			List<Mat> batch = sortedImgs.subList(start, end);
+			List<Mat> batch = new ArrayList<>(end - start);
+			for (int i = start; i < end; i++) {
+				batch.add(imgList.get(sortedOrder[i]));
+			}
 			RecognitionPreprocessor.Result prep = recPre.call(batch);
 			long[] shape = toLongArray(prep.shape());
 			FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
@@ -250,11 +457,16 @@ public final class PPOcrV6Engine implements Closeable {
 				OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
 				OrtSession.Result result = recSession.run(Map.of(recInputName, input))
 			) {
-				OnnxTensor outTensor = (OnnxTensor) result.get(0);
-				float[][][] modelOutput = read3D(outTensor);
-				CtcLabelDecoder.Result decoded = recPost.call(modelOutput);
+				OnnxTensor outTensor = (OnnxTensor) result.get(recOutputName).get();
+				long[] outShape = outTensor.getInfo().getShape();
+				int bOut = (int) outShape[0];
+				int tOut = (int) outShape[1];
+				int cOut = (int) outShape[2];
+				float[] flat = new float[bOut * tOut * cOut];
+				outTensor.getFloatBuffer().get(flat);
+				CtcLabelDecoder.Result decoded = recPost.call(flat, bOut, tOut, cOut);
 				for (int j = 0; j < decoded.texts().length; j++) {
-					int orig = sortedOrder.get(start + j);
+					int orig = sortedOrder[start + j];
 					texts[orig] = decoded.texts()[j];
 					scores[orig] = decoded.scores()[j];
 				}
@@ -266,20 +478,51 @@ public final class PPOcrV6Engine implements Closeable {
 	}
 
 	/**
-	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
+	 * 完整 OCR 流程（Mat 版）：检测 → 排序 → 裁剪 → 识别。
+	 *
+	 * <p>仅适用于「已持有 Mat 并需复用」的高级场景（如同一图跑多次推理）；
+	 * Mat 的 release 由调用方负责。一般场景请使用 {@link #run(String)} / {@link #run(byte[])} / {@link #run(Path)} 等重载。
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
-	 * @return 识别结果列表（按阅读顺序排列）
+	 * @return 识别结果列表（按阅读顺序排列）；
+	 *         启用 doc_ori 时每个 {@link PPOcrV6Result#rotatedDegrees()} 记录
+	 *         doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
 	 */
-	public List<PPOcrV6Result> run(Mat imgBgr) {
+	public List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
-		DetectResult dr = detect(imgBgr);
+		// 文档方向分类（可选）：根据整图方向把图片旋转到正向，再走检测
+		DocOriRotated rotatedInfo = classifyAndRotateDocOrientation(imgBgr);
+		Mat rotated = rotatedInfo.mat();
+		try {
+			List<PPOcrV6Result> results = runOnMat(rotated);
+			if (rotatedInfo.degrees() == 0) {
+				return results;
+			}
+			// 把 doc_ori 应用的旋转角度带到每个 result，便于调用方把 box 投影回原图坐标系
+			int deg = rotatedInfo.degrees();
+			List<PPOcrV6Result> wrapped = new ArrayList<>(results.size());
+			for (PPOcrV6Result r : results) {
+				wrapped.add(new PPOcrV6Result(r.text(), r.score(), r.box(), deg));
+			}
+			return wrapped;
+		} finally {
+			if (rotated != imgBgr) {
+				rotated.release();
+			}
+		}
+	}
+
+	/**
+	 * 在已正向化的 Mat 上跑核心 OCR 流水线（检测 → 排序 → 裁剪 → 识别）。
+	 * 内部负责所有 crop Mat 的 release。
+	 */
+	private List<PPOcrV6Result> runOnMat(Mat imgBgr) {
+		DetectResult dr = detectMat(imgBgr);
 		if (dr.boxes().length == 0) {
 			return List.of();
 		}
 
 		int[][][] sortedBoxes = BoxUtil.sortQuadBoxes(dr.boxes());
-
 		List<Mat> crops = CropUtil.cropByPolys(imgBgr, sortedBoxes);
 		try {
 			List<int[][]> validBoxes = new ArrayList<>();
@@ -294,8 +537,7 @@ public final class PPOcrV6Engine implements Closeable {
 				return List.of();
 			}
 
-			RecognizeResult rr = recognize(validCrops);
-
+			RecognizeResult rr = recognizeMat(validCrops);
 			List<PPOcrV6Result> results = new ArrayList<>(validBoxes.size());
 			for (int i = 0; i < validBoxes.size(); i++) {
 				results.add(new PPOcrV6Result(rr.texts()[i], rr.scores()[i], validBoxes.get(i)));
@@ -310,6 +552,133 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
+	/**
+	 * 文档方向分类 + 旋转：返回正向的 Mat 与应用到原图的顺时针旋转角度。
+	 *
+	 * <p>如果未启用或判定为 0°，返回原图（不旋转、不 release），degrees=0。
+	 *
+	 * @param imgBgr BGR 图像
+	 * @return (旋转后 Mat, 应用到原图的顺时针旋转角度 0/90/180/270)；
+	 *         Mat 由调用方负责 release（不旋转时返回原图）
+	 */
+	private DocOriRotated classifyAndRotateDocOrientation(Mat imgBgr) {
+		if (!docOriEnabled) {
+			return new DocOriRotated(imgBgr, 0);
+		}
+		DocOrientationPostprocessor.Result ori;
+		try {
+			ori = classifyDocOrientationMat(imgBgr);
+		} catch (RuntimeException e) {
+			log.warn("文档方向分类失败，按 0° 处理: {}", e.getMessage());
+			return new DocOriRotated(imgBgr, 0);
+		}
+		if (ori.degrees() == 0) {
+			return new DocOriRotated(imgBgr, 0);
+		}
+		log.debug("文档方向分类: label={}, degrees={}, score={}", ori.label(), ori.degrees(), ori.score());
+		// PaddleX 官方语义：label N 表示图片已经顺时针旋转了 N 度，
+		// 要把图片摆正到 0°，需要**逆向**旋转同样的角度：
+		//   90° (图片已顺时针 90°) → 逆时针 90° = ROTATE_90_COUNTERCLOCKWISE
+		//   180°                       → ROTATE_180
+		//   270° (图片已顺时针 270°)  → 逆时针 270° = 顺时针 90° = ROTATE_90_CLOCKWISE
+		int code = switch (ori.degrees()) {
+			case 90 -> Core.ROTATE_90_COUNTERCLOCKWISE;
+			case 180 -> Core.ROTATE_180;
+			case 270 -> Core.ROTATE_90_CLOCKWISE;
+			default -> -1;
+		};
+		if (code == -1) {
+			return new DocOriRotated(imgBgr, 0);
+		}
+		Mat rotated = new Mat();
+		try {
+			Core.rotate(imgBgr, rotated, code);
+			return new DocOriRotated(rotated, ori.degrees());
+		} catch (RuntimeException | Error e) {
+			rotated.release();
+			throw e;
+		}
+	}
+
+	/**
+	 * 文档方向分类推理（仅返回结果，不做任何旋转）。
+	 *
+	 * @param imgBgr BGR 图像
+	 * @return 分类结果
+	 */
+	private DocOrientationPostprocessor.Result classifyDocOrientationMat(Mat imgBgr) {
+		DocOrientationPreprocessor.Result prep = docOriPre.call(imgBgr);
+		long[] shape = toLongArray(prep.shape());
+		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
+		try (
+			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
+			OrtSession.Result result = docOriSession.run(Map.of(docOriInputName, input))
+		) {
+			OnnxTensor outTensor = (OnnxTensor) result.get(docOriOutputName).get();
+			// 输出 shape: [1, 4]，展平为 length=4 的 logits
+			FloatBuffer out = outTensor.getFloatBuffer();
+			float[] logits = new float[4];
+			out.get(logits);
+			return docOriPost.call(logits);
+		} catch (OrtException e) {
+			throw new RuntimeException("doc_ori 推理失败: " + e.getMessage(), e);
+		}
+	}
+
+	// ==================================================================
+	// 内部工具
+	// ==================================================================
+
+	/**
+	 * 将图片字节解码为 BGR Mat。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return BGR 格式的 Mat（非空）
+	 * @throws IllegalArgumentException 字节为空或解码失败
+	 */
+	private static Mat decodeMat(byte[] imgBytes) {
+		if (imgBytes == null || imgBytes.length == 0) {
+			throw new IllegalArgumentException("imgBytes must not be empty");
+		}
+		Mat mat = Imgcodecs.imdecode(new MatOfByte(imgBytes), Imgcodecs.IMREAD_COLOR);
+		if (mat.empty()) {
+			mat.release();
+			throw new IllegalArgumentException("Failed to decode image from byte[] (unsupported format or corrupted data)");
+		}
+		return mat;
+	}
+
+	/**
+	 * 从 Path 加载 BGR Mat。
+	 *
+	 * <p>默认 FileSystem 走 native OpenCV 读取（省内存，不经过 JVM heap 中转）；
+	 * 非默认 FileSystem（ZIP / JIMFS / 内存 FS 等）自动退回 {@code Files.readAllBytes}。
+	 *
+	 * @param imagePath 图片路径
+	 * @return BGR Mat（由调用方负责 release）
+	 * @throws IllegalArgumentException 路径加载失败或解码失败
+	 */
+	private static Mat loadMat(Path imagePath) {
+		try {
+			// 默认 FileSystem → native 读取 OpenCV
+			Mat mat = Imgcodecs.imread(imagePath.toFile().getAbsolutePath());
+			if (mat.empty()) {
+				mat.release();
+				throw new IllegalArgumentException("Failed to load image: " + imagePath);
+			}
+			return mat;
+		} catch (UnsupportedOperationException ignore) {
+			// 非默认 FileSystem：退回字节流
+			byte[] bytes;
+			try {
+				bytes = Files.readAllBytes(imagePath);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+			return decodeMat(bytes);
+		}
+	}
+
 	private long[] toLongArray(int[] arr) {
 		long[] out = new long[arr.length];
 		for (int i = 0; i < arr.length; i++) {
@@ -318,51 +687,22 @@ public final class PPOcrV6Engine implements Closeable {
 		return out;
 	}
 
-	private float[][] readProb2D(OnnxTensor tensor) throws OrtException {
+	/**
+	 * 读取 det 模型输出 [1, 1, H, W] → 2D Mat (H, W, CV_32F)。
+	 *
+	 * <p>合并原先的 readProb2D + probToMat 两步，消除 float[][] 中间层：
+	 * tensor FloatBuffer → flat[] → Mat.put()，省掉 2 次冗余拷贝。
+	 */
+	private Mat readProbToMat(OnnxTensor tensor) throws OrtException {
 		FloatBuffer buf = tensor.getFloatBuffer();
 		long[] shape = tensor.getInfo().getShape();
-		int total = (int) (shape[0] * shape[1] * shape[2] * shape[3]);
-		float[] data = new float[total];
-		buf.get(data);
 		int h = (int) shape[2];
 		int w = (int) shape[3];
-		float[][] out = new float[h][w];
-		for (int i = 0; i < h; i++) {
-			System.arraycopy(data, i * w, out[i], 0, w);
-		}
-		return out;
-	}
-
-	private float[][][] read3D(OnnxTensor tensor) throws OrtException {
-		FloatBuffer buf = tensor.getFloatBuffer();
-		long[] shape = tensor.getInfo().getShape();
-		if (shape.length != 3) {
-			throw new IllegalArgumentException("期望 3D rec 输出, 实际 " + shape.length + "D");
-		}
-		int b = (int) shape[0];
-		int t = (int) shape[1];
-		int c = (int) shape[2];
-		float[] data = new float[b * t * c];
+		float[] data = new float[h * w];
 		buf.get(data);
-		float[][][] out = new float[b][t][c];
-		for (int i = 0; i < b; i++) {
-			for (int j = 0; j < t; j++) {
-				System.arraycopy(data, (i * t + j) * c, out[i][j], 0, c);
-			}
-		}
-		return out;
-	}
-
-	private Mat probToMat(float[][] prob, float[] imgShape) {
-		int h = prob.length;
-		int w = prob[0].length;
 		Mat m = new Mat(h, w, org.opencv.core.CvType.CV_32F);
 		try {
-			float[] flat = new float[h * w];
-			for (int i = 0; i < h; i++) {
-				System.arraycopy(prob[i], 0, flat, i * w, w);
-			}
-			m.put(0, 0, flat);
+			m.put(0, 0, data);
 			return m;
 		} catch (RuntimeException | Error e) {
 			m.release();
@@ -373,6 +713,15 @@ public final class PPOcrV6Engine implements Closeable {
 	// ==================================================================
 	// 内部记录
 	// ==================================================================
+
+	/**
+	 * 文档方向分类 + 旋转结果。
+	 *
+	 * @param mat     正向化后的 Mat（不旋转时就是原图）
+	 * @param degrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
+	 */
+	private record DocOriRotated(Mat mat, int degrees) {
+	}
 
 	/**
 	 * 检测结果。

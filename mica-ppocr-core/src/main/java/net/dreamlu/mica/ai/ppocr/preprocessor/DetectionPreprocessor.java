@@ -87,13 +87,11 @@ public final class DetectionPreprocessor {
 		int srcW = imgBgr.cols();
 
 		ResizeOutcome ro = resizeImage(imgBgr, srcH, srcW);
-		Mat norm = null;
 		try {
-			norm = normalize(ro.image);
-			int hNew = norm.rows();
-			int wNew = norm.cols();
-			int c = norm.channels();
-			float[] hwcFlat = NdArrayUtils.matToFlatHwc(norm);
+			int hNew = ro.image.rows();
+			int wNew = ro.image.cols();
+			int c = ro.image.channels();
+			float[] hwcFlat = normalize(ro.image);
 			float[] chw = NdArrayUtils.hwcFlatToNchw(hwcFlat, hNew, wNew, c);
 
 			float[] shape = new float[]{
@@ -102,9 +100,6 @@ public final class DetectionPreprocessor {
 			};
 			return new Result(chw, new int[]{1, c, hNew, wNew}, shape);
 		} finally {
-			if (norm != null) {
-				norm.release();
-			}
 			if (ro.image != imgBgr) {
 				ro.image.release();
 			}
@@ -145,10 +140,17 @@ public final class DetectionPreprocessor {
 		}
 	}
 
-	private Mat normalize(Mat img) {
-		// 重要：Core.multiply/subtract/divide(Mat, Scalar, Mat) 对多通道 Mat
-		// 处理有 bug（G/R 通道会变成 +Inf），所以这里先转 float32 Mat，
-		// 再用 Java 端循环做归一化 (img * (1/255) - mean) / std。
+	/**
+	 * 归一化：(img * (1/255) - mean) / std，返回 HWC flat float[]。
+	 *
+	 * <p>注意：Core.multiply/subtract/divide(Mat, Scalar, Mat) 对多通道 Mat
+	 * 处理有 bug（G/R 通道会变成 +Inf），所以这里先转 float32 Mat，
+	 * 再用 Java 端循环做归一化。
+	 *
+	 * @param img BGR uint8 Mat
+	 * @return 归一化后的 HWC flat float[]，长度 = H * W * 3
+	 */
+	private float[] normalize(Mat img) {
 		Mat f = NdArrayUtils.toFloat32(img);
 		float[] hwc;
 		try {
@@ -168,14 +170,7 @@ public final class DetectionPreprocessor {
 			hwc[b + 1] = (hwc[b + 1] * scale - meanG) / stdG;
 			hwc[b + 2] = (hwc[b + 2] * scale - meanR) / stdR;
 		}
-		Mat out = new Mat(img.rows(), img.cols(), org.opencv.core.CvType.CV_32FC3);
-		try {
-			out.put(0, 0, hwc);
-			return out;
-		} catch (RuntimeException | Error e) {
-			out.release();
-			throw e;
-		}
+		return hwc;
 	}
 
 	/**

@@ -51,7 +51,7 @@ class PPOcrV6EngineResourceTest {
 	void repeatedRunProducesStableResults() {
 		Path root = findRepositoryRoot();
 		Path modelDir = root.resolve("models/ppocr-v6/tiny");
-		Mat image = Imgcodecs.imread(root.resolve("test_images/2.png").toString());
+		Mat image = Imgcodecs.imread(root.resolve("test_images/vehicle/vehicle1.png").toString());
 		try {
 			assertFalse(image.empty(), "test image should load");
 
@@ -62,10 +62,10 @@ class PPOcrV6EngineResourceTest {
 				.build();
 
 			try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-				List<String> expected = texts(engine.run(image));
+				List<String> expected = texts(engine.runMat(image));
 				assertFalse(expected.isEmpty(), "OCR should return at least one result");
 				for (int i = 0; i < 2; i++) {
-					assertEquals(expected, texts(engine.run(image)));
+					assertEquals(expected, texts(engine.runMat(image)));
 				}
 			}
 		} finally {

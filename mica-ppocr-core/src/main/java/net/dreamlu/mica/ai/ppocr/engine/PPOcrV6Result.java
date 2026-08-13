@@ -21,11 +21,25 @@ import java.util.List;
 /**
  * 单条 OCR 识别结果。
  *
- * @param text  识别文本
- * @param score 置信度，范围 [0, 1]
- * @param box   文本框四顶点，顺序：左上、右上、右下、左下
+ * @param text           识别文本
+ * @param score          置信度，范围 [0, 1]
+ * @param box            文本框四顶点，顺序：左上、右上、右下、左下
+ * @param rotatedDegrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270），
+ *                        仅当 {@code PPOcrV6Config.useDocOrientationClassify=true}
+ *                        且方向分类结果非 0° 时为非 0。值为 0 时 box 坐标系与原图一致；
+ *                        非 0 时 box 坐标系相对于 doc_ori 旋转后的图。
+ *                        调用方用 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 可获得原始图坐标系下的 box。
  */
-public record PPOcrV6Result(String text, float score, int[][] box) {
+public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDegrees) {
+
+	/**
+	 * 不旋转的便捷构造器（rotatedDegrees 默认 0）。
+	 *
+	 * <p>主要为了保留旧调用兼容性：{@code new PPOcrV6Result(text, score, box)}。
+	 */
+	public PPOcrV6Result(String text, float score, int[][] box) {
+		this(text, score, box, 0);
+	}
 
 	/**
 	 * 将文本框四顶点转换为嵌套 List 形式。
@@ -39,6 +53,59 @@ public record PPOcrV6Result(String text, float score, int[][] box) {
 			List.of(box[2][0], box[2][1]),
 			List.of(box[3][0], box[3][1])
 		);
+	}
+
+	/**
+	 * 将 box 投影回原始图坐标系（doc_ori 旋转之前）。
+	 *
+	 * <p>doc_ori 旋转的语义是"把图片按顺时针 degrees 度旋转后喂给 OCR 检测"，
+	 * 因此 box 坐标系相对于旋转后的图；要回到原始图坐标系，需做**逆向旋转**：
+	 * <ul>
+	 *   <li>rotatedDegrees = 0：原样返回</li>
+	 *   <li>rotatedDegrees = 90：原图 = 顺时针 90° 旋转的图 → 逆向 = 逆时针 90°
+	 *       → (x, y) → (h - y, x)，其中 h 为旋转后图高</li>
+	 *   <li>rotatedDegrees = 180：(x, y) → (w - x, h - y)</li>
+	 *   <li>rotatedDegrees = 270：(x, y) → (y, w - x)，其中 w 为旋转后图宽</li>
+	 * </ul>
+	 *
+	 * @param origW 原始图宽（doc_ori 旋转之前）
+	 * @param origH 原始图高（doc_ori 旋转之前）
+	 * @return 投影回原始图坐标系后的 box
+	 */
+	public int[][] boxInOriginalImg(int origW, int origH) {
+		if (rotatedDegrees == 0) {
+			return box;
+		}
+		// 旋转后图的尺寸：90/270 时 w,h 互换；180 时不变
+		int rotW = (rotatedDegrees == 180) ? origW : origH;
+		int rotH = (rotatedDegrees == 180) ? origH : origW;
+		int[][] mapped = new int[4][2];
+		for (int i = 0; i < 4; i++) {
+			int x = box[i][0];
+			int y = box[i][1];
+			int mx, my;
+			switch (rotatedDegrees) {
+				case 90 -> {          // 原图被顺时针 90° 后得到 rot 图；逆向 = 逆时针 90°
+					mx = rotH - y;
+					my = x;
+				}
+				case 180 -> {         // 逆向 = 再旋转 180°
+					mx = rotW - x;
+					my = rotH - y;
+				}
+				case 270 -> {         // 逆向 = 顺时针 90°
+					mx = y;
+					my = rotW - x;
+				}
+				default -> {
+					mx = x;
+					my = y;
+				}
+			}
+			mapped[i][0] = mx;
+			mapped[i][1] = my;
+		}
+		return mapped;
 	}
 
 }

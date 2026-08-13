@@ -1,0 +1,503 @@
+/*
+ * Copyright (c) 2019-2026, dreamlu.net All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
+
+import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.regex.Pattern;
+
+/**
+ * 机动车驾驶证 OCR 结构化解析器。
+ *
+ * <p>策略概览：
+ * <ul>
+ *   <li><b>证号</b>：15~18 位连续数字（顶部独立框）；标签定位 + 正则兜底。</li>
+ *   <li><b>姓名/性别/国籍</b>：标签定位（"姓名 Name"/"性别 Sex"/"国籍 Nationality"）；
+ *       OCR 残缺标签兜底匹配中文短标签。</li>
+ *   <li><b>住址</b>：按"住址 Address"标签定位；可能跨多框拼接。</li>
+ *   <li><b>出生日期 / 初次领证日期</b>：标签定位 + yyyy-MM-dd 正则兜底。</li>
+ *   <li><b>准驾车型</b>：标签定位 + 短大写字母+数字（"C1"/"A2"/"B2"）兜底。</li>
+ *   <li><b>签发机关</b>：图片左下区域 + 中文 ≥6 字 + 不含"日期/Class"等噪声。</li>
+ *   <li><b>有效期限</b>：标签定位后按"yyyy-MM-dd 至 yyyy-MM-dd"格式切分。</li>
+ * </ul>
+ */
+@Slf4j
+public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseResult> {
+
+	/**
+	 * 单例实例。
+	 */
+	public static final DriverLicenseParser INSTANCE = new DriverLicenseParser();
+
+	/**
+	 * 证号：15~18 位连续数字。
+	 */
+	private static final Pattern LICENSE_NUMBER_PATTERN = Pattern.compile("\\d{15,18}");
+	/**
+	 * 日期：yyyy-MM-dd（容忍缺 0）。
+	 */
+	private static final Pattern DATE_PATTERN = Pattern.compile(
+		"\\d{4}-\\d{1,2}-\\d{1,2}");
+	/**
+	 * 准驾车型：1~2 个大写字母 + 0~1 个数字（"C1"/"A2"/"B2"/"A1A2"/"C1E"）。
+	 */
+	private static final Pattern VEHICLE_CLASS_PATTERN = Pattern.compile("[A-Z][0-9]?[A-Z0-9]?");
+	/**
+	 * 有效期限：yyyy-MM-dd 至 yyyy-MM-dd。
+	 */
+	private static final Pattern VALID_PERIOD_PATTERN = Pattern.compile(
+		"\\d{4}-\\d{1,2}-\\d{1,2}\\s*至\\s*\\d{4}-\\d{1,2}-\\d{1,2}");
+	/**
+	 * 性别：仅 男/女。
+	 */
+	private static final Pattern GENDER_PATTERN = Pattern.compile("[男女]");
+
+	/**
+	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
+	 *
+	 * @param results OCR 识别结果列表（按阅读顺序）
+	 * @return 驾驶证结构化解析结果
+	 */
+	public static DriverLicenseResult parse(List<PPOcrV6Result> results) {
+		return INSTANCE.parseResults(results);
+	}
+
+	@Override
+	public DriverLicenseResult parseResults(List<PPOcrV6Result> results) {
+		DriverLicenseResult r = new DriverLicenseResult();
+		r.setRawResults(new java.util.ArrayList<>(results));
+		r.setLicenseNumber(parseLicenseNumber(results));
+		r.setName(parseName(results));
+		r.setGender(parseGender(results));
+		r.setNationality(parseNationality(results));
+		r.setAddress(parseAddress(results));
+		r.setBirthDate(parseBirthDate(results));
+		r.setIssueDate(parseIssueDate(results));
+		r.setVehicleClass(parseVehicleClass(results));
+		r.setIssuingAuthority(parseIssuingAuthority(results));
+		String[] period = parseValidPeriod(results);
+		if (period != null) {
+			r.setValidFrom(period[0]);
+			r.setValidTo(period[1]);
+		}
+		return r;
+	}
+
+	/**
+	 * 证号：标签定位（"证号"）+ 数字正则兜底。
+	 */
+	private static String parseLicenseNumber(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValue(results, "证号");
+		if (labelValue != null && LICENSE_NUMBER_PATTERN.matcher(labelValue).matches()) {
+			return labelValue;
+		}
+		// 兜底：扫描所有数字串，取第一个 15~18 位的
+		String fallback = LabelMatcher.matchSubstring(results, text -> {
+			java.util.regex.Matcher m = LICENSE_NUMBER_PATTERN.matcher(text.replace(" ", ""));
+			return m.find() ? m.group() : null;
+		});
+		if (fallback != null) {
+			log.info("驾驶证解析：证号正则兜底命中 \"{}\"", fallback);
+		}
+		return fallback;
+	}
+
+	/**
+	 * 姓名：标签定位（"姓名 Name" 或单 "姓名"）。
+	 */
+	private static String parseName(List<PPOcrV6Result> results) {
+		// OCR 可能识别成"姓名 Name"合并框 或 单独的"姓名"框，LabelMatcher.findLabelBox 都能命中
+		return LabelMatcher.matchValue(results, "姓名");
+	}
+
+	/**
+	 * 性别：标签定位 → 值必须是"男"或"女"；否则正则兜底。
+	 *
+	 * <p>过滤策略：值框不能是纯数字（避免误匹配到上方的证号框）、不能是纯英文（避免匹配到
+	 * 下方的 "Sex."）；值文本只保留"男"/"女"两个候选。
+	 */
+	private static String parseGender(List<PPOcrV6Result> results) {
+		PPOcrV6Result labelBox = LabelMatcher.findLabelBox(results, "性别");
+		if (labelBox != null) {
+			int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
+			int labelMinY = LabelMatcher.minY(labelBox);
+			int labelMaxY = LabelMatcher.maxY(labelBox);
+
+			String best = null;
+			int bestX = Integer.MAX_VALUE;
+			for (PPOcrV6Result r : results) {
+				if (r == labelBox) continue;
+				String text = r.text();
+				// 过滤纯数字（误匹配到证号框）
+				if (text.matches("\\d+")) continue;
+				// 过滤纯英文（匹配到下方的 "Sex."）
+				if (text.matches("[A-Za-z\\s.]+")) continue;
+				// 必须包含男/女
+				if (!GENDER_PATTERN.matcher(text).find()) continue;
+				int rCenterX = (LabelMatcher.minX(r) + LabelMatcher.maxX(r)) / 2;
+				if (rCenterX <= labelCenterX) continue;
+				// y 重叠（同一行）：允许 ±1 行高容差
+				int oneLine = labelMaxY - labelMinY;
+				if (LabelMatcher.maxY(r) < labelMinY - oneLine
+					|| LabelMatcher.minY(r) > labelMaxY + oneLine) continue;
+				int x0 = LabelMatcher.minX(r);
+				if (x0 < bestX) {
+					bestX = x0;
+					best = text;
+				}
+			}
+			if (best != null) {
+				java.util.regex.Matcher m = GENDER_PATTERN.matcher(best);
+				if (m.find()) return m.group();
+			}
+		}
+		// 兜底：扫描所有文本框，找第一个含"男"/"女"的
+		String fallback = LabelMatcher.matchSubstring(results, text -> {
+			java.util.regex.Matcher m = GENDER_PATTERN.matcher(text);
+			return m.find() ? m.group() : null;
+		});
+		if (fallback != null) {
+			log.info("驾驶证解析：性别正则兜底命中 \"{}\"", fallback);
+		}
+		return fallback;
+	}
+
+	/**
+	 * 国籍：标签定位 → 从合并框（如 "Natonality中国"）或独立值框中剥出"中国"；
+	 * 找不到时直接填"中国"（中国大陆驾照国籍固定为中国）。
+	 */
+	private static String parseNationality(List<PPOcrV6Result> results) {
+		// 1) 先用 LabelMatcher 标准逻辑
+		PPOcrV6Result labelBox = LabelMatcher.findLabelBox(results, "国籍");
+		if (labelBox != null) {
+			int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
+			int labelMinY = LabelMatcher.minY(labelBox);
+			int labelMaxY = LabelMatcher.maxY(labelBox);
+
+			String best = null;
+			int bestX = Integer.MAX_VALUE;
+			for (PPOcrV6Result r : results) {
+				if (r == labelBox) continue;
+				String text = r.text();
+				// 过滤纯英文标签
+				if (text.matches("[A-Za-z\\s.]+")) continue;
+				int rCenterX = (LabelMatcher.minX(r) + LabelMatcher.maxX(r)) / 2;
+				if (rCenterX <= labelCenterX) continue;
+				if (LabelMatcher.maxY(r) < labelMinY || LabelMatcher.minY(r) > labelMaxY) continue;
+				int x0 = LabelMatcher.minX(r);
+				if (x0 < bestX) {
+					bestX = x0;
+					best = text;
+				}
+			}
+			if (best != null) {
+			// 可能是 "Natonality中国" 这样的合并框，剥掉英文前缀保留中文
+			String stripped = best.replaceAll("^[A-Za-z\\s.]+", "");
+			if (!stripped.isEmpty()) {
+				return deduplicateChina(stripped);
+			}
+		}
+	}
+	// 2) 兜底：扫描所有框，从含"中国"的文本提取
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text.contains("中国")) {
+				String stripped = text.replaceAll("^[A-Za-z\\s.]+", "");
+				if (stripped.startsWith("中国")) {
+					return deduplicateChina(stripped);
+				}
+				if (text.equals("中国")) return "中国";
+			}
+		}
+		// 3) 大陆驾照国籍基本恒为"中国"，作为最终兜底
+		log.warn("驾驶证解析：未找到国籍值，兜底填充 \"中国\"");
+		return "中国";
+	}
+
+	/**
+	 * 处理 OCR 把"中国"重复识别的场景（如 "Nationaity中国中国" → "中国"）。
+	 */
+	private static String deduplicateChina(String text) {
+		if (text.equals("中国中国")) return "中国";
+		// 通用：去除连续重复的"中国"片段
+		return text.replaceAll("(中国)+", "中国");
+	}
+
+	/**
+	 * 住址：标签定位 + 跨多框拼接。
+	 *
+	 * <p>容忍 OCR 把"住址"识别成近似字（如"佳址"）：在标签定位失败时，扫描所有长度=2的
+	 * 文本框，与"姓名"框做位置比较（住址通常位于姓名框下方）。
+	 */
+	private static String parseAddress(List<PPOcrV6Result> results) {
+		PPOcrV6Result labelBox = LabelMatcher.findLabelBox(results, "住址");
+		// 兜底：OCR 错字场景，找"住址"的 OCR 近邻（"佳址"等）
+		if (labelBox == null) {
+			PPOcrV6Result nameBox = LabelMatcher.findLabelBox(results, "姓名");
+			if (nameBox != null) {
+				int nameBottom = LabelMatcher.maxY(nameBox);
+				int nameHeight = nameBottom - LabelMatcher.minY(nameBox);
+				// 找长度=2 且位于"姓名"标签下方 0~2 行、x 范围相近的疑似"住址"标签框
+				PPOcrV6Result bestAlt = null;
+				int bestDist = Integer.MAX_VALUE;
+				for (PPOcrV6Result r : results) {
+					String text = r.text();
+					if (text.length() != 2) continue;
+					// 跳过纯英文
+					if (text.matches("[A-Za-z]+")) continue;
+					// y 必须在姓名下方 0~2 行
+					int rMinY = LabelMatcher.minY(r);
+					if (rMinY < nameBottom || rMinY > nameBottom + 2 * nameHeight) continue;
+					// x 起点要靠近"姓名"标签
+					int dx = Math.abs(LabelMatcher.minX(r) - LabelMatcher.minX(nameBox));
+					if (dx < bestDist && dx < 2 * nameHeight) {
+						bestDist = dx;
+						bestAlt = r;
+					}
+				}
+				if (bestAlt != null) {
+					log.warn("驾驶证解析：未找到 \"住址\" 标签，使用近似标签 \"{}\" 作为住址定位基准", bestAlt.text());
+					labelBox = bestAlt;
+				}
+			}
+		}
+		if (labelBox == null) {
+			log.warn("驾驶证解析：未找到标签 \"住址\"");
+			return null;
+		}
+		int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
+		int labelMinY = LabelMatcher.minY(labelBox);
+		int labelMaxY = LabelMatcher.maxY(labelBox);
+
+		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			if (r == labelBox) {
+				continue;
+			}
+			String text = r.text();
+			// 跳过纯英文标签/含日期符号的框
+			if (text.matches("[A-Za-z\\s]+") || text.contains("-")) {
+				continue;
+			}
+			// 跳过混入国籍/性别/姓名等其他字段的合并框（如 "..atonality中国"）
+			if (text.contains("国籍") || text.contains("Nationality")
+				|| text.contains("性别") || text.contains("Sex")
+				|| text.contains("姓名") || text.contains("Name")) {
+				continue;
+			}
+			// 跳过含"中国"的框（国籍值被 OCR 识别成独立框或合并框，不属于住址）
+			if (text.contains("中国")) {
+				continue;
+			}
+			// 跳过含较多英文字符的合并框（避免国籍/姓名英文标签被误并入地址）
+			long letterCount = text.chars().filter(c -> (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')).count();
+			if (letterCount > 2) {
+				continue;
+			}
+			int x0 = LabelMatcher.minX(r);
+			int rCenterX = (x0 + LabelMatcher.maxX(r)) / 2;
+			// 值框中心 x 必须在标签中心 x 右侧
+			if (rCenterX <= labelCenterX) {
+				continue;
+			}
+			int rMinY = LabelMatcher.minY(r);
+			int rMaxY = LabelMatcher.maxY(r);
+			// y 范围与标签框有重叠（允许下方扩展 1 行住址高度）
+			int oneLine = (labelMaxY - labelMinY);
+			if (rMaxY < labelMinY || rMinY > labelMaxY + oneLine) {
+				continue;
+			}
+			candidates.add(r);
+		}
+		if (candidates.isEmpty()) {
+			return null;
+		}
+		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
+		StringBuilder sb = new StringBuilder();
+		for (PPOcrV6Result r : candidates) {
+			sb.append(r.text());
+		}
+		// 去空白
+		return sb.toString().replaceAll("\\s+", "");
+	}
+
+	/**
+	 * 出生日期：标签定位 + yyyy-MM-dd 正则兜底（取第一个匹配 — 出生日期通常在初次领证日期上方）。
+	 */
+	private static String parseBirthDate(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValue(results, "出生日期");
+		// 轻微噪点清理（如 "2017-05-18." → 先去非数字/非"-"再抽取）
+		if (labelValue != null && !DATE_PATTERN.matcher(labelValue).matches()) {
+			String cleaned = labelValue.replaceAll("[^0-9\\-]", "");
+			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
+			if (m.find()) {
+				String extracted = m.group();
+				log.info("驾驶证解析：出生日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
+					labelValue, cleaned, extracted);
+				return extracted;
+			}
+		}
+		return LabelMatcher.labelOrFallback(labelValue, results, DATE_PATTERN, "出生日期", false);
+	}
+
+	/**
+	 * 初次领证日期：标签定位 + yyyy-MM-dd 正则兜底（取最后一个匹配 — 初次领证日期通常在出生日期下方）。
+	 */
+	private static String parseIssueDate(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValue(results, "初次领证日期");
+		// 如果标签定位的文本接近日期格式（但有轻微噪点如 "2017-05-1.2"），
+		// 先去掉非数字/非"-"字符，再从中抽取日期（"1.2" → "12"）
+		if (labelValue != null && !DATE_PATTERN.matcher(labelValue).matches()) {
+			String cleaned = labelValue.replaceAll("[^0-9\\-]", "");
+			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
+			if (m.find()) {
+				String extracted = m.group();
+				log.info("驾驶证解析：初次领证日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
+					labelValue, cleaned, extracted);
+				return extracted;
+			}
+		}
+		return LabelMatcher.labelOrFallback(labelValue, results, DATE_PATTERN, "初次领证日期", true);
+	}
+
+	/**
+	 * 准驾车型：标签定位 + 短大写正则兜底。
+	 */
+	private static String parseVehicleClass(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValue(results, "准驾车型");
+		return LabelMatcher.labelOrFallback(labelValue, results, VEHICLE_CLASS_PATTERN, "准驾车型", false);
+	}
+
+	/**
+	 * 签发机关：图片左下区域（红色印章区）+ 中文 ≥4 字 + 不含"日期/Class/驾驶"等噪声。
+	 *
+	 * <p>位置特征：x 起点位于图片左半边；y 范围在中下部分；不是日期/Class/出生 等标签。
+	 */
+	private static String parseIssuingAuthority(List<PPOcrV6Result> results) {
+		// 收集图片整体几何边界（用 OCR 框推断近似图片大小）
+		int imgMaxX = 0;
+		int imgMaxY = 0;
+		int imgMinX = Integer.MAX_VALUE;
+		int imgMinY = Integer.MAX_VALUE;
+		for (PPOcrV6Result r : results) {
+			imgMaxX = Math.max(imgMaxX, LabelMatcher.maxX(r));
+			imgMaxY = Math.max(imgMaxY, LabelMatcher.maxY(r));
+			imgMinX = Math.min(imgMinX, LabelMatcher.minX(r));
+			imgMinY = Math.min(imgMinY, LabelMatcher.minY(r));
+		}
+		int imgMidX = (imgMinX + imgMaxX) / 2;
+		int imgMidY = (imgMinY + imgMaxY) / 2;
+
+		// 已知的非签发机关标签前缀（OCR 可能识别成单独的"姓名""性别""有效期限"等框）
+		List<String> labelPrefixes = List.of(
+			"姓名", "性别", "国籍", "住址", "证号",
+			"出生日期", "初次领证日期", "准驾车型", "有效期限"
+		);
+		// 已知的英文标签片段
+		List<String> labelEnds = List.of(
+			"Name", "Sex", "Nationality", "Address",
+			"Date of Birth", "Date of First Issue", "Class", "Valid Period"
+		);
+
+		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			// 排除已知标签前缀/英文标签
+			boolean isLabel = false;
+			for (String prefix : labelPrefixes) {
+				if (text.startsWith(prefix)) {
+					isLabel = true;
+					break;
+				}
+			}
+			if (isLabel) {
+				continue;
+			}
+			for (String en : labelEnds) {
+				if (text.contains(en)) {
+					isLabel = true;
+					break;
+				}
+			}
+			if (isLabel) {
+				continue;
+			}
+			// 排除含日期符号或连字符的（日期文本）
+			if (text.contains("-") || text.contains("/")) {
+				continue;
+			}
+			// 必须含中文且长度 ≥4 字
+			if (text.length() < 4 || !text.matches(".*[\\u4e00-\\u9fa5].*")) {
+				continue;
+			}
+			// 位置：图片左半边 + 中下部
+			int rCenterX = (LabelMatcher.minX(r) + LabelMatcher.maxX(r)) / 2;
+			int rCenterY = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
+			if (rCenterX > imgMidX || rCenterY < imgMidY) {
+				continue;
+			}
+			candidates.add(r);
+		}
+		if (candidates.isEmpty()) {
+			log.warn("驾驶证解析：未匹配到签发机关");
+			return null;
+		}
+		// 多行签发机关按 y 升序拼接（去空格）
+		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
+		StringBuilder sb = new StringBuilder();
+		for (PPOcrV6Result r : candidates) {
+			sb.append(r.text());
+		}
+		return sb.toString().replaceAll("\\s+", "");
+	}
+
+	/**
+	 * 有效期限：标签定位 + "yyyy-MM-dd 至 yyyy-MM-dd" 解析。
+	 *
+	 * <p>容忍 OCR 轻微噪点（如 "2017-05-12.至2023-05-12" 中日期尾部的点号）。
+	 *
+	 * @return [validFrom, validTo]，解析失败返回 null
+	 */
+	private static String[] parseValidPeriod(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValue(results, "有效期限");
+		if (labelValue == null) {
+			labelValue = LabelMatcher.matchPattern(results, VALID_PERIOD_PATTERN, false);
+		}
+		if (labelValue == null) {
+			log.warn("驾驶证解析：未匹配到有效期限");
+			return null;
+		}
+		String[] parts = labelValue.split("\\s*至\\s*");
+		// 清理日期两端的 OCR 噪点（非数字字符，如 "2017-05-12." → "2017-05-12"）
+		for (int i = 0; i < parts.length; i++) {
+			java.util.regex.Matcher m = DATE_PATTERN.matcher(parts[i]);
+			if (m.find()) {
+				parts[i] = m.group();
+			}
+		}
+		if (parts.length == 2) {
+			return new String[]{parts[0], parts[1]};
+		}
+		// 单段日期：两端相同
+		return new String[]{parts[0], parts[0]};
+	}
+}

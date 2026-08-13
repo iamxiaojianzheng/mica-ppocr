@@ -34,7 +34,7 @@
     </licenses>
 
     <properties>
-        <revision>1.0.1</revision>
+        <revision>1.1.1</revision>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>${java.version}</maven.compiler.source>
@@ -44,7 +44,7 @@
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
         <maven.javadoc.failOnError>false</maven.javadoc.failOnError>
-        <onnxruntime.version>1.26.0</onnxruntime.version>
+        <onnxruntime.version>1.18.0</onnxruntime.version>
         <opencv.version>4.9.0-0</opencv.version>
         <jts.version>1.20.0</jts.version>
         <slf4j.version>2.0.16</slf4j.version>
@@ -57,6 +57,7 @@
 
     <modules>
         <module>mica-ppocr-core</module>
+        <module>mica-ppocr-structured</module>
         <module>mica-ppocr-solon-plugin</module>
         <module>mica-ppocr-spring-boot-starter</module>
     </modules>
@@ -98,6 +99,11 @@
             <dependency>
                 <groupId>net.dreamlu</groupId>
                 <artifactId>mica-ppocr-core</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.dreamlu</groupId>
+                <artifactId>mica-ppocr-structured</artifactId>
                 <version>${revision}</version>
             </dependency>
             <dependency>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <property name="ROOT_LEVEL" value="${mica.root.level:-INFO}"/>
+
+    <!-- 结构化解析日志默认 WARN（兜底命中通常是 INFO，未命中通常是 WARN） -->
+    <logger name="net.dreamlu.mica.ai.ppocr.structured" level="${mica.ppocr.structured.level:-${ROOT_LEVEL}}"/>
+    <!-- doc_ori 调试：把 PPOcrV6Engine 设到 DEBUG 可看到方向分类结果 -->
+    <logger name="net.dreamlu.mica.ai.ppocr.engine" level="${mica.ppocr.engine.level:-${ROOT_LEVEL}}"/>
+    <logger name="ai.onnxruntime" level="WARN"/>
+    <logger name="org.opencv" level="WARN"/>
+    <logger name="nu.pattern" level="WARN"/>
+
+    <root level="${ROOT_LEVEL}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

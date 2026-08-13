@@ -25,9 +25,6 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * 多边形偏移（unclip）。
  *
@@ -195,29 +192,6 @@ public class Offset {
 			return 0.0;
 		}
 		return a * unclipRatio / l;
-	}
-
-	private static boolean isValid(Geometry g) {
-		return g != null && !g.isEmpty() && g.getArea() > 0.0;
-	}
-
-	/**
-	 * 调试辅助：列出所有候选几何。
-	 *
-	 * @param result 几何对象（Polygon 或 MultiPolygon）
-	 * @return 全部外环顶点数组
-	 */
-	public static List<float[][]> collectAll(Geometry result) {
-		List<float[][]> all = new ArrayList<>();
-		if (result instanceof Polygon p) {
-			all.add(toFloat(p.getExteriorRing().getCoordinates()));
-		} else if (result instanceof org.locationtech.jts.geom.MultiPolygon mp) {
-			for (int i = 0; i < mp.getNumGeometries(); i++) {
-				Polygon g = (Polygon) mp.getGeometryN(i);
-				all.add(toFloat(g.getExteriorRing().getCoordinates()));
-			}
-		}
-		return all;
 	}
 
 	private static float[][] toFloat(Coordinate[] coords) {
