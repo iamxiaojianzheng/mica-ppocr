@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -447,6 +448,121 @@ public class LabelMatcher {
 			log.warn("[DEBUG-FIND] label='{}' fragment hit: text='{}' (fragment len={})", label, fragmentBest.text(), fragmentBestLen);
 		}
 		return fragmentBest;
+	}
+
+	/**
+	 * 字段标签框定位的"干净版"：在 {@link #findLabelBox} 基础上拒绝被其他已知字段关键字
+	 * 污染的 fragment（如营业执照 OCR 把"名称"和"类型"合并成"名类"——返回 null 而不是
+	 * 错误命中"名"/"类" fragment）。
+	 *
+	 * <p>判定规则：
+	 * <ol>
+	 *   <li>完整等于 label → 接受；</li>
+	 *   <li>以 label 开头 → 接受；</li>
+	 *   <li>label 包含 text 且 text 长度 = 1（单字 fragment "名"/"称"/"类"/"型"/"住"/"所"）→ 接受；</li>
+	 *   <li>label 包含 text 但 text 长度 ≥ 2 → 拒绝（噪声合并框，应由调用方做合并框剥值）。</li>
+	 * </ol>
+	 *
+	 * @param results      OCR 识别结果列表
+	 * @param label        字段标签（如 "住所"）
+	 * @param noiseLabels  其他已知字段标签集合（如 ["名称","类型","注册资本",...])，
+	 *                     fragment 文本如果包含其中任一标签视为污染并拒绝
+	 * @return 干净标签框；无匹配时返回 null
+	 */
+	public static PPOcrV6Result findCleanLabelBox(List<PPOcrV6Result> results,
+												  String label,
+												  java.util.Set<String> noiseLabels) {
+		PPOcrV6Result exactBest = null;
+		PPOcrV6Result prefixBest = null;
+		PPOcrV6Result fragmentBest = null;
+		int prefixBestLen = -1;
+		int fragmentBestLen = -1;
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text.isEmpty()) continue;
+			if (text.equals(label)) {
+				exactBest = r;
+			} else if (text.startsWith(label)) {
+				if (text.length() > prefixBestLen) {
+					prefixBestLen = text.length();
+					prefixBest = r;
+				}
+			} else if (label.contains(text)) {
+				// 拒绝被其他字段标签关键字污染的 fragment
+				if (noiseLabels != null) {
+					boolean polluted = false;
+					for (String noise : noiseLabels) {
+						if (!noise.equals(label) && text.contains(noise)) {
+							polluted = true;
+							break;
+						}
+					}
+					if (polluted) continue;
+				}
+				// fragment 长度 ≥ 2 且非单字 fragment → 拒绝（视为合并框，由调用方剥值）
+				if (text.length() >= 2) continue;
+				if (text.length() > fragmentBestLen) {
+					fragmentBestLen = text.length();
+					fragmentBest = r;
+				}
+			}
+		}
+		if (exactBest != null) return exactBest;
+		if (prefixBest != null) return prefixBest;
+		if (fragmentBest != null) {
+			log.debug("[DEBUG-FIND-CLEAN] label='{}' fragment hit: text='{}'", label, fragmentBest.text());
+		}
+		return fragmentBest;
+	}
+
+	/**
+	 * 取标签右侧 y 重叠的所有候选框，按 y 升序拼接成多行值。
+	 *
+	 * <p>适用于经营范围 / 住所 / 营业期限等跨多行字段。规则：
+	 * <ul>
+	 *   <li>值框中心 x &gt; 标签中心 x；</li>
+	 *   <li>值框 y 与标签 y 有重叠（允许下方延伸一行）；</li>
+	 *   <li>拼接前按 y 升序排序，多行用空格分隔。</li>
+	 * </ul>
+	 *
+	 * @param labelBox      标签框
+	 * @param results       OCR 结果列表
+	 * @param skipTexts     需要排除的文本（防止把其他标签 fragment 拼进来）
+	 * @return 多行拼接值；无候选时返回 null
+	 */
+	public static String collectMultiLineRight(PPOcrV6Result labelBox,
+											   List<PPOcrV6Result> results,
+											   java.util.Set<String> skipTexts) {
+		if (labelBox == null) return null;
+		int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
+		int labelMinY = minY(labelBox);
+		int labelMaxY = maxY(labelBox);
+		List<PPOcrV6Result> candidates = new ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			if (r == labelBox) continue;
+			String text = r.text();
+			if (text.isEmpty()) continue;
+			if (skipTexts != null && skipTexts.contains(text)) continue;
+			int x0 = minX(r);
+			int rCenterX = (x0 + maxX(r)) / 2;
+			if (rCenterX <= labelCenterX) continue;
+			int rMinY = minY(r);
+			int rMaxY = maxY(r);
+			// y 重叠 + 下方允许延伸一行
+			int oneLine = labelMaxY - labelMinY;
+			if (rMaxY < labelMinY || rMinY > labelMaxY + oneLine) continue;
+			candidates.add(r);
+		}
+		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
+		StringBuilder sb = new StringBuilder();
+		for (PPOcrV6Result r : candidates) {
+			if (!sb.isEmpty()) {
+				sb.append(' ');
+			}
+			sb.append(r.text());
+		}
+		String result = sb.toString().trim();
+		return result.isEmpty() ? null : result;
 	}
 
 	/**

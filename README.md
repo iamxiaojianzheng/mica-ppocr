@@ -192,6 +192,7 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 | 身份证（正反面自动判定） | `IdCardParser.INSTANCE` | `IdCardResult` | 姓名、性别、民族、出生日期、住址、公民身份号码、签发机关、有效期限 |
 | 银行卡 | `BankCardParser.INSTANCE` | `BankCardResult` | 卡号、有效期、银行名称 |
 | 机动车驾驶证 | `DriverLicenseParser.INSTANCE` | `DriverLicenseResult` | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
+| 营业执照 | `BusinessLicenseParser.INSTANCE` | `BusinessLicenseResult` | 社会信用代码、单位名称、住址、法定代表人、有效日期至、成立日期、类型、注册资本、经营范围 |
 
 每个解析器都提供**静态 `parse(List<PPOcrV6Result>)`**（拿到 OCR 结果后直接调）和 **SPI `parseResults(...)`**（与 `BaseStructuredParser<R>` 接口对齐，便于自定义）两种调用形式。
 
@@ -306,6 +307,7 @@ mica:
 | `parseIdCard(...)` | `IdCardResult` | 身份证（正反面自动判定） |
 | `parseBankCard(...)` | `BankCardResult` | 银行卡 |
 | `parseDriverLicense(...)` | `DriverLicenseResult` | 驾驶证 |
+| `parseBusinessLicense(...)` | `BusinessLicenseResult` | 营业执照 |
 
 ### 6.4 典型用法
 
@@ -404,11 +406,12 @@ mica-ppocr/                                       # 父 pom（packaging=pom）
 │       ├── vehicle/VehicleLicenseParser.java     # 行驶证
 │       ├── idcard/IdCardParser.java              # 身份证（正反面自动判定）
 │       ├── bankcard/BankCardParser.java          # 银行卡
-│       └── driver/DriverLicenseParser.java       # 机动车驾驶证
+│       ├── driver/DriverLicenseParser.java       # 机动车驾驶证
+│       └── business/BusinessLicenseParser.java    # 营业执照
 └── mica-ppocr-spring-boot-starter/               # Spring Boot 自动配置
     ├── PPOCRAutoConfiguration.java               # 引擎 + 配置 自动装配
-    ├── StructuredParserAutoConfiguration.java    # 4 个解析器 + PPOcrTemplate 自动装配
-    └── PPOcrTemplate.java                        # 一站式模板：run + parse + 4 类证件便捷方法
+    ├── StructuredParserAutoConfiguration.java    # 5 个解析器 + PPOcrTemplate 自动装配
+    └── PPOcrTemplate.java                        # 一站式模板：run + parse + 5 类证件便捷方法
 ```
 
 ## 8. 许可证

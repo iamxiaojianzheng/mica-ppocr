@@ -18,6 +18,7 @@ package net.dreamlu.mica.ai.ppocr.autoconfigure;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
@@ -33,7 +34,7 @@ import org.springframework.context.annotation.Bean;
  * 结构化解析器自动配置。
  *
  * <p>当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
- * 自动注册 4 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照）和 {@link PPOcrTemplate} 模板。
+ * 自动注册 5 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照）和 {@link PPOcrTemplate} 模板。
  *
  * <p>解析器是无状态单例，可直接注入使用；{@link PPOcrTemplate} 封装了
  * "OCR 推理 + 结构化解析" 一站式调用，依赖 {@link PPOcrV6Engine} bean 存在。
@@ -93,6 +94,17 @@ public class StructuredParserAutoConfiguration {
 	@ConditionalOnMissingBean
 	public DriverLicenseParser driverLicenseParser() {
 		return DriverLicenseParser.INSTANCE;
+	}
+
+	/**
+	 * 注册营业执照解析器。
+	 *
+	 * @return 营业执照解析器单例
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	public BusinessLicenseParser businessLicenseParser() {
+		return BusinessLicenseParser.INSTANCE;
 	}
 
 	/**

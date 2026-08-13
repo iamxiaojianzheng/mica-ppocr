@@ -20,6 +20,8 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
@@ -32,7 +34,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -46,7 +47,7 @@ import java.util.List;
  *   <li>{@link #parse(String, BaseStructuredParser)} / {@link #parse(File, BaseStructuredParser)} /
  *       {@link #parse(Path, BaseStructuredParser)} / {@link #parse(byte[], BaseStructuredParser)} /
  *       {@link #parse(InputStream, BaseStructuredParser)} —— 通用结构化解析，传入任意解析器；</li>
- *   <li>{@link #parseVehicleLicense(String)} 等 4 类证件便捷方法（5 种入参各一）
+ *   <li>{@link #parseVehicleLicense(String)} 等 5 类证件便捷方法（5 种入参各一）
  *       —— 一行调用完成 "检测 → 识别 → 结构化"。</li>
  * </ul>
  *
@@ -485,6 +486,69 @@ public final class PPOcrTemplate {
 	 */
 	public DriverLicenseResult parseDriverLicense(InputStream in) throws IOException {
 		return parse(in, DriverLicenseParser.INSTANCE);
+	}
+
+	// ==================================================================
+	// 营业执照
+	// ==================================================================
+
+	/**
+	 * 营业执照结构化解析（图片路径）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 营业执照结构化结果
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
+	public BusinessLicenseResult parseBusinessLicense(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return parse(Path.of(imagePath), BusinessLicenseParser.INSTANCE);
+	}
+
+	/**
+	 * 营业执照结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 营业执照结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
+	public BusinessLicenseResult parseBusinessLicense(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return parse(imageFile.toPath(), BusinessLicenseParser.INSTANCE);
+	}
+
+	/**
+	 * 营业执照结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径（兼容非默认文件系统）
+	 * @return 营业执照结构化结果
+	 */
+	public BusinessLicenseResult parseBusinessLicense(Path imagePath) {
+		return parse(imagePath, BusinessLicenseParser.INSTANCE);
+	}
+
+	/**
+	 * 营业执照结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节（PNG/JPG 等）
+	 * @return 营业执照结构化结果
+	 */
+	public BusinessLicenseResult parseBusinessLicense(byte[] imgBytes) {
+		return parse(imgBytes, BusinessLicenseParser.INSTANCE);
+	}
+
+	/**
+	 * 营业执照结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流（自动 readAllBytes）
+	 * @return 营业执照结构化结果
+	 * @throws IOException 读取流失败
+	 */
+	public BusinessLicenseResult parseBusinessLicense(InputStream in) throws IOException {
+		return parse(in, BusinessLicenseParser.INSTANCE);
 	}
 
 	// ==================================================================
