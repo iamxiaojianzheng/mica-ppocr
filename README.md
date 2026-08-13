@@ -101,6 +101,9 @@ public class Demo {
             .detModelPath("models/ppocr-v6/tiny/det.onnx")
             .recModelPath("models/ppocr-v6/tiny/rec.onnx")
             .recCharDictPath("models/ppocr-v6/tiny/dict.txt")
+            .useDocOrientationClassify(true)                                  // 是否启用整图 4 方向分类 + 自动旋转
+            .docOrientationModelPath("models/ppocr-v6/doc_ori/doc_ori.onnx")  // 开启后必填
+            .docOrientationThresh(0.3f)                                       // 置信度阈值，< 此值视为 0°；默认 0.3
             .build();
         try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
             // ① 推荐：直接传文件路径
@@ -131,41 +134,6 @@ Engine 公开 API（每个方法 4 种入参）：
 对齐 PP-OCRv6 官方 PaddleOCR 3.7+ 的 `use_doc_orientation_classify` 开关，使用 `PP-LCNet_x1_0_doc_ori`（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
 
 **模型**：6.47 MB ONNX，shape = `[1, 3, 224, 224]`，输出 `[1, 4]`（softmax + argmax）。可从 [ModelScope `farming789/pp-lcnet-doc-ori`](https://www.modelscope.cn/models/farming789/pp-lcnet-doc-ori) 直接下载 `model.onnx`，零 Paddle 依赖。
-
-**Java 代码**：
-
-```java
-PPOcrV6Config config = PPOcrV6Config.builder()
-    .detModelPath("models/ppocr-v6/tiny/det.onnx")
-    .recModelPath("models/ppocr-v6/tiny/rec.onnx")
-    .recCharDictPath("models/ppocr-v6/tiny/dict.txt")
-    .useDocOrientationClassify(true)                              // 开关
-    .docOrientationModelPath("models/ppocr-v6/doc_ori/doc_ori.onnx")  // 必填
-    .docOrientationThresh(0.3f)                                  // 置信度阈值，< 此值视为 0°；默认 0.3
-    .build();
-try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-    List<PPOcrV6Result> results = engine.run("rotated_180.jpg");
-    // 内部已自动把倒置图旋转到正向再跑检测
-}
-```
-
-**Spring Boot yml**：
-
-```yaml
-mica:
-  ai:
-    ppocr:
-      # 必填三件套
-      det-model-path: models/ppocr-v6/tiny/det.onnx
-      rec-model-path: models/ppocr-v6/tiny/rec.onnx
-      rec-char-dict-path: models/ppocr-v6/tiny/dict.txt
-      # 可选：文档方向分类
-      use-doc-orientation-classify: true
-      doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx
-      doc-orientation-thresh: 0.3
-```
-
-**关于已废弃的 `use_angle_cls`**：PP-OCRv6 已**正式弃用** `use_angle_cls`（文本行 0/180° 分类），新参数 `use_textline_orientation` 取代之。本项目为了证件类（整页、4 向）场景，**只实现更实用的整图方向分类**；`textline_orientation` 暂未支持，如有需求可后续迭代。
 
 **性能与代价**：
 - CPU：单图多 ~3 ms（极小）
