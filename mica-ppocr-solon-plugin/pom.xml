@@ -20,6 +20,10 @@
             <artifactId>mica-ppocr-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>net.dreamlu</groupId>
+            <artifactId>mica-ppocr-structured</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.noear</groupId>
             <artifactId>solon</artifactId>
             <version>${solon.version}</version>

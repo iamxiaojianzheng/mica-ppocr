@@ -41,8 +41,8 @@ public class PPOCRAutoConfiguration {
 	/**
 	 * 组装 PPOcrV6Config。
 	 *
-	 * @param properties  yml 配置属性
-	 * @param customizers PPOCRPropertiesCustomizer 集合
+	 * @param properties   yml 配置属性
+	 * @param customizers  PPOCRPropertiesCustomizer 集合
 	 * @return PPOcrV6Config 实例
 	 */
 	@Bean
@@ -64,6 +64,9 @@ public class PPOCRAutoConfiguration {
 			.recImageShape(properties.getRecImageShape())
 			.recBatchSize(properties.getRecBatchSize())
 			.preferAccelerator(properties.isPreferAccelerator())
+			.useDocOrientationClassify(properties.isUseDocOrientationClassify())
+			.docOrientationModelPath(properties.getDocOrientationModelPath())
+			.docOrientationThresh(properties.getDocOrientationThresh())
 			.intraOpNumThreads(properties.getIntraOpNumThreads())
 			.interOpNumThreads(properties.getInterOpNumThreads());
 		// 容器顺序应用 customizer（依赖 @Order / Ordered 即可控）
