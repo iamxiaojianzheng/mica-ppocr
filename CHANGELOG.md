@@ -3,7 +3,7 @@
 ## 发行版本
 
 ### v1.1.1 - 2026-08-13
-- feat(ocr): 支持 PP-OCRv6 文档方向分类（use_doc_orientation_classify）。使用 PP-LCNet_x1_0_doc_ori 模型（4 类：0°/90°/180°/270°），在 OCR 检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。新增 PPOcrV6Config.useDocOrientationClassify / docOrientationModelPath / docOrientationThresh 配置项；PPOcrV6Engine.runMat 在检测前自动完成方向分类 + 旋转；行为完全向后兼容（默认关闭）。
+- feat(ocr): 支持 PP-OCRv6 文档方向分类（use_doc_orientation_classify）。使用 PP-LCNet_x1_0_doc_ori 模型（4 类：0°/90°/180°/270°），在 OCR 检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。新增 PPOcrV6Config.useDocOrientationClassify / docOrientationModelPath / docOrientationThresh 配置项；PPOcrV6Engine.runMat 在检测前自动完成方向分类 + 旋转；行为完全向后兼容（默认关闭）。gitee #IK86TX 感谢 `@goalsword` 建议。
 - refactor(engine): PPOcrV6Engine 内部代码精简。`run(Path)` / `detect(Path)` 抽出 `loadMat(Path)` 私有方法消除 native-vs-fallback 重复；`closeSessions` 用 for 循环消除 3 段重复 try/catch；`runMat` 拆为"Mat 生命周期管理"和"核心流水线"两层，单层嵌套；`classifyAndRotateDocOrientation` 改用 switch 表达式。净减 12 行，行为完全不变。
 - perf(core): 性能优化 + 修 native Mat 泄漏。DocOrientationPreprocessor 修 resizeShort 返回新 Mat 未 release 的泄漏（约 1.5 MB/调用，长期运行 OOM 风险）；CtcLabelDecoder 解码循环 3 合并为 1 次（call(float[][][]) 同步：argmax + max + CTC 单次扫描）；CtcLabelDecoder.stripTrailing 改用 Java 11+ String.stripTrailing；DbPostProcessor.boxScore 去冗余 float[][] 深拷贝；PPOcrTemplate 4×5 解析器便捷方法去中间跳转；9 个测试全部通过。
 - docs(readme): 补充 PP-OCRv6 文档方向分类（use_doc_orientation_classify）使用说明；§2 模型目录新增 doc_ori 可选模型；新增 §4.3 完整子章节（模型下载 / Java 代码 / Spring Boot yml / 性能代价 / 与弃用 use_angle_cls 的关系）。
