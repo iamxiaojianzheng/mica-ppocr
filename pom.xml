@@ -52,10 +52,12 @@
         <lombok.version>1.18.46</lombok.version>
         <mica-auto.version>4.0.1</mica-auto.version>
         <spring.boot.version>3.5.16</spring.boot.version>
+        <solon.version>4.0.5</solon.version>
     </properties>
 
     <modules>
         <module>mica-ppocr-core</module>
+        <module>mica-ppocr-solon-plugin</module>
         <module>mica-ppocr-spring-boot-starter</module>
     </modules>
 
