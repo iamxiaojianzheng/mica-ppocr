@@ -1,0 +1,30 @@
+{
+  "hints": [
+    {
+      "name": "mica.ai.ppocr.detLimitType",
+      "values": [
+        {
+          "value": "min",
+          "description": "按短边限制缩放（默认）"
+        },
+        {
+          "value": "max",
+          "description": "按长边限制缩放"
+        }
+      ]
+    },
+    {
+      "name": "mica.ai.ppocr.det-limit-type",
+      "values": [
+        {
+          "value": "min",
+          "description": "按短边限制缩放（默认）"
+        },
+        {
+          "value": "max",
+          "description": "按长边限制缩放"
+        }
+      ]
+    }
+  ]
+}

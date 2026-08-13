@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>mica-ppocr-solon-plugin</artifactId>
     <name>${project.artifactId}</name>
-    <description>mica-ppocr Spring Boot Starter，一行配置即可接入 OCR 文字识别</description>
+    <description>mica-ppocr solon-plugin，一行配置即可接入 OCR 文字识别</description>
 
     <parent>
         <groupId>net.dreamlu</groupId>
@@ -26,19 +26,47 @@
         <dependency>
             <groupId>org.noear</groupId>
             <artifactId>solon</artifactId>
-            <version>${solon.version}</version>
         </dependency>
+        <!--
+            编译期生成 META-INF/solon/solon-configuration-metadata.json，
+            配合 solon-idea-plugin 提供 app.yml / app.properties 的配置提示。
+            scope=provided：仅编译期需要，不随插件 jar 发布。
+        -->
         <dependency>
-            <groupId>net.dreamlu</groupId>
-            <artifactId>mica-auto</artifactId>
+            <groupId>org.noear</groupId>
+            <artifactId>solon-configuration-processor</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.noear</groupId>
             <artifactId>solon-test</artifactId>
-            <version>${solon.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                父 pom 已声明 lombok 子模块 override 时必须重新列出全部 processor，
+                否则父级的 annotationProcessorPaths 会被完全替换。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                        <path>
+                            <groupId>org.noear</groupId>
+                            <artifactId>solon-configuration-processor</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
