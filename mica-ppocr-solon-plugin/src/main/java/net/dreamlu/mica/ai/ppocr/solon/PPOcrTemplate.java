@@ -27,6 +27,8 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseResult;
 
@@ -47,7 +49,7 @@ import java.util.List;
  *   <li>{@link #parse(String, BaseStructuredParser)} / {@link #parse(File, BaseStructuredParser)} /
  *       {@link #parse(Path, BaseStructuredParser)} / {@link #parse(byte[], BaseStructuredParser)} /
  *       {@link #parse(InputStream, BaseStructuredParser)} —— 通用结构化解析，传入任意解析器；</li>
- *   <li>{@link #parseVehicleLicense(String)} 等 5 类证件便捷方法（5 种入参各一）
+ *   <li>{@link #parseVehicleLicense(String)} 等 6 类证件便捷方法（5 种入参各一）
  *       —— 一行调用完成 "检测 → 识别 → 结构化"。</li>
  * </ul>
  *
@@ -549,6 +551,69 @@ public final class PPOcrTemplate {
 	 */
 	public BusinessLicenseResult parseBusinessLicense(InputStream in) throws IOException {
 		return parse(in, BusinessLicenseParser.INSTANCE);
+	}
+
+	// ==================================================================
+	// 增值税发票
+	// ==================================================================
+
+	/**
+	 * 增值税发票结构化解析（图片路径）。
+	 *
+	 * @param imagePath 图片文件路径
+	 * @return 发票结构化结果
+	 * @throws IllegalArgumentException 图片路径为空
+	 */
+	public InvoiceResult parseInvoice(String imagePath) {
+		if (imagePath == null || imagePath.isEmpty()) {
+			throw new IllegalArgumentException("imagePath must not be empty");
+		}
+		return parse(Path.of(imagePath), InvoiceParser.INSTANCE);
+	}
+
+	/**
+	 * 增值税发票结构化解析（File）。
+	 *
+	 * @param imageFile 图片文件
+	 * @return 发票结构化结果
+	 * @throws IllegalArgumentException 文件为 null
+	 */
+	public InvoiceResult parseInvoice(File imageFile) {
+		if (imageFile == null) {
+			throw new IllegalArgumentException("imageFile must not be null");
+		}
+		return parse(imageFile.toPath(), InvoiceParser.INSTANCE);
+	}
+
+	/**
+	 * 增值税发票结构化解析（Path）。
+	 *
+	 * @param imagePath 图片路径（兼容非默认文件系统）
+	 * @return 发票结构化结果
+	 */
+	public InvoiceResult parseInvoice(Path imagePath) {
+		return parse(imagePath, InvoiceParser.INSTANCE);
+	}
+
+	/**
+	 * 增值税发票结构化解析（图片字节）。
+	 *
+	 * @param imgBytes 图片字节（PNG/JPG 等）
+	 * @return 发票结构化结果
+	 */
+	public InvoiceResult parseInvoice(byte[] imgBytes) {
+		return parse(imgBytes, InvoiceParser.INSTANCE);
+	}
+
+	/**
+	 * 增值税发票结构化解析（输入流）。
+	 *
+	 * @param in 图片输入流（自动 readAllBytes）
+	 * @return 发票结构化结果
+	 * @throws IOException 读取流失败
+	 */
+	public InvoiceResult parseInvoice(InputStream in) throws IOException {
+		return parse(in, InvoiceParser.INSTANCE);
 	}
 
 	// ==================================================================

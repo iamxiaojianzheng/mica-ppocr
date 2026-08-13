@@ -43,7 +43,8 @@
 
 > 30 秒跑通，挑一个用：
 > - **纯 Java**：引入 `mica-ppocr-core`，自己持有 `PPOcrV6Engine`。
-> - **Spring Boot**：引入 `mica-ppocr-spring-boot-starter`，注入 `PPOcrTemplate` 即可，4 类证件解析器自动注册。
+> - **Spring Boot**：引入 `mica-ppocr-spring-boot-starter`，注入 `PPOcrTemplate` 即可，6 类证件解析器自动注册。
+> - **Solon**：引入 `mica-ppocr-solon-plugin`，注入 `PPOcrTemplate` 即可，API 与 Spring Boot 版完全一致。
 > - **需要结构化解析**：再追加 `mica-ppocr-structured`（Starter 已传递依赖，可省略）。
 
 先准备模型（详见 §2 模型目录），再选下面任一入口。
@@ -193,6 +194,7 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 | 银行卡 | `BankCardParser.INSTANCE` | `BankCardResult` | 卡号、有效期、银行名称 |
 | 机动车驾驶证 | `DriverLicenseParser.INSTANCE` | `DriverLicenseResult` | 证号、姓名、性别、国籍、住址、出生日期、初次领证日期、准驾车型、签发机关、有效期限 |
 | 营业执照 | `BusinessLicenseParser.INSTANCE` | `BusinessLicenseResult` | 社会信用代码、单位名称、住址、法定代表人、有效日期至、成立日期、类型、注册资本、经营范围 |
+| 增值税发票 | `InvoiceParser.INSTANCE` | `InvoiceResult` | 发票代码、发票号码、开票日期、购销方名称/税号/地址电话/开户行账号、商品名称/金额/税率/税额、价税合计（大写/小写）、收款人/复核人/开票人 |
 
 每个解析器都提供**静态 `parse(List<PPOcrV6Result>)`**（拿到 OCR 结果后直接调）和 **SPI `parseResults(...)`**（与 `BaseStructuredParser<R>` 接口对齐，便于自定义）两种调用形式。
 
@@ -285,7 +287,7 @@ mica:
 
 ### 6.3 PPOcrTemplate API
 
-直接注入 [`PPOcrTemplate`](mica-ppocr-spring-boot-starter/src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/PPOcrTemplate.java) 即可使用，内部已持有 Engine + 4 个证件解析器，无需手工装配。
+直接注入 [`PPOcrTemplate`](mica-ppocr-spring-boot-starter/src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/PPOcrTemplate.java) 即可使用，内部已持有 Engine + 6 个证件解析器，无需手工装配。
 
 **每个方法提供 5 种入参重载**：`String` 路径 / `File` / `Path` / `byte[]` / `InputStream`，典型场景：
 
@@ -308,14 +310,17 @@ mica:
 | `parseBankCard(...)` | `BankCardResult` | 银行卡 |
 | `parseDriverLicense(...)` | `DriverLicenseResult` | 驾驶证 |
 | `parseBusinessLicense(...)` | `BusinessLicenseResult` | 营业执照 |
+| `parseInvoice(...)` | `InvoiceResult` | 增值税发票 |
 
 ### 6.4 典型用法
 
 ```java
 import net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -353,7 +358,12 @@ public class OcrService {
         }
     }
 
-    // ⑤ 自定义解析器场景（任何入参都支持）
+    // ⑤ 增值税发票
+    public InvoiceResult recognizeInvoice(MultipartFile file) throws IOException {
+        return ppocr.parseInvoice(file.getBytes());
+    }
+
+    // ⑥ 自定义解析器场景（任何入参都支持）
     public <R> R recognize(String imagePath, BaseStructuredParser<R> parser) {
         return ppocr.parse(imagePath, parser);
     }
@@ -407,11 +417,16 @@ mica-ppocr/                                       # 父 pom（packaging=pom）
 │       ├── idcard/IdCardParser.java              # 身份证（正反面自动判定）
 │       ├── bankcard/BankCardParser.java          # 银行卡
 │       ├── driver/DriverLicenseParser.java       # 机动车驾驶证
-│       └── business/BusinessLicenseParser.java    # 营业执照
-└── mica-ppocr-spring-boot-starter/               # Spring Boot 自动配置
+│       ├── business/BusinessLicenseParser.java    # 营业执照
+│       └── invoice/InvoiceParser.java            # 增值税发票
+├── mica-ppocr-spring-boot-starter/               # Spring Boot 自动配置
+│   ├── PPOCRAutoConfiguration.java               # 引擎 + 配置 自动装配
+│   ├── StructuredParserAutoConfiguration.java    # 6 个解析器 + PPOcrTemplate 自动装配
+│   └── PPOcrTemplate.java                        # 一站式模板：run + parse + 6 类证件便捷方法
+└── mica-ppocr-solon-plugin/                      # Solon 插件自动配置
     ├── PPOCRAutoConfiguration.java               # 引擎 + 配置 自动装配
-    ├── StructuredParserAutoConfiguration.java    # 5 个解析器 + PPOcrTemplate 自动装配
-    └── PPOcrTemplate.java                        # 一站式模板：run + parse + 5 类证件便捷方法
+    ├── StructuredParserAutoConfiguration.java    # 6 个解析器 + PPOcrTemplate 自动装配
+    └── PPOcrTemplate.java                        # 一站式模板：run + parse + 6 类证件便捷方法
 ```
 
 ## 8. 许可证
