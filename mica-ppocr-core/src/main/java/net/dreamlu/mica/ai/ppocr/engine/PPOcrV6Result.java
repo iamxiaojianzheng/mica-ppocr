@@ -28,7 +28,7 @@ import java.util.List;
  *                        仅当 {@code PPOcrV6Config.useDocOrientationClassify=true}
  *                        且方向分类结果非 0° 时为非 0。值为 0 时 box 坐标系与原图一致；
  *                        非 0 时 box 坐标系相对于 doc_ori 旋转后的图。
- *                        调用方用 {@link #boxInOriginalImg()} 可获得原始图坐标系下的 box。
+ *                        调用方用 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 可获得原始图坐标系下的 box。
  */
 public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDegrees) {
 
