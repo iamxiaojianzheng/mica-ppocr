@@ -76,7 +76,7 @@ issueDate:    2018-02-24
 
 ```xml
 <dependency>
-    <groupId>net.dreamlu.mica.ai</groupId>
+    <groupId>net.dreamlu</groupId>
     <artifactId>mica-ppocr-core</artifactId>
     <version>${mica.ppocr.version}</version>
 </dependency>
@@ -178,7 +178,7 @@ mica:
 
 ```xml
 <dependency>
-    <groupId>net.dreamlu.mica.ai</groupId>
+    <groupId>net.dreamlu</groupId>
     <artifactId>mica-ppocr-structured</artifactId>
     <version>${mica.ppocr.version}</version>
 </dependency>
@@ -228,7 +228,7 @@ public class Demo {
 
 ```xml
 <dependency>
-    <groupId>net.dreamlu.mica.ai</groupId>
+    <groupId>net.dreamlu</groupId>
     <artifactId>mica-ppocr-spring-boot-starter</artifactId>
     <version>${mica.ppocr.version}</version>
 </dependency>
