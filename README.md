@@ -12,6 +12,8 @@
 
 移植自 [`AIwork4me/ppocrv6_onnx`](https://github.com/AIwork4me/ppocrv6_onnx) 的 `ppocrv6_onnx.py` 单文件参考实现，**与 Python 版本保持 bit-exact**（默认 CPU 单线程）。
 
+[✨✨✨推广：**BladeX 物联网平台**✨✨✨iot.bladex.cn](https://iot.bladex.cn?from=mica-mqtt)
+
 ---
 
 ## 1. 环境要求
@@ -325,3 +327,9 @@ public PPOCRPropertiesCustomizer tierEnvCustomizer() {
 ## 7. 许可证
 
 Apache License Version 2.0
+
+## 8. 微信
+
+![如梦技术](docs/images/dreamlu-weixin.jpg)
+
+**JAVA架构日记**，精彩内容每日推荐！
