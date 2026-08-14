@@ -23,6 +23,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -46,6 +47,10 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 	 */
 	public static final IdCardParser INSTANCE = new IdCardParser();
 
+	/**
+	 * 正面字段标签（合并框切分用）：OCR 可能把 "性别男民族汉" 双标签连写进同一框。
+	 */
+	private static final String[] FRONT_LABELS = {"姓名", "性别", "民族", "出生", "住址", "公民身份号码"};
 	/**
 	 * 公民身份号码：18 位（末位 X 允许）。
 	 */
@@ -79,8 +84,8 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 		r.setSide(side);
 		if (side == IdCardSide.FRONT) {
 			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));
-			r.setGender(LabelMatcher.matchValueFromPrefix(results, "性别"));
-			r.setNation(LabelMatcher.matchValueFromPrefix(results, "民族"));
+			r.setGender(parseGender(results));
+			r.setNation(parseNation(results));
 			r.setBirthDate(parseBirthDate(results));
 			r.setAddress(parseAddress(results));
 			r.setIdNumber(parseIdNumber(results));
@@ -117,6 +122,78 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 		}
 		log.warn("身份证解析：未能识别版面（无正面/反面特征标签）");
 		return IdCardSide.UNKNOWN;
+	}
+
+	/**
+	 * 性别提取：优先标签定位，兼容 "性别男民族汉" 双标签连写合并框。
+	 */
+	private static String parseGender(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValueFromPrefix(results, "性别");
+		if (labelValue != null) {
+			return cutAtNextLabel(labelValue);
+		}
+		// 合并框（"性别男民族汉"）：从任意文本中按 "性别" 标签切出
+		return LabelMatcher.matchSubstring(results, text -> cutAtNextLabel(afterLabel(text, "性别")));
+	}
+
+	/**
+	 * 民族提取：优先标签定位，兼容 "性别男民族汉" 双标签连写合并框。
+	 */
+	private static String parseNation(List<PPOcrV6Result> results) {
+		String labelValue = LabelMatcher.matchValueFromPrefix(results, "民族");
+		if (labelValue != null) {
+			return labelValue;
+		}
+		// 合并框（"性别男民族汉"）：从任意文本中按 "民族" 标签切出
+		return LabelMatcher.matchSubstring(results, text -> afterLabel(text, "民族"));
+	}
+
+	/**
+	 * 取指定标签之后的文本，截断到下一个正面标签（合并框 "性别男民族汉" 切分用）。
+	 *
+	 * @param text  OCR 文本
+	 * @param label 当前字段标签
+	 * @return 标签之后到下一个标签之间的值；无标签或无值返回 null
+	 */
+	private static String afterLabel(String text, String label) {
+		int idx = text.indexOf(label);
+		if (idx < 0) {
+			return null;
+		}
+		String rest = text.substring(idx + label.length());
+		int end = rest.length();
+		for (String next : FRONT_LABELS) {
+			if (next.equals(label)) {
+				continue;
+			}
+			int j = rest.indexOf(next);
+			if (j >= 0 && j < end) {
+				end = j;
+			}
+		}
+		String value = rest.substring(0, end).trim();
+		return value.isEmpty() ? null : value;
+	}
+
+	/**
+	 * 合并框值截断：性别值后紧接 "民族汉" 时，只保留到下一个标签前。
+	 */
+	private static String cutAtNextLabel(String value) {
+		if (value == null) {
+			return null;
+		}
+		int end = value.length();
+		for (String next : FRONT_LABELS) {
+			if (next.equals("性别")) {
+				continue;
+			}
+			int j = value.indexOf(next);
+			if (j >= 0 && j < end) {
+				end = j;
+			}
+		}
+		String cut = value.substring(0, end).trim();
+		return cut.isEmpty() ? null : cut;
 	}
 
 	/**
@@ -208,14 +285,20 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
-	 * 公民身份号码：18 位正则兜底（应对 "公民身份号码" 标签残缺场景）。
+	 * 公民身份号码：标签定位优先，18 位正则 find() 兜底。
+	 *
+	 * <p>标签可能残缺（"公民身份号3625..."）或与号码合并成同一框
+	 * （"公民身份号码3625..."），故正则兜底用 find() 从任意文本中提取 18 位连续号码。
 	 */
 	private static String parseIdNumber(List<PPOcrV6Result> results) {
-		String labelValue = LabelMatcher.matchValue(results, "公民身份号码");
+		String labelValue = LabelMatcher.matchValueFromPrefix(results, "公民身份号码");
 		if (labelValue != null && ID_NUMBER_PATTERN.matcher(labelValue).matches()) {
 			return labelValue;
 		}
-		String fallback = LabelMatcher.matchPattern(results, ID_NUMBER_PATTERN, false);
+		String fallback = LabelMatcher.matchSubstring(results, text -> {
+			Matcher m = ID_NUMBER_PATTERN.matcher(text);
+			return m.find() ? m.group() : null;
+		});
 		if (fallback != null) {
 			log.debug("身份证解析：身份证号正则兜底命中 \"{}\"", fallback);
 			return fallback;

@@ -149,4 +149,38 @@ class IdCardParserTest {
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertEquals("310228199601111541", r.getIdNumber());
 	}
+
+	@Test
+	void parse_idNumberRegexFindWhenLabelGarbled() {
+		// "公民身份号码" 标签 OCR 残缺（缺"码"字），靠 18 位正则 find() 兜底
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("张三", 160, 100, 220, 130),
+			box("公民身份号362528197402223012", 260, 380, 600, 410)
+		);
+		IdCardResult r = IdCardParser.parse(results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("362528197402223012", r.getIdNumber());
+	}
+
+	@Test
+	void parse_front_mergedLabelValueBoxes() {
+		// 模拟真实 OCR（x2.jpg，个人信息已匿名化）：标签与值合并在同一框，"性别男民族汉" 双标签连写
+		List<PPOcrV6Result> results = List.of(
+			box("姓名王小明", 745, 556, 873, 586),
+			box("性别男民族汉", 750, 595, 927, 621),
+			box("出生1974年2月22日", 754, 632, 972, 656),
+			box("住址江西省抚州市金溪县对桥", 756, 671, 1010, 696),
+			box("乡庄坊村陈家组1号", 819, 692, 975, 715),
+			box("公民身份号码362528197402223904", 767, 765, 1159, 791)
+		);
+		IdCardResult r = IdCardParser.parse(results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("王小明", r.getName());
+		assertEquals("男", r.getGender());
+		assertEquals("汉", r.getNation());
+		assertEquals("1974年2月22日", r.getBirthDate());
+		assertEquals("江西省抚州市金溪县对桥乡庄坊村陈家组1号", r.getAddress());
+		assertEquals("362528197402223904", r.getIdNumber());
+	}
 }
