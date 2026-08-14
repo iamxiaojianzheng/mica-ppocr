@@ -7,7 +7,8 @@
 
 > PP-OCRv6 文字检测 + 识别的 **Java 17** 实现，纯 ONNX Runtime 推理，
 > **零 PaddlePaddle 依赖**。完整复现预处理 / 后处理（DB 后处理、CTC 解码、
-> pyclipper 等价的多边形 unclip）。
+> pyclipper 等价的多边形 unclip。
+> doc_ori 文档方向分类模型，支持（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
 
 移植自 [`AIwork4me/ppocrv6_onnx`](https://github.com/AIwork4me/ppocrv6_onnx) 的 `ppocrv6_onnx.py` 单文件参考实现，**与 Python 版本保持 bit-exact**（默认 CPU 单线程）。
 
@@ -34,8 +35,7 @@
 
 > `medium` 的 det/rec 模型为 `.onnx.zip`，需解压后使用。
 
-**可选**：文档方向分类模型（`PP-LCNet_x1_0_doc_ori` 的 ONNX 导出，6.47 MB），放在 `models/ppocr-v6/doc_ori/doc_ori.onnx`。
-启用后会在检测前对整图方向做 4 分类（0°/90°/180°/270°）并自动旋转到正向，避免用户侧倒拍/横拍导致识别失败；CPU 单张图多 ~3 ms。详见 [§4.4 文档方向分类](#44-文档方向分类use_doc_orientation_classify)
+**可选**：文档方向分类模型 `models/ppocr-v6/doc_ori/doc_ori.onnx`，`PP-LCNet_x1_0_doc_ori` 的 ONNX 导出，6.47 MB。
 
 ![模型评分](docs/images/v6acc_opt.png)
 
@@ -46,7 +46,8 @@
 ### 3.1 Spring Boot 入口（Controller 直用）
 
 ```java
-@Autowired private PPOcrTemplate ppocr;
+@Autowired 
+private PPOcrTemplate ppocr;
 
 @PostMapping("/ocr/vehicle")
 public VehicleLicenseResult vehicle(@RequestParam MultipartFile file) throws IOException {
@@ -112,12 +113,6 @@ issueDate:    2018-02-24
 ### 4.2 完整示例
 
 ```java
-import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
-import nu.pattern.OpenCV;
-import java.util.List;
-
 public class Demo {
     public static void main(String[] args) {
         OpenCV.loadLocally();  // 首次启动时加载 native 库
@@ -145,9 +140,9 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 
 ### 4.4 文档方向分类（use_doc_orientation_classify）
 
-对齐 PP-OCRv6 官方 PaddleOCR 3.7+ 的 `use_doc_orientation_classify` 开关，使用 `PP-LCNet_x1_0_doc_ori`（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
+支持（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
 
-- **模型**：6.47 MB ONNX，shape = `[1, 3, 224, 224]`，输出 `[1, 4]`（softmax + argmax）。可从 [ModelScope `farming789/pp-lcnet-doc-ori`](https://www.modelscope.cn/models/farming789/pp-lcnet-doc-ori) 直接下载 `model.onnx`，零 Paddle 依赖。
+- **模型**：shape = `[1, 3, 224, 224]`，输出 `[1, 4]`（softmax + argmax）。可从 [ModelScope `farming789/pp-lcnet-doc-ori`](https://www.modelscope.cn/models/farming789/pp-lcnet-doc-ori) 直接下载 `model.onnx`，零 Paddle 依赖。
 - **性能与代价**：CPU 单图多 ~3 ms；内存多 ~30 MB（加载第三个 ONNX session）。
 - **默认行为**：关闭（`useDocOrientationClassify=false`），与原版完全 bit-exact，不影响现有调用。
 
@@ -269,17 +264,6 @@ mica:
 ### 6.3 典型用法
 
 ```java
-import net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate;
-import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
-import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
-import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseResult;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-
 @Service
 public class OcrService {
     @Autowired
@@ -326,7 +310,7 @@ if (plateBoxes != null) {
 
 ```java
 @Bean
-PPOCRPropertiesCustomizer tierEnvCustomizer() {
+public PPOCRPropertiesCustomizer tierEnvCustomizer() {
     return builder -> {
         String tier = System.getenv("PPOCR_TIER");
         if (tier != null) {
