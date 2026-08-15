@@ -23,6 +23,8 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -96,7 +98,7 @@ public class LabelMatcher {
 		 * @return 多值框 LabeledMatch
 		 */
 		public static LabeledMatch of(String value, List<PPOcrV6Result> matches) {
-			return new LabeledMatch(value, matches == null ? List.of() : matches);
+			return new LabeledMatch(value, matches == null ? List.of() : List.copyOf(matches));
 		}
 
 		/**
@@ -166,7 +168,7 @@ public class LabelMatcher {
 	 * @return 提取结果；无匹配时返回 null
 	 */
 	public static String matchSubstring(List<PPOcrV6Result> results,
-										java.util.function.Function<String, String> extractor) {
+										Function<String, String> extractor) {
 		return matchSubstringWithBox(results, extractor).value();
 	}
 
@@ -345,7 +347,7 @@ public class LabelMatcher {
 	 * @return 提取结果 + 命中的值框；无匹配时返回仅含 null value 的 LabeledMatch
 	 */
 	public static LabeledMatch matchSubstringWithBox(List<PPOcrV6Result> results,
-													 java.util.function.Function<String, String> extractor) {
+													 Function<String, String> extractor) {
 		for (PPOcrV6Result r : results) {
 			String hit = extractor.apply(r.text());
 			if (hit != null) {
@@ -413,7 +415,7 @@ public class LabelMatcher {
 	 * 在 OCR 结果中定位字段标签框，兼容 OCR 残缺场景。
 	 *
 	 * <p>匹配优先级：完整等于 &gt; 以 label 开头（最长）&gt; label 包含文本（最长）；
-	 * 前两者未命中时回退到第三种并打印 WARN 日志。
+	 * 前两者未命中时回退到第三种并打印 DEBUG 日志。
 	 *
 	 * @param results OCR 识别结果列表
 	 * @param label   字段标签（如 "号牌号码"）
@@ -470,8 +472,8 @@ public class LabelMatcher {
 	 * @return 干净标签框；无匹配时返回 null
 	 */
 	public static PPOcrV6Result findCleanLabelBox(List<PPOcrV6Result> results,
-												  String label,
-												  java.util.Set<String> noiseLabels) {
+											  String label,
+											  Set<String> noiseLabels) {
 		PPOcrV6Result exactBest = null;
 		PPOcrV6Result prefixBest = null;
 		PPOcrV6Result fragmentBest = null;
@@ -531,8 +533,8 @@ public class LabelMatcher {
 	 * @return 多行拼接值；无候选时返回 null
 	 */
 	public static String collectMultiLineRight(PPOcrV6Result labelBox,
-											   List<PPOcrV6Result> results,
-											   java.util.Set<String> skipTexts) {
+										   List<PPOcrV6Result> results,
+										   Set<String> skipTexts) {
 		if (labelBox == null) return null;
 		int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
 		int labelMinY = minY(labelBox);

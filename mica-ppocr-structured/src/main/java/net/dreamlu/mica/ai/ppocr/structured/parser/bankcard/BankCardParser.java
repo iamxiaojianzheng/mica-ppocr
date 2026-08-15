@@ -22,7 +22,10 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -70,6 +73,15 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	private static final Pattern CARD_TYPE_CN_PATTERN = Pattern.compile("(信用卡|借记卡)");
 
 	/**
+	 * 持卡人：已知英文标签黑名单（会被 HOLDER_NAME_PATTERN 误匹配的标签，大小写敏感）。
+	 */
+	private static final Set<String> HOLDER_NAME_BLACKLIST = Set.of(
+		"VALID", "THRU", "DEBIT", "CREDIT", "GOLD", "ETC", "ATM",
+		"Quick", "Pass", "UnionPay", "BANK", "MONTH", "YEAR",
+		"DEBIT CARD", "CREDIT CARD", "MONTH/YEAR"
+	);
+
+	/**
 	 * 构造银行卡解析器，绑定推理引擎。
 	 *
 	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
@@ -81,7 +93,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	@Override
 	public BankCardResult parseResults(List<PPOcrV6Result> results) {
 		BankCardResult r = new BankCardResult();
-		r.setRawResults(new java.util.ArrayList<>(results));
+		r.setRawResults(new ArrayList<>(results));
 		r.setCardNumber(parseCardNumber(results));
 		r.setValidDate(parseValidDate(results));
 		r.setHolderName(parseHolderName(results));
@@ -105,7 +117,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 		// 清理所有非数字字符（空格、短横线等），再匹配 16~19 位连续数字
 		hit = LabelMatcher.matchSubstring(results, text -> {
 			String digits = text.replaceAll("[^0-9]", "");
-			java.util.regex.Matcher m = CARD_NUMBER_PATTERN.matcher(digits);
+			Matcher m = CARD_NUMBER_PATTERN.matcher(digits);
 			return m.find() ? m.group() : null;
 		});
 		if (hit != null) {
@@ -139,12 +151,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	 * （这些标签满足 HOLDER_NAME_PATTERN 的格式但并非持卡人姓名）。
 	 */
 	private static String parseHolderName(List<PPOcrV6Result> results) {
-		// 已知英文标签黑名单（会被 HOLDER_NAME_PATTERN 误匹配的标签）
-		java.util.Set<String> blacklist = java.util.Set.of(
-			"VALID", "THRU", "DEBIT", "CREDIT", "GOLD", "ETC", "ATM",
-			"Quick", "Pass", "UnionPay", "BANK", "MONTH", "YEAR",
-			"DEBIT CARD", "CREDIT CARD", "MONTH/YEAR"
-		);
+		// 已知英文标签黑名单已提取为类常量 {@link #HOLDER_NAME_BLACKLIST}
 
 		// 计算图片底部 y 边界
 		int imgMaxY = 0;
@@ -158,7 +165,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 				return false;
 			}
 			// 排除已知英文标签（大小写敏感匹配，因为黑名单按 OCR 实际大小写录入）
-			if (blacklist.contains(text)) {
+			if (HOLDER_NAME_BLACKLIST.contains(text)) {
 				return false;
 			}
 			// 找到该文本对应的框，过滤掉顶部银行英文简称
@@ -183,7 +190,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	 */
 	private static String parseBankName(List<PPOcrV6Result> results) {
 		// 收集所有中文 ≥4 字的候选框，按 minY 升序取第一个
-		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		List<PPOcrV6Result> candidates = new ArrayList<>();
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (BANK_NAME_PATTERN.matcher(text).matches() && text.length() >= 4) {

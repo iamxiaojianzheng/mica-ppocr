@@ -66,9 +66,13 @@ public abstract class BaseStructuredResult {
 	/**
 	 * 字段名 → 该字段使用的 OCR 框坐标列表。
 	 *
+	 * <p>每个 {@code int[][]} 表示一个 OCR 检测框的四个角点，按
+	 * {@code [4][2]} 排列（外层 4 个点，内层 {@code [x, y]}）。
+	 * 角点顺序参考 {@link net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result#box()}。
+	 *
 	 * <p>示例（行驶证）：
 	 * <pre>{@code
-	 * fieldBoxes.get("plateNo")  → [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]  (可能多个框)
+	 * fieldBoxes.get("plateNo")  → [[[x0,y0],[x1,y1],[x2,y2],[x3,y3]]]  (外层 List 表示 1 个框)
 	 * fieldBoxes.get("vin")      → 同上
 	 * }</pre>
 	 *

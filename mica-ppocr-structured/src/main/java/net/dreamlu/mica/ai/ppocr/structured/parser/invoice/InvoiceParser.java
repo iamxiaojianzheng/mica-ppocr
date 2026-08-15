@@ -390,32 +390,6 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		return LabeledMatch.textOnly(null);
 	}
 
-	/** 去掉字符串末尾的标点（"："、"：", "、", 空格）。 */
-	private static String stripTrailingPunct(String s) {
-		int end = s.length();
-		while (end > 0 && isPunct(s.charAt(end - 1))) end--;
-		return s.substring(0, end);
-	}
-
-	/**
-	 * 检测 text 是否以 label 任一单字 + 标点打头。
-	 * 用于发票"label 名称"被 OCR 拆成"名"+"称：..."时的 fragment 续段检测。
-	 */
-	private static boolean looksLikeFragmentContinuation(String fullLabel, String candidate) {
-		if (fullLabel == null || fullLabel.isEmpty()) return false;
-		if (candidate.length() <= fullLabel.length()) return false;
-		if (candidate.startsWith(fullLabel)) return true;
-		for (int i = 0; i < fullLabel.length(); i++) {
-			String ch = fullLabel.substring(i, i + 1);
-			if (candidate.startsWith(ch)
-				&& candidate.length() > ch.length()
-				&& isPunct(candidate.charAt(ch.length()))) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	/**
 	 * 找标签框：完整等于 / 以 label 开头 / label 包含 fragment（最长）。
 	 * 用于发票场景（不引入 LabelMatcher.findLabelBox 的 fragment 日志）。
@@ -503,17 +477,6 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 	 */
 	private static LabeledMatch matchRightByCenter(List<PPOcrV6Result> results, PPOcrV6Result labelBox) {
 		return matchRightByCenter(results, labelBox, null);
-	}
-
-	/**
-	 * @param isFragmentLabel 当 fragment 标签（如"名"/"称"单字）调用时为 true，
-	 *                        过滤掉另一个 fragment 单字和短文本（避免误取到标签 fragment）
-	 */
-	private static LabeledMatch matchRightByCenter(List<PPOcrV6Result> results,
-												   PPOcrV6Result labelBox,
-												   boolean isFragmentLabel) {
-		String fragmentLabel = isFragmentLabel ? labelBox.text() : null;
-		return matchRightByCenter(results, labelBox, fragmentLabel);
 	}
 
 	/**

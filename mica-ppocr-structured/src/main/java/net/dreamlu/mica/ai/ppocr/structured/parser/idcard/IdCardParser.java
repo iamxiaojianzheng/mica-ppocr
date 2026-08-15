@@ -22,6 +22,7 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -75,7 +76,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	public IdCardResult parseResults(List<PPOcrV6Result> results) {
 		IdCardSide side = detectSide(results);
 		IdCardResult r = new IdCardResult();
-		r.setRawResults(new java.util.ArrayList<>(results));
+		r.setRawResults(new ArrayList<>(results));
 		r.setSide(side);
 		if (side == IdCardSide.FRONT) {
 			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));
@@ -223,7 +224,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 
 		// 检查是否是合并框（"住址"被识别成"住址XXX"）；若是，剥出"住址"文本部分的值（地址第一行）
 		String labelText = labelBox.text();
-		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		List<PPOcrV6Result> candidates = new ArrayList<>();
 		String firstLineFromMerged = null;
 		if (labelText.startsWith("住址") && labelText.length() > 2) {
 			// 合并框：第一行地址已含在 labelBox 中，剥前缀得到

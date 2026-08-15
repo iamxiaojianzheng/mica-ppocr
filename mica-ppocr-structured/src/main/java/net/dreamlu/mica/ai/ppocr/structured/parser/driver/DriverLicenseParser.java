@@ -22,8 +22,10 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -68,6 +70,22 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	private static final Pattern GENDER_PATTERN = Pattern.compile("[男女]");
 
 	/**
+	 * 签发机关：已知的非签发机关标签前缀（OCR 可能识别成单独的"姓名""性别""有效期限"等框）。
+	 */
+	private static final List<String> ISSUING_AUTHORITY_LABEL_PREFIXES = List.of(
+		"姓名", "性别", "国籍", "住址", "证号",
+		"出生日期", "初次领证日期", "准驾车型", "有效期限"
+	);
+
+	/**
+	 * 签发机关：已知的英文标签片段。
+	 */
+	private static final List<String> ISSUING_AUTHORITY_LABEL_ENDS = List.of(
+		"Name", "Sex", "Nationality", "Address",
+		"Date of Birth", "Date of First Issue", "Class", "Valid Period"
+	);
+
+	/**
 	 * 构造驾驶证解析器，绑定推理引擎。
 	 *
 	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
@@ -79,7 +97,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	@Override
 	public DriverLicenseResult parseResults(List<PPOcrV6Result> results) {
 		DriverLicenseResult r = new DriverLicenseResult();
-		r.setRawResults(new java.util.ArrayList<>(results));
+		r.setRawResults(new ArrayList<>(results));
 		r.setLicenseNumber(parseLicenseNumber(results));
 		r.setName(parseName(results));
 		r.setGender(parseGender(results));
@@ -107,7 +125,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		}
 		// 兜底：扫描所有数字串，取第一个 15~18 位的
 		String fallback = LabelMatcher.matchSubstring(results, text -> {
-			java.util.regex.Matcher m = LICENSE_NUMBER_PATTERN.matcher(text.replace(" ", ""));
+			Matcher m = LICENSE_NUMBER_PATTERN.matcher(text.replace(" ", ""));
 			return m.find() ? m.group() : null;
 		});
 		if (fallback != null) {
@@ -117,10 +135,10 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	}
 
 	/**
-	 * 姓名：标签定位（"姓名 Name" 或单 "姓名"）。
+	 * 姓名：标签定位（独立"姓名"框 或 "姓名 Name"合并框）。
 	 */
 	private static String parseName(List<PPOcrV6Result> results) {
-		// OCR 可能识别成"姓名 Name"合并框 或 单独的"姓名"框，LabelMatcher.findLabelBox 都能命中
+		// "姓名 Name" 合并框走 prefix 路径命中；"Name" 单字 fragment 不会命中（label="姓名"不含"Name"）
 		return LabelMatcher.matchValue(results, "姓名");
 	}
 
@@ -161,13 +179,13 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 				}
 			}
 			if (best != null) {
-				java.util.regex.Matcher m = GENDER_PATTERN.matcher(best);
+				Matcher m = GENDER_PATTERN.matcher(best);
 				if (m.find()) return m.group();
 			}
 		}
 		// 兜底：扫描所有文本框，找第一个含"男"/"女"的
 		String fallback = LabelMatcher.matchSubstring(results, text -> {
-			java.util.regex.Matcher m = GENDER_PATTERN.matcher(text);
+			Matcher m = GENDER_PATTERN.matcher(text);
 			return m.find() ? m.group() : null;
 		});
 		if (fallback != null) {
@@ -213,7 +231,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		}
 	}
 	// 2) 兜底：扫描所有框，从含"中国"的文本提取
-		for (PPOcrV6Result r : results) {
+	for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text.contains("中国")) {
 				String stripped = text.replaceAll("^[A-Za-z\\s.]+", "");
@@ -283,7 +301,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		int labelMinY = LabelMatcher.minY(labelBox);
 		int labelMaxY = LabelMatcher.maxY(labelBox);
 
-		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		List<PPOcrV6Result> candidates = new ArrayList<>();
 		for (PPOcrV6Result r : results) {
 			if (r == labelBox) {
 				continue;
@@ -343,7 +361,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		// 轻微噪点清理（如 "2017-05-18." → 先去非数字/非"-"再抽取）
 		if (labelValue != null && !DATE_PATTERN.matcher(labelValue).matches()) {
 			String cleaned = labelValue.replaceAll("[^0-9\\-]", "");
-			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
+			Matcher m = DATE_PATTERN.matcher(cleaned);
 			if (m.find()) {
 				String extracted = m.group();
 				log.debug("驾驶证解析：出生日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
@@ -363,7 +381,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		// 先去掉非数字/非"-"字符，再从中抽取日期（"1.2" → "12"）
 		if (labelValue != null && !DATE_PATTERN.matcher(labelValue).matches()) {
 			String cleaned = labelValue.replaceAll("[^0-9\\-]", "");
-			java.util.regex.Matcher m = DATE_PATTERN.matcher(cleaned);
+			Matcher m = DATE_PATTERN.matcher(cleaned);
 			if (m.find()) {
 				String extracted = m.group();
 				log.debug("驾驶证解析：初次领证日期从含噪文本 \"{}\" (清理后 \"{}\") 中抽取 \"{}\"",
@@ -402,23 +420,14 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		int imgMidX = (imgMinX + imgMaxX) / 2;
 		int imgMidY = (imgMinY + imgMaxY) / 2;
 
-		// 已知的非签发机关标签前缀（OCR 可能识别成单独的"姓名""性别""有效期限"等框）
-		List<String> labelPrefixes = List.of(
-			"姓名", "性别", "国籍", "住址", "证号",
-			"出生日期", "初次领证日期", "准驾车型", "有效期限"
-		);
-		// 已知的英文标签片段
-		List<String> labelEnds = List.of(
-			"Name", "Sex", "Nationality", "Address",
-			"Date of Birth", "Date of First Issue", "Class", "Valid Period"
-		);
-
-		List<PPOcrV6Result> candidates = new java.util.ArrayList<>();
+		// 已知的非签发机关标签前缀与英文片段已提取为类常量
+		// {@link #ISSUING_AUTHORITY_LABEL_PREFIXES} / {@link #ISSUING_AUTHORITY_LABEL_ENDS}
+		List<PPOcrV6Result> candidates = new ArrayList<>();
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			// 排除已知标签前缀/英文标签
 			boolean isLabel = false;
-			for (String prefix : labelPrefixes) {
+			for (String prefix : ISSUING_AUTHORITY_LABEL_PREFIXES) {
 				if (text.startsWith(prefix)) {
 					isLabel = true;
 					break;
@@ -427,7 +436,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 			if (isLabel) {
 				continue;
 			}
-			for (String en : labelEnds) {
+			for (String en : ISSUING_AUTHORITY_LABEL_ENDS) {
 				if (text.contains(en)) {
 					isLabel = true;
 					break;
@@ -484,7 +493,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		String[] parts = labelValue.split("\\s*至\\s*");
 		// 清理日期两端的 OCR 噪点（非数字字符，如 "2017-05-12." → "2017-05-12"）
 		for (int i = 0; i < parts.length; i++) {
-			java.util.regex.Matcher m = DATE_PATTERN.matcher(parts[i]);
+			Matcher m = DATE_PATTERN.matcher(parts[i]);
 			if (m.find()) {
 				parts[i] = m.group();
 			}
