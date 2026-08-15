@@ -133,7 +133,7 @@ class PPOcrV6SolonIntegrationTest {
 			app.start(null);
 
 			PPOcrTemplate template = app.context().getBean(PPOcrTemplate.class);
-			VehicleLicenseResult result = template.parseVehicleLicense(image.toString());
+			VehicleLicenseResult result = template.vehicleLicense().parse(image.toString());
 			assertNotNull(result, "行驶证结构化解析应返回结果对象");
 		} finally {
 			closeEngine(app);

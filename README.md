@@ -48,12 +48,12 @@
 ### 3.1 Spring Boot 入口（Controller 直用）
 
 ```java
-@Autowired 
+@Autowired
 private PPOcrTemplate ppocr;
 
 @PostMapping("/ocr/vehicle")
 public VehicleLicenseResult vehicle(@RequestParam MultipartFile file) throws IOException {
-    return ppocr.parseVehicleLicense(file.getBytes());  // 一行：检测 → 识别 → 结构化
+    return ppocr.vehicleLicense().parse(file.getBytes());  // 一行：检测 → 识别 → 结构化
 }
 ```
 
@@ -61,10 +61,14 @@ public VehicleLicenseResult vehicle(@RequestParam MultipartFile file) throws IOE
 
 ### 3.2 本地 main 调试
 
-每个解析器都提供了对应的 `XxxMain` 调试入口（如 [VehicleLicenseMain](mica-ppocr-structured/src/test/java/net/dreamlu/mica/ai/ppocr/structured/parser/vehicle/VehicleLicenseMain.java)），**直接运行 main 方法**即可做 OCR 推理 + 结构化解析。修改源码顶部的常量即可切换图片：
+每个解析器都提供了对应的 `XxxMain` 调试入口（如 [VehicleLicenseMain](mica-ppocr-structured/src/test/java/net/dreamlu/mica/ai/ppocr/structured/parser/vehicle/VehicleLicenseMain.java)），**直接运行 main 方法**即可做 OCR 推理 + 结构化解析。`XxxMain` 继承通用基类 [`BaseTest`](mica-ppocr-structured/src/test/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/BaseTest.java)，仅需覆写两个方法：
+
+- `newParser(PPOcrV6Engine engine)` —— 返回绑定好泛型的解析器实例（自动注入 OCR engine）
+- `printResult(R result)` —— 按证件类型输出字段
+
+模型档位 / 文档方向分类 / 阈值等通用参数定义在 `BaseTest` 的 `TIER` / `USE_DOC_ORIENTATION` / `DOC_ORIENTATION_THRESH` 等常量中，子类只需声明图片路径：
 
 ```java
-private static final String TIER       = "tiny";                              // tiny / small / medium
 private static final String IMAGE_PATH = "test_images/vehicle/vehicle1.png";  // 待推理图片
 private static final String VIS_PATH   = "test_images/vehicle/vis.png";       // 可视化输出；传 null 跳过
 ```
@@ -186,7 +190,7 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 
 > 仅行驶证完整填充 `fieldBoxes`；其他解析器只保证 `rawResults` 填充。
 
-### 5.4 自定义解析器
+### 5.3 自定义解析器
 
 通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底，并提供 `WithBox` 系列重载（返回 `LabeledMatch(value, box)`，便于解析器回填 `fieldBoxes`）。实现 [`BaseStructuredParser<R>`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/BaseStructuredParser.java) 接口即可挂载到 `PPOcrTemplate.parse(..., parser)` 上（见 §6.3）。
 
@@ -238,30 +242,49 @@ mica:
 
 ### 6.2 PPOcrTemplate API
 
-直接注入 [`PPOcrTemplate`](mica-ppocr-spring-boot-starter/src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/PPOcrTemplate.java) 即可使用，内部已持有 Engine + 6 个证件解析器，无需手工装配。
+直接注入 [`PPOcrTemplate`](mica-ppocr-spring-boot-starter/src/main/java/net/dreamlu/mica/ai/ppocr/autoconfigure/PPOcrTemplate.java) 即可使用。
 
-**每个方法提供 5 种入参重载**：`String` 路径 / `File` / `Path` / `byte[]` / `InputStream`，典型场景：
+`StructuredParserAutoConfiguration` 会先注册 6 个内置解析器（`VehicleLicenseParser` / `IdCardParser` / `BankCardParser` / `DriverLicenseParser` / `BusinessLicenseParser` / `InvoiceParser`）与 `PPOcrV6Engine` 这 7 个 bean，再把 6 个解析器作为构造参数注入 `PPOcrTemplate`（仅当 `PPOcrV6Engine` 存在时才创建模板，避免未配置模型时启动失败）。每个解析器自带 5 种入参的 `parse(...)` 重载，见 §5。
+
+#### 6.2.1 纯 OCR：`run(...)` × 5 种入参
+
+返回散落文字框（不做结构化）：
 
 | 入参 | 场景 |
 |------|------|
-| `String` | 本地文件路径 |
-| `File` | `File` 对象 |
-| `Path` | 非默认文件系统（ZIP / JIMFS / 内存 FS） |
-| `byte[]` | Spring `MultipartFile.getBytes()` |
-| `InputStream` | URL / S3 / HTTP 下载流 |
+| `run(String)` | 本地文件路径 |
+| `run(File)` | `File` 对象 |
+| `run(Path)` | 非默认文件系统（ZIP / JIMFS / 内存 FS） |
+| `run(byte[])` | Spring `MultipartFile.getBytes()` |
+| `run(InputStream)` | URL / S3 / HTTP 下载流 |
 
-方法清单（每行都是 **× 5 种入参**）：
+```java
+List<PPOcrV6Result> results = ppocr.run(file.getBytes());
+```
 
-| 方法 | 返回类型 | 说明 |
-|------|----------|------|
-| `run(...)` | `List<PPOcrV6Result>` | 纯 OCR 识别（返回散落文字框） |
-| `parse(..., parser)` | `R` | 通用结构化解析（传入自定义解析器，见 §5.4） |
-| `parseVehicleLicense(...)` | `VehicleLicenseResult` | 行驶证 |
-| `parseIdCard(...)` | `IdCardResult` | 身份证（正反面自动判定） |
-| `parseBankCard(...)` | `BankCardResult` | 银行卡 |
-| `parseDriverLicense(...)` | `DriverLicenseResult` | 驾驶证 |
-| `parseBusinessLicense(...)` | `BusinessLicenseResult` | 营业执照 |
-| `parseInvoice(...)` | `InvoiceResult` | 增值税发票 |
+#### 6.2.2 结构化解析：`xxxXxx().parse(...)` 链式调用
+
+模板暴露 6 个 getter，每个返回**自动配置注入的解析器单例**（已绑定 engine）。结构化解析统一走解析器自身的 `parse(...)`（同样 5 种入参）：
+
+| getter | 解析器 | 结果类型 |
+|--------|--------|----------|
+| `vehicleLicense()` | `VehicleLicenseParser` | `VehicleLicenseResult` |
+| `idCard()` | `IdCardParser`（正反面自动判定） | `IdCardResult` |
+| `bankCard()` | `BankCardParser` | `BankCardResult` |
+| `driverLicense()` | `DriverLicenseParser` | `DriverLicenseResult` |
+| `businessLicense()` | `BusinessLicenseParser` | `BusinessLicenseResult` |
+| `invoice()` | `InvoiceParser` | `InvoiceResult` |
+
+```java
+// 链式写法：template 拿解析器 → 解析器跑 parse
+VehicleLicenseResult r = ppocrTemplate.vehicleLicense().parse(file.getBytes());
+IdCardResult         i = ppocrTemplate.idCard().parse(path);
+DriverLicenseResult  d = ppocrTemplate.driverLicense().parse(inputStream);
+```
+
+> 这 6 个解析器是 `StructuredParserAutoConfiguration` 里注册的 bean，由 `PPOcrTemplate` 持有引用。
+> 如果需要替换/包装某个解析器，直接在自己的 `@Configuration` 里覆盖对应 bean 即可（`@ConditionalOnMissingBean` 会让自定义生效），`PPOcrTemplate` 会自动注入你提供的实例。
+> 自定义解析器场景：直接 `new YourParser(engine)` 后调 `parser.parse(...)`，无需经过 `PPOcrTemplate`，详见 §5.3。
 
 ### 6.3 典型用法
 
@@ -270,30 +293,39 @@ mica:
 public class OcrService {
     @Autowired
     private PPOcrTemplate ppocr;
+    @Autowired
+    private PPOcrV6Engine engine;   // 注入 engine，用于自定义解析器
 
-    // Spring Boot 上传（最常用）
+    // 1) Spring Boot 上传（最常用）：template 拿解析器 → parse
     public VehicleLicenseResult recognizeVehicle(MultipartFile file) throws IOException {
-        return ppocr.parseVehicleLicense(file.getBytes());
+        return ppocr.vehicleLicense().parse(file.getBytes());
     }
 
-    // 网络流 / S3 下载流
+    // 2) 网络流 / S3 下载流
     public DriverLicenseResult recognizeDriver(URL url) throws IOException {
         try (InputStream in = url.openStream()) {
-            return ppocr.parseDriverLicense(in);
+            return ppocr.driverLicense().parse(in);
         }
     }
 
-    // 自定义解析器场景（任何入参都支持）
-    public <R> R recognize(String imagePath, BaseStructuredParser<R> parser) {
-        return ppocr.parse(imagePath, parser);
+    // 3) 纯 OCR（只想要散落文字框，不做结构化）
+    public List<PPOcrV6Result> recognizeRaw(byte[] imgBytes) throws IOException {
+        return ppocr.run(imgBytes);
+    }
+
+    // 4) 自定义解析器场景：直接 new YourParser(engine) → parse
+    public <R> R recognizeCustom(Path imagePath, BaseStructuredParser<R> parser) {
+        return parser.parse(imagePath);   // parser 已自行持有 engine，无需走 template
     }
 }
 ```
 
+> **并发安全**：`ppocr.xxxXxx()` 每次返回新解析器实例，多线程共享同一个 `PPOcrTemplate` 是安全的；`PPOcrV6Engine` 内部 ONNX session 是线程安全的（ORT 保证）。
+
 ### 6.4 可视化（rawResults + fieldBoxes）
 
 ```java
-VehicleLicenseResult r = ppocr.parseVehicleLicense(file.getBytes());
+VehicleLicenseResult r = ppocr.vehicleLicense().parse(file.getBytes());
 
 // 画所有文字框（绿线）
 for (PPOcrV6Result ocr : r.getRawResults()) {

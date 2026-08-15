@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.vehicle;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -25,16 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class VehicleLicenseParserTest {
-
-	/**
-	 * 构造 OCR 文本框。
-	 */
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class VehicleLicenseParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_happyPath() {
@@ -51,7 +43,7 @@ class VehicleLicenseParserTest {
 			box("发证日期", 100, 600, 180, 620),
 			box("2018-02-24", 200, 605, 300, 620)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("鲁GH9P12", r.getPlateNo());
 		assertEquals("小型普通客车", r.getVehicleType());
@@ -69,7 +61,7 @@ class VehicleLicenseParserTest {
 			box("发证日期", 100, 600, 180, 620),
 			box("2018-02-24", 200, 605, 300, 620)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		// 只关心 issueDate 落在发证日期右侧
 		assertEquals("2018-02-24", r.getIssueDate());
 	}
@@ -82,7 +74,7 @@ class VehicleLicenseParserTest {
 			box("所有人", 100, 300, 160, 320),
 			box("张三", 180, 300, 220, 320)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("京A12345", r.getPlateNo());
 		assertEquals("张三", r.getOwner());
 	}
@@ -94,14 +86,14 @@ class VehicleLicenseParserTest {
 			box("VIN噪声", 100, 200, 200, 220),
 			box(".LL4WG44B8JL339900", 220, 200, 500, 220)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("LL4WG44B8JL339900", r.getVin());
 	}
 
 	@Test
 	void parse_returnsNullsForMissingFields() {
 		// 输入完全为空
-		VehicleLicenseResult r = VehicleLicenseParser.parse(List.of());
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), List.of());
 		assertNotNull(r);
 		assertNull(r.getPlateNo());
 		assertNull(r.getOwner());
@@ -118,7 +110,7 @@ class VehicleLicenseParserTest {
 			box("2018-03-052018-03-05", 200, 505, 500, 520),
 			box("发证日期", 100, 600, 180, 620)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("2018-03-05", r.getIssueDate());
 	}
 
@@ -129,7 +121,7 @@ class VehicleLicenseParserTest {
 			box("所", 100, 400, 130, 420),
 			box("李四", 150, 400, 200, 420)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("李四", r.getOwner());
 	}
 
@@ -141,7 +133,7 @@ class VehicleLicenseParserTest {
 			box("人", 90, 127, 103, 138),
 			box("京通租赁集团有限公司北京分公司", 115, 126, 364, 152)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("京通租赁集团有限公司北京分公司", r.getOwner());
 	}
 
@@ -158,7 +150,7 @@ class VehicleLicenseParserTest {
 			box("址", 93, 157, 106, 171),
 			box("北京市朝阳区东四环", 112, 156, 265, 182)
 		);
-		VehicleLicenseResult r = VehicleLicenseParser.parse(results);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("京通租赁集团有限公司北京分公司", r.getOwner());
 		assertEquals("小型轿车", r.getVehicleType());
 	}

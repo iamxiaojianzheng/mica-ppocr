@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,16 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * <p>用构造的 OCR 框模拟典型版面（基于 bankcard1.png 工行金卡的实际 OCR 分布）。
  */
-class BankCardParserTest {
-
-	/**
-	 * 构造 OCR 文本框。
-	 */
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class BankCardParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_icbcCreditGold() {
@@ -57,7 +49,7 @@ class BankCardParserTest {
 			box("07/22", 290, 380, 360, 400),                 // 有效期值
 			box("MR.CWENTA", 90, 430, 230, 460)              // 持卡人
 		);
-		BankCardResult r = BankCardParser.parse(results);
+		BankCardResult r = parse(new BankCardParser(null), results);
 		assertNotNull(r);
 		assertEquals("6225970070003000", r.getCardNumber());
 		assertEquals("07/22", r.getValidDate());
@@ -79,7 +71,7 @@ class BankCardParserTest {
 			box("MONTH/YEAR", 360, 380, 480, 400),
 			box("12/27", 510, 380, 570, 400)
 		);
-		BankCardResult r = BankCardParser.parse(results);
+		BankCardResult r = parse(new BankCardParser(null), results);
 		assertNotNull(r);
 		assertEquals("6230202018521255", r.getCardNumber());
 		assertEquals("12/27", r.getValidDate());
@@ -100,7 +92,7 @@ class BankCardParserTest {
 			box("MONTH/YEAR", 360, 380, 480, 400),
 			box("01/25", 510, 380, 570, 400)
 		);
-		BankCardResult r = BankCardParser.parse(results);
+		BankCardResult r = parse(new BankCardParser(null), results);
 		assertNotNull(r);
 		assertEquals("6214180701100538758", r.getCardNumber());
 		assertEquals("01/25", r.getValidDate());
@@ -109,7 +101,7 @@ class BankCardParserTest {
 
 	@Test
 	void parse_emptyResults() {
-		BankCardResult r = BankCardParser.parse(List.of());
+		BankCardResult r = parse(new BankCardParser(null), List.of());
 		assertNotNull(r);
 		// 所有字段为 null
 		assertEquals(null, r.getCardNumber());

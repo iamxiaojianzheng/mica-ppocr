@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -41,12 +42,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @Slf4j
-public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseResult> {
-
-	/**
-	 * 单例实例。
-	 */
-	public static final DriverLicenseParser INSTANCE = new DriverLicenseParser();
+public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResult> {
 
 	/**
 	 * 证号：15~18 位连续数字。
@@ -72,13 +68,12 @@ public class DriverLicenseParser implements BaseStructuredParser<DriverLicenseRe
 	private static final Pattern GENDER_PATTERN = Pattern.compile("[男女]");
 
 	/**
-	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
+	 * 构造驾驶证解析器，绑定推理引擎。
 	 *
-	 * @param results OCR 识别结果列表（按阅读顺序）
-	 * @return 驾驶证结构化解析结果
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
 	 */
-	public static DriverLicenseResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.parseResults(results);
+	public DriverLicenseParser(PPOcrV6Engine engine) {
+		super(engine);
 	}
 
 	@Override

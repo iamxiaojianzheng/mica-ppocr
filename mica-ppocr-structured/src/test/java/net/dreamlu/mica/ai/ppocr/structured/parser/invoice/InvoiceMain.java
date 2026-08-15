@@ -16,25 +16,17 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
-
-import java.util.List;
 
 /**
  * 发票结构化解析调试入口。
  *
- * <p>替换 {@code IMAGE_PATH} 为待调试的发票图片，运行 main 即可输出 OCR 框 + 结构化字段。
+ * <p>替换 {@link #IMAGE_PATH} 为待调试的发票图片，运行 main 即可输出 OCR 框 + 结构化字段。
  */
-public class InvoiceMain extends BaseTest {
+public class InvoiceMain extends BaseTest<InvoiceParser, InvoiceResult> {
 
-	/**
-	 * 推理图片路径，相对工程根目录
-	 */
 	private static final String IMAGE_PATH = "test_images/invoice/invoice1.jpg";
-	/**
-	 * 可视化输出路径；传 null 跳过可视化
-	 */
 	private static final String VIS_PATH = "test_images/invoice/vis.png";
 
 	public static void main(String[] args) {
@@ -42,9 +34,12 @@ public class InvoiceMain extends BaseTest {
 	}
 
 	@Override
-	protected void printResults(List<PPOcrV6Result> results) {
-		InvoiceResult inv = InvoiceParser.parse(results);
-		System.out.println("\n--- 发票结构化解析 ---");
+	protected InvoiceParser newParser(PPOcrV6Engine engine) {
+		return new InvoiceParser(engine);
+	}
+
+	@Override
+	protected void printResult(InvoiceResult inv) {
 		System.out.println("发票代码       " + inv.getInvoiceCode());
 		System.out.println("发票号码       " + inv.getInvoiceNo());
 		System.out.println("开票日期       " + inv.getInvoiceDate());

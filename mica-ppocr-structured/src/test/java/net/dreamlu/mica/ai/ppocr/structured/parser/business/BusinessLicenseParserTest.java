@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.business;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -25,21 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class BusinessLicenseParserTest {
-
-	/**
-	 * 构造 OCR 文本框（横向矩形）。
-	 */
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class BusinessLicenseParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_returnsNullsForMissingFields() {
 		// 输入完全为空
-		BusinessLicenseResult r = BusinessLicenseParser.parse(List.of());
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), List.of());
 		assertNotNull(r);
 		assertNull(r.getCreditCode());
 		assertNull(r.getName());
@@ -81,7 +73,7 @@ class BusinessLicenseParserTest {
 			box("登记机关", 500, 500, 580, 520),
 			box("上海市金山区市场监督管理局", 590, 500, 800, 520)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("91310116S11653529C", r.getCreditCode());
 		assertEquals("上海汽车销售服务有限公司", r.getName());
@@ -127,7 +119,7 @@ class BusinessLicenseParserTest {
 			box("登记机关", 80, 540, 180, 560),
 			box("连云港市某工商行政管理局", 190, 540, 380, 560)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("913101210121HLLNU8", r.getCreditCode());
 		assertEquals("连云港市建设工程有限公司", r.getName());
@@ -148,7 +140,7 @@ class BusinessLicenseParserTest {
 			box("名称", 100, 150, 150, 170),
 			box("某某公司", 160, 150, 280, 170)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertEquals("91440300MA5DC9B12X", r.getCreditCode());
 		assertEquals("某某公司", r.getName());
 	}
@@ -163,7 +155,7 @@ class BusinessLicenseParserTest {
 			box("类型", 100, 250, 150, 270),
 			box("有限责任公司", 160, 250, 280, 270)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertEquals("91440300MA5DC9B12X", r.getCreditCode());
 		assertEquals("深圳市梦想网络科技有限公司", r.getName());
 		assertEquals("有限责任公司", r.getType());
@@ -177,7 +169,7 @@ class BusinessLicenseParserTest {
 			box("2020-01-15", 200, 350, 290, 370),
 			box("长期", 200, 400, 230, 420)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertEquals("2020-01-15", r.getEstablishDate());
 		assertEquals("长期", r.getOperatingPeriod());
 	}
@@ -192,7 +184,7 @@ class BusinessLicenseParserTest {
 			box("称", 115, 200, 145, 220),
 			box("示例有限公司", 160, 200, 280, 220)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		// "名" 和 "称" 都被"名称"包含，返回最长的（"称"）—— 但其右侧无 y 重叠框
 		// 真实场景下 findLabelBox 会返回 "称"，然后 matchValueWithBox 找右侧 y 重叠框
 		assertNotNull(r);
@@ -211,7 +203,7 @@ class BusinessLicenseParserTest {
 			box("住", 902, 587, 933, 615),
 			box("所广州市", 1000, 586, 1103, 618)
 		);
-		BusinessLicenseResult r = BusinessLicenseParser.parse(results);
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), results);
 		assertNotNull(r);
 		// "编号:XXX" 兜底命中并截前缀
 		assertEquals("921MA190538210301", r.getCreditCode());

@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -47,10 +48,16 @@ import java.util.regex.Pattern;
  * {@code InvoiceResult#getFieldBoxes()}。
  */
 @Slf4j
-public class InvoiceParser implements BaseStructuredParser<InvoiceResult> {
+public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 
-	/** 全局单例。 */
-	public static final InvoiceParser INSTANCE = new InvoiceParser();
+	/**
+	 * 构造增值税发票解析器，绑定推理引擎。
+	 *
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
+	 */
+	public InvoiceParser(PPOcrV6Engine engine) {
+		super(engine);
+	}
 
 	// ========================================================================
 	// 正则常量
@@ -92,10 +99,6 @@ public class InvoiceParser implements BaseStructuredParser<InvoiceResult> {
 	// ========================================================================
 	// 入口
 	// ========================================================================
-
-	public static InvoiceResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.doParse(results);
-	}
 
 	@Override
 	public InvoiceResult parseResults(List<PPOcrV6Result> results) {

@@ -16,26 +16,18 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
-
-import java.util.List;
 
 /**
  * 银行卡结构化解析调试入口。
  *
- * <p>替换 {@code IMAGE_PATH} 为待调试的银行卡图片。
+ * <p>替换 {@link #IMAGE_PATH} 为待调试的银行卡图片。
  * 当前解析器尚未实现，仅打印 OCR 原始结果用于调试版面定位。
  */
-public class BankCardMain extends BaseTest {
+public class BankCardMain extends BaseTest<BankCardParser, BankCardResult> {
 
-	/**
-	 * 推理图片路径，相对工程根目录
-	 */
 	private static final String IMAGE_PATH = "test_images/bankcard/bankcard1.png";
-	/**
-	 * 可视化输出路径；传 null 跳过可视化
-	 */
 	private static final String VIS_PATH = "test_images/bankcard/vis.png";
 
 	public static void main(String[] args) {
@@ -43,14 +35,17 @@ public class BankCardMain extends BaseTest {
 	}
 
 	@Override
-	protected void printResults(List<PPOcrV6Result> results) {
+	protected BankCardParser newParser(PPOcrV6Engine engine) {
+		return new BankCardParser(engine);
+	}
+
+	@Override
+	protected void printResult(BankCardResult r) {
 		// 注意银行卡有效期格式为 MM/YY 容易被误识别为 MM7YY，可以提升模型为 small 或 medium
-		BankCardResult result = BankCardParser.parse(results);
-		System.out.println("\n--- 银行卡结构化解析 ---");
-		System.out.println("cardNumber:   " + result.getCardNumber());
-		System.out.println("validDate:    " + result.getValidDate());
-		System.out.println("holderName:   " + result.getHolderName());
-		System.out.println("bankName:     " + result.getBankName());
-		System.out.println("cardType:     " + result.getCardType());
+		System.out.println("cardNumber:   " + r.getCardNumber());
+		System.out.println("validDate:    " + r.getValidDate());
+		System.out.println("holderName:   " + r.getHolderName());
+		System.out.println("bankName:     " + r.getBankName());
+		System.out.println("cardType:     " + r.getCardType());
 	}
 }

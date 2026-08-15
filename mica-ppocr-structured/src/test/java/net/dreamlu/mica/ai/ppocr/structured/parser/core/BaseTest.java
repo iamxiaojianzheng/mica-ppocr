@@ -30,14 +30,42 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 结构化解析调试 demo 基类。
+ * 结构化解析调试 demo 泛型基类。
  *
  * <p>封装 OpenCV 加载、模型初始化、OCR 推理、可视化等通用流程，
- * 子类只需关注具体的结构化解析逻辑与字段打印。
+ * 子类只需指定：
+ * <ul>
+ *   <li>{@link #newParser()} —— 返回绑定好泛型的 {@link BaseStructuredParser} 实例；</li>
+ *   <li>{@link #printResult(Object)} —— 按证件类型输出字段；</li>
+ *   <li>{@link #IMAGE_PATH} / {@link #VIS_PATH}（或重写 {@link #demo(String, String)}）。</li>
+ * </ul>
  *
- * <p>使用方式：每个证件类型建一个 {@code XxxMain}，继承本类，重写 {@link #printResults(List)}。
+ * <p>典型子类（{@code VehicleLicenseMain} 仅 30 行）：
+ * <pre>{@code
+ * public class VehicleLicenseMain extends BaseTest<VehicleLicenseParser, VehicleLicenseResult> {
+ *
+ *     private static final String IMAGE_PATH = "test_images/vehicle/vehicle1.png";
+ *     private static final String VIS_PATH   = "test_images/vehicle/vis.png";
+ *
+ *     public static void main(String[] args) {
+ *         new VehicleLicenseMain().demo(IMAGE_PATH, VIS_PATH);
+ *     }
+ *
+ *     @Override protected VehicleLicenseParser newParser() {
+ *         return new VehicleLicenseParser(null);
+ *     }
+ *
+ *     @Override protected void printResult(VehicleLicenseResult r) {
+ *         System.out.println("plateNo:     " + r.getPlateNo());
+ *         // ... 其他字段
+ *     }
+ * }
+ * }</pre>
+ *
+ * @param <P> 解析器类型
+ * @param <R> 解析结果类型
  */
-public abstract class BaseTest {
+public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 
 	/**
 	 * 模型档位：tiny / small / medium
@@ -54,6 +82,67 @@ public abstract class BaseTest {
 	 * 与 PPOcrV6Config 默认值保持一致（0.3）。
 	 */
 	protected static final float DOC_ORIENTATION_THRESH = 0.3f;
+
+	/**
+	 * 推理图片路径，相对工程根目录。子类可在常量中赋值。
+	 */
+	protected String IMAGE_PATH;
+
+	/**
+	 * 可视化输出路径；传 null 跳过可视化。
+	 */
+	protected String VIS_PATH;
+
+	/**
+	 * 新建一个解析器实例（{@code engine} 传 null 即可，本基类已自行管理 OCR）。
+	 *
+	 * @return 解析器实例
+	 */
+	protected abstract P newParser(PPOcrV6Engine engine);
+
+	/**
+	 * 打印单个结构化结果（按证件类型输出字段）。
+	 *
+	 * @param result 解析结果
+	 */
+	protected abstract void printResult(R result);
+
+	/**
+	 * demo 入口：跑 OCR + 打印结构化结果 + 可视化。
+	 *
+	 * @param imagePath 推理图片路径
+	 * @param visPath   可视化输出路径（可为 null）
+	 */
+	public final void demo(String imagePath, String visPath) {
+		// 加载 OpenCV 原生库
+		nu.pattern.OpenCV.loadLocally();
+		// 读取图片
+		System.out.println("Image:  " + imagePath);
+		Mat img = Imgcodecs.imread(imagePath);
+		if (img == null || img.empty()) {
+			System.err.println("Error: cannot read image: " + imagePath);
+			System.exit(1);
+		}
+		List<PPOcrV6Result> results = runOcr(img);
+		if (visPath != null) {
+			saveVis(img, results, visPath);
+		}
+		img.release();
+	}
+
+	/**
+	 * 解析 OCR 结果 + 打印结构化字段。
+	 *
+	 * <p>子类无需重写；如需自定义输出格式可重写 {@link #printResult(Object)}。
+	 *
+	 * @param results OCR 结果列表
+	 */
+	protected void printResults(PPOcrV6Engine engine, List<PPOcrV6Result> results) {
+		P parser = newParser(engine);
+		R result = parser.parseResults(results);
+		System.out.println();
+		printResult(result);
+	}
 
 	/**
 	 * 加载 OpenCV 原生库 + 跑 OCR 推理。
@@ -87,18 +176,22 @@ public abstract class BaseTest {
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
 			System.out.println("Running OCR...");
 			results = engine.runMat(image);
+
+			// 打印 OCR 结果
+			long elapsed = System.currentTimeMillis() - t0;
+			System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");
+			for (int i = 0; i < results.size(); i++) {
+				PPOcrV6Result r = results.get(i);
+				int[][] b = r.box();
+				System.out.printf("  [%2d] text=\"%s\"  score=%.6f  box=[(%d,%d),(%d,%d),(%d,%d),(%d,%d)]%n",
+					i + 1, r.text(), r.score(),
+					b[0][0], b[0][1], b[1][0], b[1][1], b[2][0], b[2][1], b[3][0], b[3][1]);
+			}
+
+			// 打印结构化结果
+			printResults(engine,  results);
 		}
-		// 调试提示：doc_ori 已集成到 runMat 内部分类旋转，看输出是否变正常
-		System.out.println("Detected " + results.size() + " text regions.");
-		long elapsed = System.currentTimeMillis() - t0;
-		System.out.println("\nDetected " + results.size() + " text regions (elapsed " + elapsed + " ms):\n");
-		for (int i = 0; i < results.size(); i++) {
-			PPOcrV6Result r = results.get(i);
-			int[][] b = r.box();
-			System.out.printf("  [%2d] text=\"%s\"  score=%.6f  box=[(%d,%d),(%d,%d),(%d,%d),(%d,%d)]%n",
-				i + 1, r.text(), r.score(),
-				b[0][0], b[0][1], b[1][0], b[1][1], b[2][0], b[2][1], b[3][0], b[3][1]);
-		}
+
 		return results;
 	}
 
@@ -135,35 +228,5 @@ public abstract class BaseTest {
 			System.err.println("Warning: failed to save visualization: " + out);
 		}
 		canvas.release();
-	}
-
-	/**
-	 * 子类实现：打印结构化解析结果。
-	 *
-	 * @param results OCR 结果列表
-	 */
-	protected abstract void printResults(List<PPOcrV6Result> results);
-
-	/**
-	 * demo 入口：跑 OCR + 打印结构化结果 + 可视化。
-	 *
-	 * @param imagePath 推理图片路径
-	 * @param visPath   可视化输出路径（可为 null）
-	 */
-	protected void demo(String imagePath, String visPath) {
-		// 加载 OpenCV 原生库
-		nu.pattern.OpenCV.loadLocally();
-		// 读取图片
-		System.out.println("Image:  " + imagePath);
-		Mat img = Imgcodecs.imread(imagePath);
-		if (img == null || img.empty()) {
-			System.err.println("Error: cannot read image: " + imagePath);
-			System.exit(1);
-		}
-		List<PPOcrV6Result> results = runOcr(img);
-		printResults(results);
-		if (visPath != null) {
-			saveVis(img, results, visPath);
-		}
 	}
 }

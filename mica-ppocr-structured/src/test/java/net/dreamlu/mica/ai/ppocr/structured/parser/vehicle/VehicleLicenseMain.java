@@ -16,26 +16,18 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.vehicle;
 
-import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
-
-import java.util.List;
 
 /**
  * 行驶证结构化解析调试入口。
  *
- * <p>替换 {@code IMAGE_PATH} 为待调试的行驶证图片，运行 main 即可输出 OCR 框
+ * <p>替换 {@link #IMAGE_PATH} 为待调试的行驶证图片，运行 main 即可输出 OCR 框
  * + 结构化字段。
  */
-public class VehicleLicenseMain extends BaseTest {
+public class VehicleLicenseMain extends BaseTest<VehicleLicenseParser, VehicleLicenseResult> {
 
-	/**
-	 * 推理图片路径，相对工程根目录
-	 */
 	private static final String IMAGE_PATH = "test_images/vehicle/vehicle1.png";
-	/**
-	 * 可视化输出路径；传 null 跳过可视化
-	 */
 	private static final String VIS_PATH = "test_images/vehicle/vis.png";
 
 	public static void main(String[] args) {
@@ -43,13 +35,16 @@ public class VehicleLicenseMain extends BaseTest {
 	}
 
 	@Override
-	protected void printResults(List<PPOcrV6Result> results) {
-		VehicleLicenseResult license = VehicleLicenseParser.parse(results);
-		System.out.println("\n--- 行驶证结构化解析 ---");
-		System.out.println("plateNo:      " + license.getPlateNo());
-		System.out.println("owner:        " + license.getOwner());
-		System.out.println("vehicleType:  " + license.getVehicleType());
-		System.out.println("vin:          " + license.getVin());
-		System.out.println("issueDate:    " + license.getIssueDate());
+	protected VehicleLicenseParser newParser(PPOcrV6Engine engine) {
+		return new VehicleLicenseParser(engine);
+	}
+
+	@Override
+	protected void printResult(VehicleLicenseResult r) {
+		System.out.println("plateNo:      " + r.getPlateNo());
+		System.out.println("owner:        " + r.getOwner());
+		System.out.println("vehicleType:  " + r.getVehicleType());
+		System.out.println("vin:          " + r.getVin());
+		System.out.println("issueDate:    " + r.getIssueDate());
 	}
 }

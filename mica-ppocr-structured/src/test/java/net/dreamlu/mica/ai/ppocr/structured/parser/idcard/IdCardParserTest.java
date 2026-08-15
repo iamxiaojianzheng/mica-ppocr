@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.idcard;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -28,13 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * 身份证解析器单元测试。
  */
-class IdCardParserTest {
-
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class IdCardParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_front() {
@@ -53,7 +48,7 @@ class IdCardParserTest {
 			box("公民身份号码", 60, 380, 240, 410),
 			box("310228199601111541", 260, 380, 600, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertNotNull(r);
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertEquals("杨朋朋", r.getName());
@@ -86,7 +81,7 @@ class IdCardParserTest {
 			box("公民身份号码", 60, 380, 240, 410),
 			box("652901196611026716", 260, 380, 600, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertNotNull(r.getAddress());
 		// 应包含两行内容
@@ -103,7 +98,7 @@ class IdCardParserTest {
 			box("有效期限", 200, 380, 300, 410),
 			box("2010.12.18-2020.12.18", 320, 380, 580, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertNotNull(r);
 		assertEquals(IdCardSide.BACK, r.getSide());
 		assertEquals("青岛市公安市四方分局", r.getIssuingAuthority());
@@ -123,7 +118,7 @@ class IdCardParserTest {
 			box("有效期限", 200, 380, 300, 410),
 			box("2019.01.02-2039.01.02", 320, 380, 580, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertEquals(IdCardSide.BACK, r.getSide());
 		assertEquals("天津市公安局和平分局", r.getIssuingAuthority());
 		assertEquals("2019.01.02", r.getValidFrom());
@@ -132,7 +127,7 @@ class IdCardParserTest {
 
 	@Test
 	void parse_emptyResults_returnsUnknown() {
-		IdCardResult r = IdCardParser.parse(List.of());
+		IdCardResult r = parse(new IdCardParser(null), List.of());
 		assertNotNull(r);
 		assertEquals(IdCardSide.UNKNOWN, r.getSide());
 	}
@@ -145,7 +140,7 @@ class IdCardParserTest {
 			box("张三", 160, 100, 220, 130),
 			box("310228199601111541", 260, 380, 600, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertEquals("310228199601111541", r.getIdNumber());
 	}
@@ -158,7 +153,7 @@ class IdCardParserTest {
 			box("张三", 160, 100, 220, 130),
 			box("公民身份号362528197402223012", 260, 380, 600, 410)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertEquals("362528197402223012", r.getIdNumber());
 	}
@@ -174,7 +169,7 @@ class IdCardParserTest {
 			box("乡庄坊村陈家组1号", 819, 692, 975, 715),
 			box("公民身份号码362528197402223904", 767, 765, 1159, 791)
 		);
-		IdCardResult r = IdCardParser.parse(results);
+		IdCardResult r = parse(new IdCardParser(null), results);
 		assertEquals(IdCardSide.FRONT, r.getSide());
 		assertEquals("王小明", r.getName());
 		assertEquals("男", r.getGender());

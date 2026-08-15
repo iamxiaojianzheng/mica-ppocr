@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.idcard;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -40,12 +41,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @Slf4j
-public class IdCardParser implements BaseStructuredParser<IdCardResult> {
-
-	/**
-	 * 单例实例。
-	 */
-	public static final IdCardParser INSTANCE = new IdCardParser();
+public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 
 	/**
 	 * 正面字段标签（合并框切分用）：OCR 可能把 "性别男民族汉" 双标签连写进同一框。
@@ -67,13 +63,12 @@ public class IdCardParser implements BaseStructuredParser<IdCardResult> {
 		"\\d{4}\\.\\d{2}\\.\\d{2}(-\\d{4}\\.\\d{2}\\.\\d{2})?|长期");
 
 	/**
-	 * 静态工具类风格入口。
+	 * 构造身份证解析器，绑定推理引擎。
 	 *
-	 * @param results OCR 结果列表
-	 * @return 结构化解析结果（含 side 字段指明版面）
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
 	 */
-	public static IdCardResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.parseResults(results);
+	public IdCardParser(PPOcrV6Engine engine) {
+		super(engine);
 	}
 
 	@Override

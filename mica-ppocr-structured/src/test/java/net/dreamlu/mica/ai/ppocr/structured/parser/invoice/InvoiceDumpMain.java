@@ -16,8 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
+import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
+import org.opencv.core.Mat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +35,7 @@ import java.util.List;
  *
  * <p>输出目录：{@code src/test/resources/ocr-json/}，文件：{@code invoice{N}.json}。
  */
-public class InvoiceDumpMain extends BaseTest {
+public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 
 	private static final String[] IMAGES = {
 		"test_images/invoice/invoice1.jpg",
@@ -51,27 +54,44 @@ public class InvoiceDumpMain extends BaseTest {
 
 	private void run(Path outDir) throws IOException {
 		nu.pattern.OpenCV.loadLocally();
-		for (String imgPath : IMAGES) {
-			String name = nameOf(imgPath);
-			System.out.println("\n" + "=".repeat(60));
-			System.out.println(">>> " + name + " <<<");
-			System.out.println("=".repeat(60));
-			org.opencv.core.Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
-			if (img == null || img.empty()) {
-				System.err.println("无法读取图片: " + imgPath);
-				continue;
+
+		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
+		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
+		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
+		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
+
+		PPOcrV6Config config = PPOcrV6Config.builder()
+			.detModelPath(detModel)
+			.recModelPath(recModel)
+			.recCharDictPath(dict)
+			.useDocOrientationClassify(USE_DOC_ORIENTATION)
+			.docOrientationModelPath(docOriModel)
+			.docOrientationThresh(DOC_ORIENTATION_THRESH)
+			.build();
+
+		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+			for (String imgPath : IMAGES) {
+				String name = nameOf(imgPath);
+				System.out.println("\n" + "=".repeat(60));
+				System.out.println(">>> " + name + " <<<");
+				System.out.println("=".repeat(60));
+				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
+				if (img == null || img.empty()) {
+					System.err.println("无法读取图片: " + imgPath);
+					continue;
+				}
+				List<PPOcrV6Result> results = engine.runMat(img);
+
+				// 1) 保存 JSON
+				Path jsonPath = outDir.resolve(name + ".json");
+				Files.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
+				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
+
+				// 2) 输出结构化结果
+				System.out.println("\n--- 结构化解析 [" + name + "] ---");
+				printResults(engine, results);
+				img.release();
 			}
-			List<PPOcrV6Result> results = runOcr(img);
-
-			// 1) 保存 JSON
-			Path jsonPath = outDir.resolve(name + ".json");
-			Files.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
-			System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
-
-			// 2) 输出结构化结果
-			printHeader(name);
-			printResults(results);
-			img.release();
 		}
 	}
 
@@ -81,13 +101,13 @@ public class InvoiceDumpMain extends BaseTest {
 		return dot > 0 ? f.substring(0, dot) : f;
 	}
 
-	private static void printHeader(String name) {
-		System.out.println("\n--- 结构化解析 [" + name + "] ---");
+	@Override
+	protected InvoiceParser newParser(PPOcrV6Engine engine) {
+		return new InvoiceParser(engine);
 	}
 
 	@Override
-	protected void printResults(List<PPOcrV6Result> results) {
-		InvoiceResult inv = InvoiceParser.parse(results);
+	protected void printResult(InvoiceResult inv) {
 		System.out.println("发票代码       " + inv.getInvoiceCode());
 		System.out.println("发票号码       " + inv.getInvoiceNo());
 		System.out.println("开票日期       " + inv.getInvoiceDate());

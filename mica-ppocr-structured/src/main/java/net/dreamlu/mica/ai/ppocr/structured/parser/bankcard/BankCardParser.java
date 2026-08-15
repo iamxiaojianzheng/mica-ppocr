@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -37,12 +38,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @Slf4j
-public class BankCardParser implements BaseStructuredParser<BankCardResult> {
-
-	/**
-	 * 单例实例。
-	 */
-	public static final BankCardParser INSTANCE = new BankCardParser();
+public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 
 	/**
 	 * 卡号：去空格后 15~19 位连续数字（15 位支持 Amex 卡及 OCR 漏字场景）。
@@ -74,13 +70,12 @@ public class BankCardParser implements BaseStructuredParser<BankCardResult> {
 	private static final Pattern CARD_TYPE_CN_PATTERN = Pattern.compile("(信用卡|借记卡)");
 
 	/**
-	 * 静态工具类风格入口。
+	 * 构造银行卡解析器，绑定推理引擎。
 	 *
-	 * @param results OCR 结果列表
-	 * @return 结构化解析结果
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
 	 */
-	public static BankCardResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.parseResults(results);
+	public BankCardParser(PPOcrV6Engine engine) {
+		super(engine);
 	}
 
 	@Override

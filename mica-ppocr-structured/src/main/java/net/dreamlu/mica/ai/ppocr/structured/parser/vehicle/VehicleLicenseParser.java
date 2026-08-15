@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.vehicle;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -39,23 +40,19 @@ import java.util.regex.Pattern;
  * 方便调用方在页面上复原并高亮对应字段。
  */
 @Slf4j
-public class VehicleLicenseParser implements BaseStructuredParser<VehicleLicenseResult> {
-
-	/** 全局单例，便于非 Spring 环境直接调用。 */
-	public static final VehicleLicenseParser INSTANCE = new VehicleLicenseParser();
+public class VehicleLicenseParser extends BaseStructuredParser<VehicleLicenseResult> {
 
 	private static final Pattern PLATE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
 	private static final Pattern VIN_PATTERN = Pattern.compile("[A-Z0-9]{17}");
 	private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
 	/**
-	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
+	 * 构造行驶证解析器，绑定推理引擎。
 	 *
-	 * @param results OCR 识别结果列表（按阅读顺序）
-	 * @return 行驶证结构化解析结果
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
 	 */
-	public static VehicleLicenseResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.doParse(results);
+	public VehicleLicenseParser(PPOcrV6Engine engine) {
+		super(engine);
 	}
 
 	@Override

@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.business;
 
 import lombok.extern.slf4j.Slf4j;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
@@ -60,10 +61,16 @@ import java.util.regex.Pattern;
  * 方便调用方在页面上复原并高亮对应字段。
  */
 @Slf4j
-public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicenseResult> {
+public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseResult> {
 
-	/** 全局单例，便于非 Spring 环境直接调用。 */
-	public static final BusinessLicenseParser INSTANCE = new BusinessLicenseParser();
+	/**
+	 * 构造营业执照解析器，绑定推理引擎。
+	 *
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
+	 */
+	public BusinessLicenseParser(PPOcrV6Engine engine) {
+		super(engine);
+	}
 
 	// ========================================================================
 	// 字段标签常量：避免散落的字符串字面量，便于复用与单点修改
@@ -228,16 +235,6 @@ public class BusinessLicenseParser implements BaseStructuredParser<BusinessLicen
 	// ========================================================================
 	// 入口
 	// ========================================================================
-
-	/**
-	 * 静态工具类风格入口，等价于 {@link #parseResults(List)}。
-	 *
-	 * @param results OCR 结果列表
-	 * @return 结构化解析结果
-	 */
-	public static BusinessLicenseResult parse(List<PPOcrV6Result> results) {
-		return INSTANCE.doParse(results);
-	}
 
 	@Override
 	public BusinessLicenseResult parseResults(List<PPOcrV6Result> results) {

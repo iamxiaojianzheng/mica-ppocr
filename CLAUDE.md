@@ -118,6 +118,9 @@ The pipeline flows: **detect → sort boxes → crop → recognize**.
 
 - **`PPOCRAutoConfiguration`** — auto-wires `PPOcrV6Engine` bean when `mica.ai.ppocr.enabled=true`.
 - **`PPOCRProperties`** — `@ConfigurationProperties("mica.ai.ppocr")` binding.
+- **`StructuredParserAutoConfiguration`** — 注册 6 个内置解析器与 `PPOcrTemplate`：
+  - 每个解析器通过 `new XxxParser(PPOcrV6Engine)` 绑定 engine；
+  - `PPOcrTemplate` 通过 `vehicleLicense()` / `idCard()` 等 getter 获取已绑定 engine 的解析器实例。
 - **`OpenCVNativeLoader`** — `@AutoConfigureBefore` the main config, eagerly loads OpenCV native libs.
 
 ### Porting conventions

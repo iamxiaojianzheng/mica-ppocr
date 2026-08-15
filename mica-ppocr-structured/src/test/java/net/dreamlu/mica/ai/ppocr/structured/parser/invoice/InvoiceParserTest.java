@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -40,16 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * 由 {@link InvoiceDumpMain} 批量跑真实 OCR 推理后保存，
  * 测试时不依赖 ONNX Runtime / 模型文件，纯 Java 解析逻辑。
  */
-class InvoiceParserTest {
-
-	/**
-	 * 构造 OCR 文本框（横向矩形）。
-	 */
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class InvoiceParserTest extends ParserTestSupport {
 
 	/**
 	 * 从 classpath 加载真实 OCR 结果（跳过 ONNX 推理，仅测试解析逻辑）。
@@ -83,7 +75,7 @@ class InvoiceParserTest {
 
 	@Test
 	void parse_emptyResults_returnsNulls() {
-		InvoiceResult r = InvoiceParser.parse(List.of());
+		InvoiceResult r = parse(new InvoiceParser(null), List.of());
 		assertNotNull(r);
 		assertNull(r.getInvoiceCode());
 		assertNull(r.getInvoiceNo());
@@ -103,7 +95,7 @@ class InvoiceParserTest {
 			box("No14641426", 1554, 415, 1876, 473),
 			box("开票日期：2016年06月02日", 1609, 517, 1980, 552)
 		);
-		InvoiceResult r = InvoiceParser.parse(results);
+		InvoiceResult r = parse(new InvoiceParser(null), results);
 		assertEquals("3100153130", r.getInvoiceCode());
 		assertEquals("14641426", r.getInvoiceNo());
 		assertEquals("2016年06月02日", r.getInvoiceDate());
@@ -113,7 +105,7 @@ class InvoiceParserTest {
 	void parse_invoice1() throws IOException {
 		// 上海增值税发票（百度时代 → 上海易火广告，信息服务费）
 		// fragment "名" + "称：" 合并框剥前缀场景
-		InvoiceResult r = InvoiceParser.parse(loadInvoice("invoice1"));
+		InvoiceResult r = parse(new InvoiceParser(null), loadInvoice("invoice1"));
 		assertNotNull(r);
 		assertEquals("3100153130", r.getInvoiceCode());
 		assertEquals("14641426", r.getInvoiceNo());
@@ -146,7 +138,7 @@ class InvoiceParserTest {
 	void parse_invoice2() throws IOException {
 		// 湖北增值税发票（百度在线上海分公司 → 武汉海庭假日酒店，住宿费）
 		// 标签值合并框 "称：百度在线..." 一体识别场景
-		InvoiceResult r = InvoiceParser.parse(loadInvoice("invoice2"));
+		InvoiceResult r = parse(new InvoiceParser(null), loadInvoice("invoice2"));
 		assertNotNull(r);
 		assertEquals("4200162130", r.getInvoiceCode());
 		assertEquals("00998959", r.getInvoiceNo());
@@ -178,7 +170,7 @@ class InvoiceParserTest {
 	@Test
 	void parse_invoice3() throws IOException {
 		// 江苏增值税发票（北京糯米网 → 南京慧通酒店，住宿费）
-		InvoiceResult r = InvoiceParser.parse(loadInvoice("invoice3"));
+		InvoiceResult r = parse(new InvoiceParser(null), loadInvoice("invoice3"));
 		assertNotNull(r);
 		assertEquals("3200153130", r.getInvoiceCode());
 		assertEquals("44071097", r.getInvoiceNo());
@@ -211,7 +203,7 @@ class InvoiceParserTest {
 	void parse_invoice4() throws IOException {
 		// 北京增值税发票（北京百度网讯 → 北京圣紫茗管理咨询，服务费）
 		// 收款人标签后无人名 → null
-		InvoiceResult r = InvoiceParser.parse(loadInvoice("invoice4"));
+		InvoiceResult r = parse(new InvoiceParser(null), loadInvoice("invoice4"));
 		assertNotNull(r);
 		assertEquals("1100154130", r.getInvoiceCode());
 		assertEquals("00772445", r.getInvoiceNo());
@@ -244,7 +236,7 @@ class InvoiceParserTest {
 	void parse_invoice5() throws IOException {
 		// 安徽增值税发票（上海优扬新媒 → 合肥乐堂动漫，信息费）
 		// "金额" 表头残缺为 "额" 单字场景
-		InvoiceResult r = InvoiceParser.parse(loadInvoice("invoice5"));
+		InvoiceResult r = parse(new InvoiceParser(null), loadInvoice("invoice5"));
 		assertNotNull(r);
 		assertEquals("3400161130", r.getInvoiceCode());
 		assertEquals("00666375", r.getInvoiceNo());

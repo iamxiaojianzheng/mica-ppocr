@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,13 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * <p>基于 driver1.jpg（王桃桃）和 driver2.jpg（常飞超）的实际版面布局构造测试数据。
  */
-class DriverLicenseParserTest {
-
-	private static PPOcrV6Result box(String text, int x0, int y0, int x1, int y1) {
-		return new PPOcrV6Result(text, 1.0f, new int[][]{
-			{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}
-		});
-	}
+class DriverLicenseParserTest extends ParserTestSupport {
 
 	/**
 	 * 构造一张典型驾照的 OCR 框（模拟图片宽 800 / 高 600）。
@@ -105,7 +100,7 @@ class DriverLicenseParserTest {
 			"交通管理局",          // 第 3 行
 			"2015-05-18 至 2021-05-18"  // 有效期限
 		);
-		DriverLicenseResult r = DriverLicenseParser.parse(results);
+		DriverLicenseResult r = parse(new DriverLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("210282198809294228", r.getLicenseNumber());
 		assertEquals("王桃桃", r.getName());
@@ -137,7 +132,7 @@ class DriverLicenseParserTest {
 			"交通管理局",
 			"2017-05-12 至 2023-05-12"
 		);
-		DriverLicenseResult r = DriverLicenseParser.parse(results);
+		DriverLicenseResult r = parse(new DriverLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("130428198812180013", r.getLicenseNumber());
 		assertEquals("常飞超", r.getName());
@@ -152,7 +147,7 @@ class DriverLicenseParserTest {
 
 	@Test
 	void parse_emptyResults() {
-		DriverLicenseResult r = DriverLicenseParser.parse(List.of());
+		DriverLicenseResult r = parse(new DriverLicenseParser(null), List.of());
 		assertNotNull(r);
 		// 所有字段为 null
 		assertEquals(null, r.getLicenseNumber());
@@ -170,7 +165,7 @@ class DriverLicenseParserTest {
 			box("姓名", 100, 150, 150, 175),
 			box("王桃桃", 170, 160, 260, 200)
 		);
-		DriverLicenseResult r = DriverLicenseParser.parse(results);
+		DriverLicenseResult r = parse(new DriverLicenseParser(null), results);
 		assertNotNull(r);
 		assertEquals("210282198809294228", r.getLicenseNumber());
 		assertEquals("王桃桃", r.getName());
