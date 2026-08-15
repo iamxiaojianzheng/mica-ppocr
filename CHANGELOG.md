@@ -2,6 +2,12 @@
 
 ## 发行版本
 
+### v1.1.3 - 2026-08-15
+- feat(idcard): 优化身份证多标签合并框解析逻辑。新增正面字段标签数组，支持"性别男民族汉"双标签连写的合并框切分；性别、民族字段解析兼容标签与数值合并场景；身份证号解析加入正则兜底，处理标签残缺或合并场景；补充标签残缺及标签与值合并场景的单元测试。
+- refactor(core): 重构结构化解析器基类及测试基类。BaseStructuredParser 由接口改为抽象类，统一持有 PPOcrV6Engine 引擎并提供一站式 parse() 实现，子类构造时绑定引擎、仅需重写 parseResults；BaseTest 支持泛型，统一管理引擎创建、OCR 调用及结构化结果打印；测试辅助方法抽取至 ParserTestSupport，删除静态单例与工具类风格入口，提升扩展性与代码复用性。
+- refactor(parser): 优化银行卡、驾驶证、身份证等解析器代码结构。持卡人姓名黑名单、驾驶证非签发机关标签前缀等提为类常量；LabelMatcher 泛型参数改为 Function 并返回不可变 List.copyOf，查询标签框日志级别由 WARN 降为 DEBUG；统一多行拼接 skipTexts 参数为 Set；删除发票解析中过时的字符串截断与片段检测方法，行为完全等价。
+- refactor(PPOcrTemplate): 简化 PPOcrTemplate 模板，各个结构化解析器改为链式调用。
+
 ### v1.1.2 - 2026-08-13
 - feat(solon): 新增 mica-ppocr-solon-plugin Solon 插件适配模块，提供 PPOcrTemplate 一站式封装与结构化解析器自动装配，能力与 Spring Boot Starter 对齐；补充 Solon 端到端集成测试验证插件装配与 OCR 全流程可用性。
 - feat(structured): 新增营业执照结构化解析器（BusinessLicenseParser），抽取社会信用代码、单位名称、住址、法定代表人、有效日期至、成立日期、类型、注册资本、经营范围共 9 个字段；基于"标签定位 + 位置匹配"策略覆盖横版/竖版版式，处理 OCR 常见噪声（信用代码合并/截断、名称与类型 fragment 拆字、经营范围多行拼接等）；LabelMatcher 扩展 matchPattern / findLabelBox / collectMultiLineRight 等基础能力供复用；Spring Boot Starter 自动注册 BusinessLicenseParser bean，PPOcrTemplate 新增 parseBusinessLicense(...) 5 种入参重载；配套 5 张真实样本 + 可视化产物。
