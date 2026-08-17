@@ -30,6 +30,7 @@ import net.dreamlu.mica.ai.ppocr.preprocessor.DocOrientationPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.RecognitionPreprocessor;
 import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
 import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
+import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
 import org.opencv.core.Mat;
@@ -97,9 +98,9 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param config 配置参数
 	 */
 	public PPOcrV6Engine(PPOcrV6Config config) {
-		requireFile(config.getDetModelPath(), "detModelPath");
-		requireFile(config.getRecModelPath(), "recModelPath");
-		requireFile(config.getRecCharDictPath(), "recCharDictPath");
+		requirePath(config.getDetModelPath(), "detModelPath");
+		requirePath(config.getRecModelPath(), "recModelPath");
+		requirePath(config.getRecCharDictPath(), "recCharDictPath");
 		if (config.getRecBatchSize() < 1) {
 			throw new IllegalArgumentException("recBatchSize must be >= 1, got " + config.getRecBatchSize());
 		}
@@ -112,7 +113,7 @@ public final class PPOcrV6Engine implements Closeable {
 				throw new IllegalArgumentException(
 					"useDocOrientationClassify=true 时必须指定 docOrientationModelPath");
 			}
-			requireFile(config.getDocOrientationModelPath(), "docOrientationModelPath");
+			requirePath(config.getDocOrientationModelPath(), "docOrientationModelPath");
 		}
 		String[] providers = OrtProviders.resolve(!config.isPreferAccelerator());
 		log.info("ONNX Runtime provider: {}", String.join(",", providers));
@@ -130,10 +131,10 @@ public final class PPOcrV6Engine implements Closeable {
 			}
 
 			try {
-				detSess = env.createSession(config.getDetModelPath(), opts);
-				recSess = env.createSession(config.getRecModelPath(), opts);
+				detSess = env.createSession(ModelResourceLoader.load(config.getDetModelPath()), opts);
+				recSess = env.createSession(ModelResourceLoader.load(config.getRecModelPath()), opts);
 				if (docOriEnabled) {
-					docOriSess = env.createSession(config.getDocOrientationModelPath(), opts);
+					docOriSess = env.createSession(ModelResourceLoader.load(config.getDocOrientationModelPath()), opts);
 				}
 			} catch (OrtException e) {
 				silentClose(detSess);
@@ -186,12 +187,12 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
-	private static void requireFile(String path, String name) {
+	private static void requirePath(String path, String name) {
 		if (path == null) {
 			throw new IllegalArgumentException(name + " is null");
 		}
-		if (!Files.isRegularFile(Path.of(path))) {
-			throw new IllegalArgumentException(name + ": file not found: " + path);
+		if (path.isEmpty()) {
+			throw new IllegalArgumentException(name + " is empty");
 		}
 	}
 

@@ -17,9 +17,14 @@
 package net.dreamlu.mica.ai.ppocr.autoconfigure;
 
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
+import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -95,5 +100,80 @@ class PPOCRAutoConfigurationTest {
 					.hasRootCauseInstanceOf(IllegalArgumentException.class)
 					.hasMessageContaining("file not found");
 			});
+	}
+
+	/**
+	 * 验证 yml 写 {@code classpath:} 前缀时，{@link PPOcrV6Config} 能正确透传该字符串到 engine，
+	 * 而不会被 Spring/Properties 绑定做路径解析。
+	 *
+	 * <p>本测试先用 yml 给一个占位文件路径（绕开 {@code requireNonBlank} 校验），
+	 * 再用 {@link PPOCRPropertiesCustomizer} 替换为 {@code classpath:} 路径，
+	 * 断言 engine 在 classpath 资源不存在时报告 "classpath resource not found"，
+	 * 而非文件系统的 "file not found"，证明 classpath: 前缀被透传给了 engine。
+	 */
+	@Test
+	void shouldAcceptClasspathPrefixAndPropagateToConfig() {
+		runner
+			.withPropertyValues(
+				"mica.ai.ppocr.det-model-path=/placeholder/det.onnx",
+				"mica.ai.ppocr.rec-model-path=/placeholder/rec.onnx",
+				"mica.ai.ppocr.rec-char-dict-path=/placeholder/dict.txt"
+			)
+			.withBean(PPOCRPropertiesCustomizer.class, () -> builder -> builder
+				.detModelPath("classpath:models/det.onnx")
+				.recModelPath("classpath:models/rec.onnx")
+				.recCharDictPath("classpath:models/dict.txt"))
+			.run(context -> {
+				assertThat(context).hasFailed();
+				Throwable root = context.getStartupFailure();
+				while (root.getCause() != null) {
+					root = root.getCause();
+				}
+				assertThat(root)
+					.isInstanceOf(IllegalArgumentException.class)
+					.hasMessageContaining("classpath resource not found");
+			});
+	}
+
+	/**
+	 * 端到端：使用文件系统路径配置时整个 ApplicationContext 能正常启动并产出 PPOcrV6Engine。
+	 * 用于验证 Spring Boot 配置绑定 + 自动装配 + 引擎创建的完整链路通畅，
+	 * 也作为 ModelResourceLoader 文件通道的 smoke test。
+	 *
+	 * <p>classpath: 通道端到端覆盖见 {@link net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoaderTest}。
+	 */
+	@Test
+	void shouldStartWithRealFilePathModel() {
+		Path root = findRepositoryRoot();
+		Path modelDir = root.resolve("models/ppocr-v6/tiny");
+		Assumptions.assumeTrue(Files.isDirectory(modelDir), "requires tiny models on disk");
+
+		runner
+			.withPropertyValues(
+				"mica.ai.ppocr.det-model-path=" + modelDir.resolve("det.onnx"),
+				"mica.ai.ppocr.rec-model-path=" + modelDir.resolve("rec.onnx"),
+				"mica.ai.ppocr.rec-char-dict-path=" + modelDir.resolve("dict.txt")
+			)
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				assertThat(context).hasSingleBean(PPOcrV6Engine.class);
+				PPOcrV6Engine engine = context.getBean(PPOcrV6Engine.class);
+				engine.close();
+			});
+	}
+
+	private static Path findRepositoryRoot() {
+		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
+		if (multiModuleDir != null) {
+			return Path.of(multiModuleDir);
+		}
+		Path current = Path.of("").toAbsolutePath();
+		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
+			current = current.getParent();
+		}
+		if (current == null) {
+			throw new IllegalStateException("repository root with test models not found");
+		}
+		return current;
 	}
 }

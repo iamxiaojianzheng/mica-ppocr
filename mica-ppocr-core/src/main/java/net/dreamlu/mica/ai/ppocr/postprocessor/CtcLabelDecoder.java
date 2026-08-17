@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.postprocessor;
 
 import lombok.ToString;
+import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,12 +40,14 @@ public final class CtcLabelDecoder {
 	private final String[] chars;
 
 	/**
-	 * 通过字符字典文件路径构造解码器。
+	 * 通过字符字典路径构造解码器。
 	 *
-	 * @param characterDictPath 字符字典文件路径
+	 * <p>支持 {@code classpath:dict.txt} 前缀，把 jar 内字典透明加载。
+	 *
+	 * @param characterDictPath 字符字典路径（classpath: 前缀或文件系统路径）
 	 */
 	public CtcLabelDecoder(String characterDictPath) {
-		this(Path.of(characterDictPath));
+		this(ModelResourceLoader.load(characterDictPath));
 	}
 
 	/**
@@ -57,20 +60,58 @@ public final class CtcLabelDecoder {
 			throw new IllegalArgumentException(
 				"字符字典不可读: " + characterDictPath.toAbsolutePath());
 		}
-		List<String> lines;
-		try {
-			lines = Files.readAllLines(characterDictPath, StandardCharsets.UTF_8);
-		} catch (IOException e) {
-			throw new RuntimeException("读取字符字典失败: " + characterDictPath, e);
-		}
+		this.chars = parseLines(readAllLines(characterDictPath));
+	}
 
+	/**
+	 * 通过字符字典字节内容构造解码器。
+	 *
+	 * @param dictBytes UTF-8 编码的字典字节
+	 */
+	public CtcLabelDecoder(byte[] dictBytes) {
+		if (dictBytes == null || dictBytes.length == 0) {
+			throw new IllegalArgumentException("字符字典字节为空");
+		}
+		this.chars = parseLines(readAllLines(dictBytes));
+	}
+
+	private static List<String> readAllLines(Path path) {
+		try {
+			return Files.readAllLines(path, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			throw new RuntimeException("读取字符字典失败: " + path, e);
+		}
+	}
+
+	private static List<String> readAllLines(byte[] bytes) {
+		String content = new String(bytes, StandardCharsets.UTF_8);
+		List<String> lines = new ArrayList<>();
+		int start = 0;
+		int len = content.length();
+		for (int i = 0; i < len; i++) {
+			if (content.charAt(i) == '\n') {
+				int end = i;
+				if (end > start && content.charAt(end - 1) == '\r') {
+					end--;
+				}
+				lines.add(content.substring(start, end));
+				start = i + 1;
+			}
+		}
+		if (start < len) {
+			lines.add(content.substring(start));
+		}
+		return lines;
+	}
+
+	private static String[] parseLines(List<String> lines) {
 		List<String> list = new ArrayList<>(lines.size() + 1);
 		list.add("blank");
 		for (String line : lines) {
 			// stripTrailing 是 Java 11+ 标准库方法，仅去掉尾部空白字符
 			list.add(line == null ? "" : line.stripTrailing());
 		}
-		this.chars = list.toArray(new String[0]);
+		return list.toArray(new String[0]);
 	}
 
 	/**

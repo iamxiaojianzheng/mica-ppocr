@@ -20,9 +20,7 @@ import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.SimpleSolonApp;
 import org.noear.solon.Utils;
-import org.noear.solon.core.AppContext;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -88,5 +86,39 @@ class PPOCRAutoConfigurationTest {
 
 		assert reference.get() instanceof IllegalArgumentException;
 		assert reference.get().getMessage().contains("file not found");
+	}
+
+	/**
+	 * 验证 Solon 配置写 {@code classpath:} 前缀时，{@link PPOcrV6Config} 能正确透传该字符串到 engine。
+	 *
+	 * <p>本测试先用 yml 设置占位文件路径（绕开 {@code requireNonBlank} 校验），
+	 * 再用 {@link PPOCRPropertiesCustomizer} 替换为 {@code classpath:} 路径，
+	 * 断言 engine 在 classpath 资源不存在时报告 "classpath resource not found"，
+	 * 而非文件系统的 "file not found"，证明 classpath: 前缀被透传给了 engine。
+	 */
+	@Test
+	void shouldAcceptClasspathPrefixAndPropagateToConfig() throws Throwable {
+		SimpleSolonApp app = new SimpleSolonApp(PPOCRAutoConfigurationTest.class);
+		app.cfg().put("mica.ai.ppocr.det-model-path", "/placeholder/det.onnx");
+		app.cfg().put("mica.ai.ppocr.rec-model-path", "/placeholder/rec.onnx");
+		app.cfg().put("mica.ai.ppocr.rec-char-dict-path", "/placeholder/dict.txt");
+		app.context().wrapAndPut(PPOCRPropertiesCustomizer.class, (PPOCRPropertiesCustomizer) builder -> builder
+			.detModelPath("classpath:models/det.onnx")
+			.recModelPath("classpath:models/rec.onnx")
+			.recCharDictPath("classpath:models/dict.txt"));
+
+		AtomicReference<Throwable> reference = new AtomicReference<>();
+		try {
+			app.start(null);
+		} catch (Throwable e) {
+			Throwable root = Utils.throwableUnwrap(e.getCause());
+			while (root.getCause() != null) {
+				root = root.getCause();
+			}
+			reference.set(root);
+		}
+
+		assert reference.get() instanceof IllegalArgumentException;
+		assert reference.get().getMessage().contains("classpath resource not found");
 	}
 }
