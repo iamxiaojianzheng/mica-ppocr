@@ -178,4 +178,89 @@ class IdCardParserTest extends ParserTestSupport {
 		assertEquals("江西省抚州市金溪县对桥乡庄坊村陈家组1号", r.getAddress());
 		assertEquals("362528197402223904", r.getIdNumber());
 	}
+
+	@Test
+	void parse_front_15digit() {
+		// 模拟 15 位身份证正面（早期签发，常见于历史档案/老照片）：6位区划 + 6位 YYMMDD + 3位顺序
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("李老", 160, 100, 220, 130),
+			box("性别", 60, 160, 140, 190),
+			box("男", 160, 160, 200, 190),
+			box("民族", 280, 160, 360, 190),
+			box("汉", 380, 160, 420, 190),
+			box("出生", 60, 220, 140, 250),
+			box("1966 年 5 月 20 日", 160, 220, 400, 250),
+			box("住址", 60, 280, 140, 310),
+			box("北京市东城区", 160, 280, 480, 310),
+			box("公民身份号码", 60, 380, 240, 410),
+			box("110101660520001", 260, 380, 600, 410)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("李老", r.getName());
+		assertEquals("男", r.getGender());
+		assertEquals("汉", r.getNation());
+		assertEquals("1966 年 5 月 20 日", r.getBirthDate());
+		assertEquals("北京市东城区", r.getAddress());
+		assertEquals("110101660520001", r.getIdNumber());
+	}
+
+	@Test
+	void parse_idNumberFallback_15digit() {
+		// 15 位身份证号正则兜底：标签残缺/丢失，仅 15 位号码本身
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("王五", 160, 100, 220, 130),
+			box("110101700315003", 260, 380, 600, 410)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("110101700315003", r.getIdNumber());
+	}
+
+	@Test
+	void parse_birthDateFromIdNumber_15digit() {
+		// 15 位身份证：OCR "出生" 标签整体残缺，靠身份证号推算（YY 默认按 19YY 补全）
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("张三", 160, 100, 220, 130),
+			box("公民身份号码", 60, 380, 240, 410),
+			box("110101650812003", 260, 380, 600, 410)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("110101650812003", r.getIdNumber());
+		// 15 位 YY=65 → 1965 年 8 月 12 日
+		assertEquals("1965年08月12日", r.getBirthDate());
+	}
+
+	@Test
+	void parse_birthDateFromIdNumber_18digit() {
+		// 18 位身份证：OCR "出生" 标签整体残缺，靠身份证号推算
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("李四", 160, 100, 220, 130),
+			box("公民身份号码", 60, 380, 240, 410),
+			box("110101199003151234", 260, 380, 600, 410)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("1990年03月15日", r.getBirthDate());
+	}
+
+	@Test
+	void parse_idNumber_18PriorityOver15Substring() {
+		// 18 位号码的前 15 位也是连续数字（合法 15 位子串），需识别为完整 18 位而非前 15 位
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 60, 100, 140, 130),
+			box("孙七", 160, 100, 220, 130),
+			box("110101198501011234", 260, 380, 600, 410)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		// 完整 18 位号码（不返回前 15 位 "110101198501011"）
+		assertEquals(18, r.getIdNumber().length());
+		assertEquals("110101198501011234", r.getIdNumber());
+	}
 }

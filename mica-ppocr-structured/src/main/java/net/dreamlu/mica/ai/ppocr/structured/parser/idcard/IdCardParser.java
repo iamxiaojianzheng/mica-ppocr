@@ -36,9 +36,11 @@ import java.util.regex.Pattern;
  *   <li><b>版面判定</b>：扫描 OCR 框是否存在 "公民身份号码" 或 "姓名" 标签 → 正面；
  *       若存在 "签发机关" 或 "有效期限" 标签 → 反面；两者都没出现 → UNKNOWN。</li>
  *   <li><b>正面字段</b>：姓名/性别/民族/出生日期/住址 按标签定位；
- *       公民身份号码用 18 位正则兜底（应对 OCR 残缺 "公民身份号码" 标签）。</li>
+ *       公民身份号码用 18/15 位正则兜底（应对 OCR 残缺 "公民身份号码" 标签）。</li>
  *   <li><b>反面字段</b>：签发机关 按 "签发机关" 标签定位；
  *       有效期限 从 "YYYY.MM.DD[-YYYY.MM.DD]" 文本中按 "." 分隔符切出起止。</li>
+ *   <li><b>15 位兼容</b>：早期签发的 15 位身份证号（无校验位、第 7-12 位为 YYMMDD）
+ *       一并支持；出生日期 OCR 残缺时从身份证号推算（15 位 YY 默认按 19YY 补全）。</li>
  * </ul>
  */
 @Slf4j
@@ -51,7 +53,11 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	/**
 	 * 公民身份号码：18 位（末位 X 允许）。
 	 */
-	private static final Pattern ID_NUMBER_PATTERN = Pattern.compile("[0-9X]{18}");
+	private static final Pattern ID_NUMBER_18_PATTERN = Pattern.compile("[0-9]{17}[0-9X]");
+	/**
+	 * 公民身份号码：15 位（早期身份证号，无校验位）。
+	 */
+	private static final Pattern ID_NUMBER_15_PATTERN = Pattern.compile("[0-9]{15}");
 	/**
 	 * 出生日期：yyyy 年 MM 月 dd 日（容忍空格、可选"日"字）。
 	 */
@@ -82,9 +88,9 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));
 			r.setGender(parseGender(results));
 			r.setNation(parseNation(results));
-			r.setBirthDate(parseBirthDate(results));
-			r.setAddress(parseAddress(results));
 			r.setIdNumber(parseIdNumber(results));
+			r.setBirthDate(parseBirthDate(results, r.getIdNumber()));
+			r.setAddress(parseAddress(results));
 		} else if (side == IdCardSide.BACK) {
 			r.setIssuingAuthority(LabelMatcher.matchValueFromPrefix(results, "签发机关"));
 			r.setValidFrom(null);
@@ -196,16 +202,53 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	 * 出生日期提取：按"出生"标签定位，可能跨多框（"1996 年 11 月 2 日"）。
 	 *
 	 * <p>取最靠左的 y 重叠框，与"出生"标签同行。
-	 * 若标签定位结果不可用，回退正则（4 位年 + 1~2 位月 + 1~2 位日）。
+	 * 若标签定位结果不可用，回退正则（4 位年 + 1~2 位月 + 1~2 位日）；
+	 * 仍不可用时，从身份证号推算（15 位 YY 默认按 19YY 补全，18 位 YYYY 直接取）。
 	 */
-	private static String parseBirthDate(List<PPOcrV6Result> results) {
+	private static String parseBirthDate(List<PPOcrV6Result> results, String idNumber) {
 		// 支持"出生1966年11月2日"合并框识别
 		String labelValue = LabelMatcher.matchValueFromPrefix(results, "出生");
 		if (labelValue != null) {
 			// 出生日期格式较自由（"1966 年 11 月 2 日"），先信任标签定位结果
 			return labelValue;
 		}
-		return LabelMatcher.matchPattern(results, BIRTH_DATE_PATTERN, false);
+		String pattern = LabelMatcher.matchPattern(results, BIRTH_DATE_PATTERN, false);
+		if (pattern != null) {
+			return pattern;
+		}
+		// 兜底：身份证号推算（兼容 15 位/18 位 + OCR "出生" 标签整体残缺场景）
+		String fromId = birthDateFromIdNumber(idNumber);
+		if (fromId != null) {
+			log.debug("身份证解析：出生日期身份证号推算命中 \"{}\"", fromId);
+		}
+		return fromId;
+	}
+
+	/**
+	 * 从身份证号推算出生日期（"yyyy 年 MM 月 dd 日" 格式）。
+	 *
+	 * <p>15 位身份证号为 YYMMDD，按 GB 11643-1999 早期签发规则默认按 19YY 补全。
+	 * 18 位身份证号为 YYYYMMDD。
+	 *
+	 * @param idNumber 15/18 位身份证号
+	 * @return 出生日期；长度不匹配返回 null
+	 */
+	private static String birthDateFromIdNumber(String idNumber) {
+		if (idNumber == null) {
+			return null;
+		}
+		if (idNumber.length() == 18) {
+			return idNumber.substring(6, 10) + "年"
+				+ idNumber.substring(10, 12) + "月"
+				+ idNumber.substring(12, 14) + "日";
+		}
+		if (idNumber.length() == 15) {
+			// 15 位 YY 默认按 19YY 补全（早期 15 位身份证号均为 19XX 年签发）
+			return "19" + idNumber.substring(6, 8) + "年"
+				+ idNumber.substring(8, 10) + "月"
+				+ idNumber.substring(10, 12) + "日";
+		}
+		return null;
 	}
 
 	/**
@@ -281,18 +324,24 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
-	 * 公民身份号码：标签定位优先，18 位正则 find() 兜底。
+	 * 公民身份号码：标签定位优先，正则 find() 兜底（18 位优先，15 位兜底）。
 	 *
 	 * <p>标签可能残缺（"公民身份号3625..."）或与号码合并成同一框
-	 * （"公民身份号码3625..."），故正则兜底用 find() 从任意文本中提取 18 位连续号码。
+	 * （"公民身份号码3625..."），故正则兜底用 find() 从任意文本中提取。
+	 * 18 位号码的子序列（前 15 位数字）可能误匹配 15 位正则，故先尝试 18 位。
 	 */
 	private static String parseIdNumber(List<PPOcrV6Result> results) {
 		String labelValue = LabelMatcher.matchValueFromPrefix(results, "公民身份号码");
-		if (labelValue != null && ID_NUMBER_PATTERN.matcher(labelValue).matches()) {
+		if (labelValue != null && isValidIdNumber(labelValue)) {
 			return labelValue;
 		}
+		// 兜底：18 位优先（避免误把 18 位的前 15 位识别成 15 位号码）
 		String fallback = LabelMatcher.matchSubstring(results, text -> {
-			Matcher m = ID_NUMBER_PATTERN.matcher(text);
+			Matcher m = ID_NUMBER_18_PATTERN.matcher(text);
+			if (m.find()) {
+				return m.group();
+			}
+			m = ID_NUMBER_15_PATTERN.matcher(text);
 			return m.find() ? m.group() : null;
 		});
 		if (fallback != null) {
@@ -301,6 +350,18 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		}
 		log.warn("身份证解析：未匹配到身份证号");
 		return null;
+	}
+
+	/**
+	 * 校验文本是否为 15 位或 18 位身份证号。
+	 *
+	 * @param text 待校验文本
+	 * @return true 表示文本完整匹配 15/18 位身份证号
+	 */
+	private static boolean isValidIdNumber(String text) {
+		return text != null
+			&& (ID_NUMBER_18_PATTERN.matcher(text).matches()
+				|| ID_NUMBER_15_PATTERN.matcher(text).matches());
 	}
 
 	/**
