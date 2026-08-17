@@ -30,7 +30,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
  */
 public class TrainTicketMain extends BaseTest<TrainTicketParser, TrainTicketResult> {
 
-	private static final String IMAGE_PATH = "test_images/train/train1.png";
+	private static final String IMAGE_PATH = "test_images/train/train3.png";
 	private static final String VIS_PATH = "test_images/train/vis.png";
 
 	public static void main(String[] args) {
