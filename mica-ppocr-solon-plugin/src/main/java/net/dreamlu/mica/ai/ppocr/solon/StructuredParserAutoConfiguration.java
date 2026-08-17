@@ -23,6 +23,8 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -31,8 +33,8 @@ import org.noear.solon.annotation.Configuration;
 /**
  * 结构化解析器自动配置（Solon 版）。
  *
- * <p>当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
- * 自动注册 6 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票）和 {@link PPOcrTemplate} 模板。
+ * 当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
+ * 自动注册 8 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票）和 {@link PPOcrTemplate} 模板。
  *
  * <p>解析器依赖 {@link PPOcrV6Engine} bean 存在；{@link PPOcrTemplate}
  * 封装了 "OCR 推理 + 结构化解析" 一站式调用。
@@ -122,6 +124,30 @@ public class StructuredParserAutoConfiguration {
 	}
 
 	/**
+	 * 注册火车票解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 火车票解析器
+	 */
+	@Bean
+	@Condition(onMissingBean = TrainTicketParser.class)
+	public TrainTicketParser trainTicketParser(PPOcrV6Engine engine) {
+		return new TrainTicketParser(engine);
+	}
+
+	/**
+	 * 注册出租车票解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 出租车票解析器
+	 */
+	@Bean
+	@Condition(onMissingBean = TaxiReceiptParser.class)
+	public TaxiReceiptParser taxiReceiptParser(PPOcrV6Engine engine) {
+		return new TaxiReceiptParser(engine);
+	}
+
+	/**
 	 * 注册 PP-OCR 结构化识别模板。
 	 *
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
@@ -133,6 +159,8 @@ public class StructuredParserAutoConfiguration {
 	 * @param driverLicenseParser   驾驶证解析器
 	 * @param businessLicenseParser 营业执照解析器
 	 * @param invoiceParser         发票解析器
+	 * @param trainTicketParser     火车票解析器
+	 * @param taxiReceiptParser     出租车票解析器
 	 * @return 结构化识别模板
 	 */
 	@Bean
@@ -143,13 +171,17 @@ public class StructuredParserAutoConfiguration {
 									   BankCardParser bankCardParser,
 									   DriverLicenseParser driverLicenseParser,
 									   BusinessLicenseParser businessLicenseParser,
-									   InvoiceParser invoiceParser) {
+									   InvoiceParser invoiceParser,
+									   TrainTicketParser trainTicketParser,
+									   TaxiReceiptParser taxiReceiptParser) {
 		return new PPOcrTemplate(engine,
 			vehicleLicenseParser,
 			idCardParser,
 			bankCardParser,
 			driverLicenseParser,
 			businessLicenseParser,
-			invoiceParser);
+			invoiceParser,
+			trainTicketParser,
+			taxiReceiptParser);
 	}
 }

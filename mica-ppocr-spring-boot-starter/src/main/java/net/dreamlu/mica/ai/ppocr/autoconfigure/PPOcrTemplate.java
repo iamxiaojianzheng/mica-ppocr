@@ -23,6 +23,8 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParse
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
 
 import java.io.File;
@@ -34,13 +36,14 @@ import java.util.List;
 /**
  * PP-OCR 结构化识别模板。
  *
- * <p>持有 {@link PPOcrV6Engine} 与 6 个内置结构化解析器实例，对外提供：
+ * <p>持有 {@link PPOcrV6Engine} 与 8 个内置结构化解析器实例，对外提供：
  * <ul>
  *   <li>{@link #run(String)} / {@link #run(File)} / {@link #run(Path)} / {@link #run(byte[])} /
  *       {@link #run(InputStream)} —— 纯 OCR 识别，返回散落文字框列表；</li>
  *   <li>{@link #vehicleLicense()} / {@link #idCard()} / {@link #bankCard()} /
- *       {@link #driverLicense()} / {@link #businessLicense()} / {@link #invoice()} ——
- *       获取 6 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载。</li>
+ *       {@link #driverLicense()} / {@link #businessLicense()} / {@link #invoice()} /
+ *       {@link #trainTicket()} / {@link #taxiReceipt()} ——
+ *       获取 8 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载。</li>
  * </ul>
  *
  * <p>典型用法（Spring Boot 上传）：
@@ -66,9 +69,11 @@ public final class PPOcrTemplate {
 	private final DriverLicenseParser driverLicenseParser;
 	private final BusinessLicenseParser businessLicenseParser;
 	private final InvoiceParser invoiceParser;
+	private final TrainTicketParser trainTicketParser;
+	private final TaxiReceiptParser taxiReceiptParser;
 
 	/**
-	 * 构造模板，传入已初始化的推理引擎与 6 个结构化解析器实例。
+	 * 构造模板，传入已初始化的推理引擎与 8 个结构化解析器实例。
 	 *
 	 * @param engine                  PP-OCRv6 推理引擎（不为 null）
 	 * @param vehicleLicenseParser    行驶证解析器（不为 null）
@@ -77,6 +82,8 @@ public final class PPOcrTemplate {
 	 * @param driverLicenseParser     驾驶证解析器（不为 null）
 	 * @param businessLicenseParser   营业执照解析器（不为 null）
 	 * @param invoiceParser           发票解析器（不为 null）
+	 * @param trainTicketParser       火车票解析器（不为 null）
+	 * @param taxiReceiptParser       出租车票解析器（不为 null）
 	 */
 	public PPOcrTemplate(PPOcrV6Engine engine,
 						 VehicleLicenseParser vehicleLicenseParser,
@@ -84,7 +91,9 @@ public final class PPOcrTemplate {
 						 BankCardParser bankCardParser,
 						 DriverLicenseParser driverLicenseParser,
 						 BusinessLicenseParser businessLicenseParser,
-						 InvoiceParser invoiceParser) {
+						 InvoiceParser invoiceParser,
+						 TrainTicketParser trainTicketParser,
+						 TaxiReceiptParser taxiReceiptParser) {
 		if (engine == null) {
 			throw new IllegalArgumentException("PPOcrV6Engine must not be null");
 		}
@@ -106,6 +115,12 @@ public final class PPOcrTemplate {
 		if (invoiceParser == null) {
 			throw new IllegalArgumentException("InvoiceParser must not be null");
 		}
+		if (trainTicketParser == null) {
+			throw new IllegalArgumentException("TrainTicketParser must not be null");
+		}
+		if (taxiReceiptParser == null) {
+			throw new IllegalArgumentException("TaxiReceiptParser must not be null");
+		}
 		this.engine = engine;
 		this.vehicleLicenseParser = vehicleLicenseParser;
 		this.idCardParser = idCardParser;
@@ -113,6 +128,8 @@ public final class PPOcrTemplate {
 		this.driverLicenseParser = driverLicenseParser;
 		this.businessLicenseParser = businessLicenseParser;
 		this.invoiceParser = invoiceParser;
+		this.trainTicketParser = trainTicketParser;
+		this.taxiReceiptParser = taxiReceiptParser;
 	}
 
 	// ==================================================================
@@ -242,5 +259,23 @@ public final class PPOcrTemplate {
 	 */
 	public InvoiceParser invoice() {
 		return invoiceParser;
+	}
+
+	/**
+	 * 获取火车票结构化解析器。
+	 *
+	 * @return 火车票解析器实例（已绑定当前 engine）
+	 */
+	public TrainTicketParser trainTicket() {
+		return trainTicketParser;
+	}
+
+	/**
+	 * 获取出租车票结构化解析器。
+	 *
+	 * @return 出租车票解析器实例（已绑定当前 engine）
+	 */
+	public TaxiReceiptParser taxiReceipt() {
+		return taxiReceiptParser;
 	}
 }
