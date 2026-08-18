@@ -55,6 +55,18 @@ import java.util.regex.Pattern;
 public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 
 	// ========================================================================
+	// 几何兜底阈值（票面顶部区域：始发/到达站；底部区域：售站）
+	// ========================================================================
+
+	/** 票面顶部 y 阈值：始发站/到达站按位置兜底时的 y 上限。 */
+	private static final int STATION_MAX_Y = 400;
+	/** 始发站左侧 x 阈值：放宽原 300 阈值以适配实际票面（OCR 框偏左）。 */
+	private static final int STATION_LEFT_MAX_X = 500;
+	/** 售站底部阈值：相对全图 y 中位数的偏移比例（最大 y 的 2/3）。 */
+	private static final int SELL_STATION_BOTTOM_RATIO_NUM = 2;
+	private static final int SELL_STATION_BOTTOM_RATIO_DEN = 3;
+
+	// ========================================================================
 	// 正则常量
 	// ========================================================================
 
@@ -66,16 +78,13 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	private static final Pattern TRAIN_NUMBER_PATTERN = Pattern.compile("[GDCZTKYL][\\dOIl]{1,4}");
 
 	/**
-	 * 纯数字车次正则（用于 GO000 兼容：OCR 把 G 后面的 0 误识别为 O）。
-	 * 匹配 "GO000" 中的 "G0000"（O 视作 0）。
-	 */
-	private static final Pattern TRAIN_NUMBER_DIGIT_PATTERN = Pattern.compile("[GDCZTKYL]\\d{1,4}");
-
-	/**
 	 * 车票号：7-10 位纯数字。覆盖 E014470 / R093443 / U028534 等 7 位票号。
 	 * 部分票有分隔空格/短横线，统一归一化。
 	 */
 	private static final Pattern TICKET_NO_PATTERN = Pattern.compile("\\d{7,10}");
+
+	/** 字母前缀票号：1 字母 + 6-7 位数字（如 E014470 / R093443 / U028534）。 */
+	private static final Pattern ALPHA_TICKET_PATTERN = Pattern.compile("[A-Z]\\d{6,7}");
 
 	/** 发票号码：20 位纯数字。 */
 	private static final Pattern INVOICE_NO_PATTERN = Pattern.compile("\\d{20}");
@@ -90,9 +99,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	private static final Pattern DATE_PATTERN = Pattern.compile(
 		"\\d{2,4}[-./年:：]\\d{1,2}[-./月:：]\\d{1,2}日?");
 
-	/**
-	 * HH:mm 完整片段（不分组）。
-	 */
+	/** HH:mm 完整片段（不分组）。 */
 	private static final String HHMM = "(?:[01]?\\d|2[0-3]):[0-5]\\d";
 
 	/** 时间：HH:mm（24 小时制）。 */
@@ -145,12 +152,11 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		'会', '学', '校', '厂', '店', '馆', '场',
 		'总', '队', '股', '行', '团', '组', '社');
 
-	/** 席别关键字。 */
+	/** 席别关键字（按长到短排序，避免"商务座"误匹配"座"）。 */
 	private static final List<String> SEAT_CLASS_KEYWORDS = List.of(
-		"商务座", "一等座", "二等座", "特等座",
-		"软卧", "硬卧", "高级软卧",
-		"软座", "硬座",
-		"一等卧", "二等卧"
+		"高级软卧", "商务座", "特等座", "二等座", "一等座",
+		"软卧", "硬卧", "二等卧", "一等卧",
+		"软座", "硬座"
 	);
 
 	/** 改签标识关键字。 */
@@ -197,33 +203,66 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		r.setRawResults(new ArrayList<>(results));
 
 		// 行程
-		r.setDeparture(parseDeparture(results));
-		r.setArrival(parseArrival(results));
-		r.setTrainNumber(parseTrainNumber(results));
-		parseDepartureDateTime(r, results);
-		r.setSeatNumber(parseSeatNumber(results));
-		r.setSeatClass(parseSeatClass(results));
+		applyField(r, "departure", parseDeparture(results));
+		applyField(r, "arrival", parseArrival(results));
+		applyField(r, "trainNumber", parseTrainNumber(results));
+		applyDepartureDateTime(r, results);
+		applyField(r, "seatNumber", parseSeatNumber(results));
+		applyField(r, "seatClass", parseSeatClass(results));
 
 		// 乘客
-		r.setPassengerName(parsePassengerName(results));
-		r.setIdNumber(parseIdNumber(results));
+		applyField(r, "passengerName", parsePassengerName(results));
+		applyField(r, "idNumber", parseIdNumber(results));
 
 		// 金额
-		r.setAmount(parseAmount(results, "车票金额"));
-		r.setAmountExcludingTax(parseAmountExcludingTax(results));
+		applyField(r, "amount", parseAmount(results, "车票金额"));
+		applyField(r, "amountExcludingTax", parseAmountExcludingTax(results));
 
 		// 票号
-		r.setTicketNo(parseTicketNo(results));
-		r.setInvoiceNo(parseInvoiceNo(results));
-		r.setETicketNo(parseETicketNo(results));
+		applyField(r, "ticketNo", parseTicketNo(results));
+		applyField(r, "invoiceNo", parseInvoiceNo(results));
+		applyField(r, "eTicketNo", parseETicketNo(results));
 
 		// 其他
-		r.setInvoiceDate(parseInvoiceDate(results));
-		r.setSellStation(parseSellStation(results));
-		r.setSerialNumber(parseSerialNumber(results));
-		r.setChangedFlag(parseChangedFlag(results));
+		applyField(r, "invoiceDate", parseInvoiceDate(results));
+		applyField(r, "sellStation", parseSellStation(results));
+		applyField(r, "serialNumber", parseSerialNumber(results));
+		applyField(r, "changedFlag", parseChangedFlag(results));
 
 		return r;
+	}
+
+	/**
+	 * 设置字段值并回填字段框到 {@code fieldBoxes}。
+	 *
+	 * @param r      结果对象
+	 * @param name   字段名（fieldBoxes key）
+	 * @param match  字段匹配结果
+	 */
+	private static void applyField(TrainTicketResult r, String name, LabeledMatch match) {
+		if (match == null) return;
+		if (match.value() != null) {
+			switch (name) {
+				case "departure" -> r.setDeparture(match.value());
+				case "arrival" -> r.setArrival(match.value());
+				case "trainNumber" -> r.setTrainNumber(match.value());
+				case "seatNumber" -> r.setSeatNumber(match.value());
+				case "seatClass" -> r.setSeatClass(match.value());
+				case "passengerName" -> r.setPassengerName(match.value());
+				case "idNumber" -> r.setIdNumber(match.value());
+				case "amount" -> r.setAmount(match.value());
+				case "amountExcludingTax" -> r.setAmountExcludingTax(match.value());
+				case "ticketNo" -> r.setTicketNo(match.value());
+				case "invoiceNo" -> r.setInvoiceNo(match.value());
+				case "eTicketNo" -> r.setETicketNo(match.value());
+				case "invoiceDate" -> r.setInvoiceDate(match.value());
+				case "sellStation" -> r.setSellStation(match.value());
+				case "serialNumber" -> r.setSerialNumber(match.value());
+				case "changedFlag" -> r.setChangedFlag(match.value());
+				default -> { /* no-op */ }
+			}
+		}
+		LabelMatcher.applyFieldBox(r, name, match);
 	}
 
 	// ========================================================================
@@ -234,40 +273,40 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * 始发站解析：
 	 * <ol>
 	 *   <li>标签 "始发站" / "出发站"（兼容合并框）；</li>
-	 *   <li>兜底：票面顶部 y≤400、minX≤500 的"X站"框（放宽原 300 阈值以适配实际票面）。</li>
+	 *   <li>兜底：票面顶部 y≤{@value #STATION_MAX_Y}、minX≤{@value #STATION_LEFT_MAX_X} 的"X站"框。</li>
 	 * </ol>
 	 */
-	private static String parseDeparture(List<PPOcrV6Result> results) {
-		// 1) 标签
-		String v = LabelMatcher.matchValueFromPrefix(results, "始发站");
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "出发站");
-		}
-		if (v != null) {
-			return cleanStation(v);
-		}
-		// 2) 兜底：票面顶部（y <= 400）最左（minX <= 500）的中文站名
-		return pickStationByPosition(results, 400, 500, "left");
+	private static LabeledMatch parseDeparture(List<PPOcrV6Result> results) {
+		LabeledMatch m = matchStationByLabels(results, "始发站", "出发站");
+		if (m.hasValue()) return m;
+		return pickStationByPosition(results, STATION_MAX_Y, STATION_LEFT_MAX_X, "left", "始发");
 	}
 
 	/**
 	 * 到达站解析：
 	 * <ol>
 	 *   <li>标签 "到达站" / "目的站"；</li>
-	 *   <li>兜底：票面顶部 y≤400、minX > imgMaxX * 0.5 的"X站"框。</li>
+	 *   <li>兜底：票面顶部 y≤{@value #STATION_MAX_Y}、minX > imgMaxX * 0.5 的"X站"框。</li>
 	 * </ol>
 	 */
-	private static String parseArrival(List<PPOcrV6Result> results) {
-		// 1) 标签
-		String v = LabelMatcher.matchValueFromPrefix(results, "到达站");
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "目的站");
+	private static LabeledMatch parseArrival(List<PPOcrV6Result> results) {
+		LabeledMatch m = matchStationByLabels(results, "到达站", "目的站");
+		if (m.hasValue()) return m;
+		return pickStationByPosition(results, STATION_MAX_Y, Integer.MAX_VALUE, "right", "到达");
+	}
+
+	/**
+	 * 按多个标签依次尝试，从合并框剥出站名。
+	 */
+	private static LabeledMatch matchStationByLabels(List<PPOcrV6Result> results, String... labels) {
+		for (String label : labels) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				String cleaned = cleanStation(m.value());
+				return LabeledMatch.of(cleaned, m.matches());
+			}
 		}
-		if (v != null) {
-			return cleanStation(v);
-		}
-		// 2) 兜底：右侧顶部的中文站名
-		return pickStationByPosition(results, 400, Integer.MAX_VALUE, "right");
+		return LabeledMatch.textOnly(null);
 	}
 
 	/**
@@ -277,41 +316,43 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 *   <li>兜底：扫所有框匹配车次正则，跳过"原票"等噪声上下文。</li>
 	 * </ol>
 	 */
-	private static String parseTrainNumber(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseTrainNumber(List<PPOcrV6Result> results) {
 		// 1) 标签
-		String[] labels = {"车次", "车次号"};
-		for (String label : labels) {
-			String v = LabelMatcher.matchValueFromPrefix(results, label);
-			if (v != null) {
-				Matcher m = TRAIN_NUMBER_PATTERN.matcher(v);
-				if (m.find()) {
-					return m.group();
+		for (String label : List.of("车次", "车次号")) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = TRAIN_NUMBER_PATTERN.matcher(m.value());
+				if (regex.find()) {
+					return LabeledMatch.of(regex.group(), m.matches());
 				}
 			}
 		}
 		// 2) 兜底：扫所有框匹配车次正则，优先短匹配
-		String best = null;
+		PPOcrV6Result best = null;
+		String bestNormalized = null;
 		int bestLen = Integer.MAX_VALUE;
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
 			// 排除含"原票"/"补"等噪声上下文的框
 			if (containsAny(text, TRAIN_NUMBER_NOISE_KEYWORDS)) continue;
-			Matcher m = TRAIN_NUMBER_PATTERN.matcher(text);
-			while (m.find()) {
-				String hit = m.group();
-				// P1 优化：把 O→0、I→1、L→1（OCR 常见误识别）
-				String normalized = hit.replace('O', '0').replace('I', '1').replace('l', '1');
-				if (best == null || normalized.length() < bestLen) {
+			Matcher regex = TRAIN_NUMBER_PATTERN.matcher(text);
+			while (regex.find()) {
+				// OCR 常见误识别：O→0、I/l→1
+				String normalized = regex.group()
+					.replace('O', '0')
+					.replace('I', '1')
+					.replace('l', '1');
+				if (bestNormalized == null || normalized.length() < bestLen) {
 					bestLen = normalized.length();
-					best = normalized;
+					bestNormalized = normalized;
+					best = r;
 				}
 			}
 		}
-		if (best != null) {
-			log.debug("火车票解析：车次按正则兜底 \"{}\"", best);
-		}
-		return best;
+		if (best == null) return LabeledMatch.textOnly(null);
+		log.debug("火车票解析：车次按正则兜底 \"{}\"", bestNormalized);
+		return LabeledMatch.of(bestNormalized, best);
 	}
 
 	/**
@@ -320,66 +361,59 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * <p>P0 优化：优先从合并框"YYYY年MM月DD日HH:MM开"统一切分；
 	 * 失败时回退到独立框匹配。
 	 */
-	private void parseDepartureDateTime(TrainTicketResult r, List<PPOcrV6Result> results) {
+	private static void applyDepartureDateTime(TrainTicketResult r, List<PPOcrV6Result> results) {
 		// 1) 优先从"日期+时间"合并框切分
 		DateTimeSplit split = extractDateTimeFromMergedBox(results);
-		if (split.date != null) {
-			r.setDepartureDate(split.date);
-		}
-		if (split.time != null) {
-			r.setDepartureTime(split.time);
-		}
-		// 2) 标签 "出发日期" / "乘车日期"（独立框）
-		if (split.date == null) {
-			LabeledMatch dateMatch = LabelMatcher.matchValueWithBox(results, "出发日期");
-			if (dateMatch.value() == null) {
-				dateMatch = LabelMatcher.matchValueWithBox(results, "乘车日期");
-			}
-			if (dateMatch.value() == null) {
-				dateMatch = LabelMatcher.matchValueWithBox(results, "日期");
-			}
-			if (dateMatch.value() != null) {
-				Matcher m = DATE_PATTERN.matcher(dateMatch.value());
-				if (m.find()) {
-					r.setDepartureDate(m.group());
-				}
-			}
-		}
-		// 3) 兜底：扫所有框找日期正则
-		if (r.getDepartureDate() == null) {
-			for (PPOcrV6Result r2 : results) {
-				String text = r2.text();
-				if (text == null || text.isEmpty()) continue;
-				// 跳过身份证号（18 位，避免误识为日期）
-				String stripped = text.replaceAll("[*\\s]", "");
-				if (ID_NUMBER_PATTERN.matcher(stripped).find()) continue;
-				// 跳过"身份证+姓名"合并框（含 4+ 个 *）
-				if (text.contains("****")) continue;
-				// 跳过金额框
-				if (text.contains("￥") || text.contains("¥") || text.contains("元")) continue;
-				Matcher m = DATE_PATTERN.matcher(text);
-				if (m.find()) {
-					r.setDepartureDate(m.group());
-					break;
-				}
+		// 2) 日期：合并框 > 标签 > 全图正则
+		String date = firstNonNull(split.date(),
+			dateByLabel(results, "出发日期", "乘车日期", "日期"));
+		if (date != null) r.setDepartureDate(date);
+		// 3) 时间：合并框 > 标签
+		String time = firstNonNull(split.time(),
+			timeByLabel(results, "出发时间", "乘车时间", "时间"));
+		if (time != null) r.setDepartureTime(time);
+	}
+
+	/**
+	 * 按多个日期标签依次尝试。
+	 */
+	private static String dateByLabel(List<PPOcrV6Result> results, String... labels) {
+		for (String label : labels) {
+			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = DATE_PATTERN.matcher(m.value());
+				if (regex.find()) return regex.group();
 			}
 		}
-		// 4) 标签 "出发时间" / "乘车时间" / "时间"（独立框）
-		if (split.time == null) {
-			LabeledMatch timeMatch = LabelMatcher.matchValueWithBox(results, "出发时间");
-			if (timeMatch.value() == null) {
-				timeMatch = LabelMatcher.matchValueWithBox(results, "乘车时间");
-			}
-			if (timeMatch.value() == null) {
-				timeMatch = LabelMatcher.matchValueWithBox(results, "时间");
-			}
-			if (timeMatch.value() != null) {
-				Matcher m = TIME_PATTERN.matcher(timeMatch.value());
-				if (m.find()) {
-					r.setDepartureTime(m.group());
-				}
+		// 兜底：扫所有框找日期正则（跳过身份证/金额框）
+		for (PPOcrV6Result box : results) {
+			String text = box.text();
+			if (text == null || text.isEmpty()) continue;
+			// 跳过身份证号（18 位，避免误识为日期）
+			String stripped = text.replaceAll("[*\\s]", "");
+			if (ID_NUMBER_PATTERN.matcher(stripped).find()) continue;
+			// 跳过"身份证+姓名"合并框（含 4+ 个 *）
+			if (text.contains("****")) continue;
+			// 跳过金额框
+			if (text.contains("￥") || text.contains("¥") || text.contains("元")) continue;
+			Matcher regex = DATE_PATTERN.matcher(text);
+			if (regex.find()) return regex.group();
+		}
+		return null;
+	}
+
+	/**
+	 * 按多个时间标签依次尝试。
+	 */
+	private static String timeByLabel(List<PPOcrV6Result> results, String... labels) {
+		for (String label : labels) {
+			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = TIME_PATTERN.matcher(m.value());
+				if (regex.find()) return regex.group();
 			}
 		}
+		return null;
 	}
 
 	/**
@@ -387,48 +421,50 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * 支持 "2014年09月09日15:52开"、"2024年12月08日00:00开" 等格式。
 	 */
 	private static DateTimeSplit extractDateTimeFromMergedBox(List<PPOcrV6Result> results) {
-		DateTimeSplit split = new DateTimeSplit();
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			// 合并框特征：含日期+时间（4-5 位数字年份+分隔符+日期）
-			Matcher m = DATE_TIME_OPEN_PATTERN.matcher(text);
-			if (m.find()) {
-				String group1 = m.group(1);
-				if (group1 == null) continue;
-				split.date = group1;
-				int group1End = m.start() + group1.length();
-				if (group1End < 0 || group1End > text.length()) group1End = text.length();
-				String after = text.substring(group1End);
-				Matcher tm = TIME_PATTERN.matcher(after);
-				if (tm.find()) {
-					split.time = tm.group();
-				}
-				if (split.date != null) {
-					log.debug("火车票解析：从合并框 \"{}\" 切出 date=\"{}\" time=\"{}\"", text, split.date, split.time);
-				}
-				return split;
+			DateTimeSplit split = matchDateTimeOpen(text);
+			if (split == null) {
+				split = matchDateTime(text);
 			}
-			// 退到无"开"字
-			m = DATE_TIME_PATTERN.matcher(text);
-			if (m.find()) {
-				String group1 = m.group(1);
-				if (group1 == null) continue;
-				split.date = group1;
-				int group1End = m.start() + group1.length();
-				if (group1End < 0 || group1End > text.length()) group1End = text.length();
-				String after = text.substring(group1End);
-				Matcher tm = TIME_PATTERN.matcher(after);
-				if (tm.find()) {
-					split.time = tm.group();
-				}
-				if (split.date != null) {
-					log.debug("火车票解析：从合并框 \"{}\" 切出 date=\"{}\" time=\"{}\" (无开字)", text, split.date, split.time);
-				}
+			if (split != null) {
+				log.debug("火车票解析：从合并框 \"{}\" 切出 date=\"{}\" time=\"{}\"", text, split.date(), split.time());
 				return split;
 			}
 		}
-		return split;
+		return new DateTimeSplit(null, null);
+	}
+
+	/**
+	 * 匹配"日期+时间+开"格式的合并框（如 "2014年09月09日15:52开"）。
+	 */
+	private static DateTimeSplit matchDateTimeOpen(String text) {
+		Matcher m = DATE_TIME_OPEN_PATTERN.matcher(text);
+		if (!m.find()) return null;
+		String date = m.group(1);
+		String time = findTimeAfter(text, m.start() + date.length());
+		return new DateTimeSplit(date, time);
+	}
+
+	/**
+	 * 匹配"日期+时间"（无"开"字）的合并框。
+	 */
+	private static DateTimeSplit matchDateTime(String text) {
+		Matcher m = DATE_TIME_PATTERN.matcher(text);
+		if (!m.find()) return null;
+		String date = m.group(1);
+		String time = findTimeAfter(text, m.start() + date.length());
+		return new DateTimeSplit(date, time);
+	}
+
+	/**
+	 * 从 {@code fromIndex} 起在文本中找 HH:mm 时间。
+	 */
+	private static String findTimeAfter(String text, int fromIndex) {
+		if (fromIndex < 0 || fromIndex > text.length()) return null;
+		Matcher m = TIME_PATTERN.matcher(text.substring(fromIndex));
+		return m.find() ? m.group() : null;
 	}
 
 	/**
@@ -436,24 +472,24 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 *
 	 * <p>P0 优化：用 {@code find()} 而非 {@code matches()}，兼容"14车015号上铺"合并框。
 	 */
-	private static String parseSeatNumber(List<PPOcrV6Result> results) {
-		String v = LabelMatcher.matchValue(results, "座位号");
-		if (v != null) {
-			Matcher m = SEAT_NUMBER_PATTERN.matcher(v);
-			if (m.find()) {
-				return trimSeatSuffix(m.group());
+	private static LabeledMatch parseSeatNumber(List<PPOcrV6Result> results) {
+		LabeledMatch m = LabelMatcher.matchValueWithBox(results, "座位号");
+		if (m.hasValue()) {
+			Matcher regex = SEAT_NUMBER_PATTERN.matcher(m.value());
+			if (regex.find()) {
+				return LabeledMatch.of(trimSeatSuffix(regex.group()), m.matches());
 			}
 		}
 		// 兜底：扫所有框
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			Matcher m = SEAT_NUMBER_PATTERN.matcher(text);
-			if (m.find()) {
-				return trimSeatSuffix(m.group());
+			Matcher regex = SEAT_NUMBER_PATTERN.matcher(text);
+			if (regex.find()) {
+				return LabeledMatch.of(trimSeatSuffix(regex.group()), r);
 			}
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
 	/**
@@ -473,31 +509,36 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	/**
 	 * 席别：标签定位 + 关键字兜底。
 	 */
-	private static String parseSeatClass(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseSeatClass(List<PPOcrV6Result> results) {
 		// 1) 标签 "席别" / "座位类型"
-		String v = LabelMatcher.matchValue(results, "席别");
-		if (v == null) {
-			v = LabelMatcher.matchValue(results, "座位类型");
-		}
-		if (v != null) {
-			for (String kw : SEAT_CLASS_KEYWORDS) {
-				if (v.contains(kw)) {
-					return kw;
-				}
+		for (String label : List.of("席别", "座位类型")) {
+			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
+			if (m.hasValue()) {
+				String keyword = findFirstKeyword(m.value(), SEAT_CLASS_KEYWORDS);
+				if (keyword != null) return LabeledMatch.of(keyword, m.matches());
+				return m;
 			}
-			// 标签完整就返回
-			return v;
 		}
 		// 2) 兜底：扫所有框找席别关键字
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			for (String kw : SEAT_CLASS_KEYWORDS) {
-				if (text.contains(kw)) {
-					log.debug("火车票解析：席别按关键字兜底 \"{}\"", kw);
-					return kw;
-				}
+			String keyword = findFirstKeyword(text, SEAT_CLASS_KEYWORDS);
+			if (keyword != null) {
+				log.debug("火车票解析：席别按关键字兜底 \"{}\"", keyword);
+				return LabeledMatch.of(keyword, r);
 			}
+		}
+		return LabeledMatch.textOnly(null);
+	}
+
+	/**
+	 * 在文本中查找第一个命中的关键字（按列表顺序）。
+	 */
+	private static String findFirstKeyword(String text, List<String> keywords) {
+		if (text == null) return null;
+		for (String kw : keywords) {
+			if (text.contains(kw)) return kw;
 		}
 		return null;
 	}
@@ -509,18 +550,17 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	/**
 	 * 乘客姓名：标签定位 + 合并框（身份证+姓名）剥值 + 兜底扫中文框。
 	 */
-	private static String parsePassengerName(List<PPOcrV6Result> results) {
+	private static LabeledMatch parsePassengerName(List<PPOcrV6Result> results) {
 		// 1) 标签定位（兼容独立框 + 合并框"姓名 张三"）
-		String v = LabelMatcher.matchValueFromPrefix(results, "姓名");
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "乘客姓名");
-		}
-		if (v != null) {
-			Matcher m = NAME_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
+		for (String label : List.of("姓名", "乘客姓名")) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = NAME_PATTERN.matcher(m.value());
+				if (regex.find()) {
+					return LabeledMatch.of(regex.group(), m.matches());
+				}
+				return m;
 			}
-			return v;
 		}
 		// 2) 合并框：身份证+姓名"2024231998****156X赵璇丽" → 剥身份证后取姓名
 		for (PPOcrV6Result r : results) {
@@ -529,28 +569,36 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 			String name = extractNameFromIdMergedBox(text);
 			if (name != null) {
 				log.debug("火车票解析：姓名从身份证+姓名合并框 \"{}\" 切出 \"{}\"", text, name);
-				return name;
+				return LabeledMatch.of(name, r);
 			}
 		}
 		// 3) 兜底：扫所有框找 2~4 字中文（避免 OCR 噪声框混入）
 		for (PPOcrV6Result r : results) {
 			String text = r.text().trim();
 			if (!NAME_PATTERN.matcher(text).matches()) continue;
-			if (text.contains("站") || text.contains("座") || text.contains("车")
-				|| text.contains("票") || text.contains("卧") || text.contains("元")
-				|| text.contains("￥") || text.contains("¥")) continue;
+			if (containsAnyChar(text, TRAIN_NOISE_TICKET_CHARS)) continue;
 			if (text.matches(".*[A-Za-z].*") || text.matches(".*\\d.*")) continue;
 			if (r.score() < 0.5f) continue;
-			boolean isStation = STATION_SUFFIX_PATTERN.matcher(text).matches();
-			boolean isInstitution = containsAnyChar(text, INSTITUTION_KEY_CHARS);
-			if (isStation || isInstitution) {
-				log.debug("火车票解析：跳过站名/机构名候选 \"{}\" station={} institution={}", text, isStation, isInstitution);
+			if (isStationOrInstitutionName(text)) {
+				log.debug("火车票解析：跳过站名/机构名候选 \"{}\"", text);
 				continue;
 			}
 			log.debug("火车票解析：乘客姓名按中文框兜底 \"{}\" (score={})", text, r.score());
-			return text;
+			return LabeledMatch.of(text, r);
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
+	}
+
+	/** 乘客姓名兜底中需要排除的车票常见字。 */
+	private static final Set<Character> TRAIN_NOISE_TICKET_CHARS = Set.of(
+		'站', '座', '车', '票', '卧', '元', '￥', '¥');
+
+	/**
+	 * 是否站名/机构名（用于姓名兜底时排除）。
+	 */
+	private static boolean isStationOrInstitutionName(String text) {
+		return STATION_SUFFIX_PATTERN.matcher(text).matches()
+			|| containsAnyChar(text, INSTITUTION_KEY_CHARS);
 	}
 
 	/**
@@ -563,19 +611,14 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		// 身份证部分可能含 *（脱敏）
 		// 模式：17位数字 + 1位数字/X（中间允许 4 个 *）
 		Matcher m = Pattern.compile("\\d{6,17}[\\dXx*]{1,4}\\d*[\\dXx]?").matcher(text);
-		if (m.find()) {
-			String after = text.substring(m.end());
-			// 剥掉前导中文标点（如 "赵璇丽" 直接接，无标点）
-			Matcher nameM = Pattern.compile("([\\u4e00-\\u9fa5]{2,6})").matcher(after);
-			if (nameM.find()) {
-				String name = nameM.group(1);
-				// 排除站名/机构名
-				if (STATION_SUFFIX_PATTERN.matcher(name).matches()) return null;
-				if (containsAnyChar(name, INSTITUTION_KEY_CHARS)) return null;
-				return name;
-			}
-		}
-		return null;
+		if (!m.find()) return null;
+		String after = text.substring(m.end());
+		Matcher nameM = Pattern.compile("([\\u4e00-\\u9fa5]{2,6})").matcher(after);
+		if (!nameM.find()) return null;
+		String name = nameM.group(1);
+		// 排除站名/机构名
+		if (isStationOrInstitutionName(name)) return null;
+		return name;
 	}
 
 	/**
@@ -588,32 +631,27 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 *
 	 * <p>关键：从合并框"身份证+姓名"中只切身份证部分（不含尾部中文姓名）。
 	 */
-	private static String parseIdNumber(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseIdNumber(List<PPOcrV6Result> results) {
 		// 1) 标签定位
-		String v = LabelMatcher.matchValue(results, "身份证号");
-		if (v == null) {
-			v = LabelMatcher.matchValue(results, "证件号码");
-		}
-		if (v == null) {
-			v = LabelMatcher.matchValue(results, "公民身份号码");
-		}
-		if (v != null) {
-			String result = extractIdNumber(v);
-			if (result != null) return result;
+		for (String label : List.of("身份证号", "证件号码", "公民身份号码")) {
+			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
+			if (m.hasValue()) {
+				String extracted = extractIdNumber(m.value());
+				if (extracted != null) {
+					return LabeledMatch.of(extracted, m.matches());
+				}
+			}
 		}
 		// 2) 全图兜底：找含"****"的合并框
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			// 排除明显是金额/价格/车次的
-			if (text.contains("￥") || text.contains("¥") || text.contains("元")) continue;
-			// 排除纯日期
-			if (DATE_PATTERN.matcher(text).matches()) continue;
-			String result = extractIdNumber(text);
-			if (result != null) {
-				// 必须是含 **** 的脱敏形式（避免误抓 18 位社会信用代码、车票号等）
-				if (text.contains("****")) {
-					return result;
+			if (isAmountOrDateText(text)) continue;
+			// 必须是含 **** 的脱敏形式（避免误抓 18 位社会信用代码、车票号等）
+			if (text.contains("****")) {
+				String extracted = extractIdNumber(text);
+				if (extracted != null) {
+					return LabeledMatch.of(extracted, r);
 				}
 			}
 		}
@@ -621,15 +659,19 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			// 跳过 18 位但明显是社会信用代码/票号的（含字母或全 0）
-			if (text.contains("￥") || text.contains("¥") || text.contains("元")) continue;
-			if (DATE_PATTERN.matcher(text).matches()) continue;
+			if (isAmountOrDateText(text)) continue;
 			Matcher m = ID_NUMBER_PATTERN.matcher(text);
-			if (m.find()) {
-				return m.group();
-			}
+			if (m.find()) return LabeledMatch.of(m.group(), r);
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
+	}
+
+	/**
+	 * 判断文本是否为金额或日期（用于身份证号兜底中排除）。
+	 */
+	private static boolean isAmountOrDateText(String text) {
+		if (text.contains("￥") || text.contains("¥") || text.contains("元")) return true;
+		return DATE_PATTERN.matcher(text).matches();
 	}
 
 	/**
@@ -637,21 +679,19 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static String extractIdNumber(String text) {
 		if (text == null) return null;
-		// 先按 18 位精确匹配（返回匹配部分，不含尾部）
+		// 1) 优先按 18 位精确匹配（返回匹配部分，不含尾部）
 		Matcher m = ID_NUMBER_PATTERN.matcher(text);
-		if (m.find()) {
-			return m.group();
-		}
-		// 兼容脱敏：含 **** 的子串，剥星号后 11-18 位数字，总长 14-19
-		// 例如 "2024231998****156X"（10 位 + 4 * + "156X" = 16 字符，剥 * 后 13 位）
-		// 例如 "3101082006****0000"（10 位 + 4 * + 4 位 = 18 字符，剥 * 后 14 位）
-		// 例如 "3101082006****0000X"（同上 + 末位 X = 19 字符）
+		if (m.find()) return m.group();
+		// 2) 兼容脱敏：含 **** 的子串，剥星号后 11-18 位数字，总长 14-19
+		//    例如 "2024231998****156X"（10 位 + 4 * + "156X" = 16 字符，剥 * 后 13 位）
+		//    例如 "3101082006****0000"（10 位 + 4 * + 4 位 = 18 字符，剥 * 后 14 位）
+		//    例如 "3101082006****0000X"（同上 + 末位 X = 19 字符）
 		Matcher masked = Pattern.compile("(\\d+[*\\dXx]{0,8}[\\dXx])").matcher(text);
 		while (masked.find()) {
 			String idPart = masked.group();
 			if (!idPart.contains("*")) continue;
 			// 剥 * 后 11-18 位数字（身份证固定 18 位，允许 4-7 位被 * 替换）
-			String stripped = idPart.replaceAll("[*]", "");
+			String stripped = idPart.replace("*", "");
 			if (stripped.length() >= 11 && stripped.length() <= 18
 				&& idPart.length() >= 14 && idPart.length() <= 19) {
 				return idPart;
@@ -667,40 +707,38 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	/**
 	 * 金额：标签定位 + 关键字兜底。
 	 */
-	private static String parseAmount(List<PPOcrV6Result> results, String primaryLabel) {
+	private static LabeledMatch parseAmount(List<PPOcrV6Result> results, String primaryLabel) {
 		// 1) 主标签 + 合并框剥值
-		String v = LabelMatcher.matchValueFromPrefix(results, primaryLabel);
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "票价");
-		}
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "金额");
-		}
-		if (v != null) {
-			Matcher m = AMOUNT_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
+		for (String label : List.of(primaryLabel, "票价", "金额")) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = AMOUNT_PATTERN.matcher(m.value());
+				if (regex.find()) {
+					return LabeledMatch.of(regex.group(), m.matches());
+				}
 			}
 		}
 		// 2) 兜底：扫所有框
-		return LabelMatcher.matchPattern(results, AMOUNT_PATTERN, false);
+		return LabelMatcher.matchSubstringWithBox(results, text -> {
+			Matcher regex = AMOUNT_PATTERN.matcher(text);
+			return regex.find() ? regex.group() : null;
+		});
 	}
 
 	/**
 	 * 不含税金额：标签 "不含税金额" / "税前金额"。
 	 */
-	private static String parseAmountExcludingTax(List<PPOcrV6Result> results) {
-		String v = LabelMatcher.matchValueFromPrefix(results, "不含税金额");
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "税前金额");
-		}
-		if (v != null) {
-			Matcher m = AMOUNT_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
+	private static LabeledMatch parseAmountExcludingTax(List<PPOcrV6Result> results) {
+		for (String label : List.of("不含税金额", "税前金额")) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				Matcher regex = AMOUNT_PATTERN.matcher(m.value());
+				if (regex.find()) {
+					return LabeledMatch.of(regex.group(), m.matches());
+				}
 			}
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
 	// ========================================================================
@@ -714,85 +752,76 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * P0 优化：优先匹配字母前缀票号（E/R/U 开头）避免被"xxxxxxxxxxxE014470"
 	 * 形式的复合串误抓前面的纯数字段。
 	 */
-	private static String parseTicketNo(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseTicketNo(List<PPOcrV6Result> results) {
 		// 1) 标签 "车票号"
-		String v = LabelMatcher.matchValue(results, "车票号");
-		if (v == null) {
-			v = LabelMatcher.matchValue(results, "票号");
-		}
-		if (v != null) {
-			// 优先字母前缀（E/R/U 开头）
-			Matcher am = ALPHA_TICKET_PATTERN.matcher(v);
-			if (am.find()) {
-				return am.group();
-			}
-			Matcher m = TICKET_NO_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
-			}
-			String stripped = v.replaceAll("[\\s-]", "");
-			if (stripped.length() >= 7 && stripped.length() <= 10 && stripped.matches("\\d{7,10}")) {
-				return stripped;
+		for (String label : List.of("车票号", "票号")) {
+			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
+			if (m.hasValue()) {
+				// 优先字母前缀（E/R/U 开头）
+				Matcher alpha = ALPHA_TICKET_PATTERN.matcher(m.value());
+				if (alpha.find()) return LabeledMatch.of(alpha.group(), m.matches());
+				Matcher numeric = TICKET_NO_PATTERN.matcher(m.value());
+				if (numeric.find()) return LabeledMatch.of(numeric.group(), m.matches());
+				// 兼容含空格/短横线的票号
+				String stripped = m.value().replaceAll("[\\s-]", "");
+				if (stripped.length() >= 7 && stripped.length() <= 10 && stripped.matches("\\d{7,10}")) {
+					return LabeledMatch.of(stripped, m.matches());
+				}
 			}
 		}
 		// 2) 优先扫字母前缀票号（票面底部"XX售"前的票号通常是字母+数字）
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			Matcher m = ALPHA_TICKET_PATTERN.matcher(text);
-			if (m.find()) {
-				return m.group();
-			}
+			Matcher alpha = ALPHA_TICKET_PATTERN.matcher(text);
+			if (alpha.find()) return LabeledMatch.of(alpha.group(), r);
 		}
 		// 3) 兜底：扫所有 7-10 位连续数字
-		String best = null;
+		PPOcrV6Result best = null;
+		String bestHit = null;
 		int bestLen = Integer.MAX_VALUE;
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
 			// 排除明确是其他长 ID 的框（避免误抓 18+ 位）
-			if (text.contains("￥") || text.contains("¥") || text.contains("元")
-				|| text.contains("*") || text.contains(".")) continue;
-			Matcher m = TICKET_NO_PATTERN.matcher(text);
-			while (m.find()) {
-				String hit = m.group();
+			if (containsAny(text, TICKET_NOISE_CHARS)) continue;
+			Matcher numeric = TICKET_NO_PATTERN.matcher(text);
+			while (numeric.find()) {
+				String hit = numeric.group();
 				// 排除全 0 的占位符
 				if (hit.matches("0+")) continue;
-				// 限定 7-10 位
-				if (hit.length() < 7 || hit.length() > 10) continue;
-				if (best == null || hit.length() < bestLen) {
+				if (bestHit == null || hit.length() < bestLen) {
 					bestLen = hit.length();
-					best = hit;
+					bestHit = hit;
+					best = r;
 				}
 			}
 		}
-		return best;
+		if (best == null) return LabeledMatch.textOnly(null);
+		return LabeledMatch.of(bestHit, best);
 	}
 
-	/**
-	 * 字母前缀票号：1 字母 + 6-7 位数字（如 E014470 / R093443 / U028534）。
-	 */
-	private static final Pattern ALPHA_TICKET_PATTERN = Pattern.compile("[A-Z]\\d{6,7}");
+	/** 票号兜底中需要排除的字符（含金额符、身份证 *、小数点）。 */
+	private static final Set<String> TICKET_NOISE_CHARS = Set.of("￥", "¥", "元", "*", ".");
 
-	private static String parseInvoiceNo(List<PPOcrV6Result> results) {
-		String v = LabelMatcher.matchValueFromPrefix(results, "发票号码");
-		if (v != null) {
-			Matcher m = INVOICE_NO_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
-			}
+	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results) {
+		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
+		if (m.hasValue()) {
+			Matcher regex = INVOICE_NO_PATTERN.matcher(m.value());
+			if (regex.find()) return LabeledMatch.of(regex.group(), m.matches());
 		}
-		return LabelMatcher.matchPattern(results, INVOICE_NO_PATTERN, false);
+		return LabelMatcher.matchSubstringWithBox(results, text -> {
+			Matcher regex = INVOICE_NO_PATTERN.matcher(text);
+			return regex.find() ? regex.group() : null;
+		});
 	}
 
-	private static String parseETicketNo(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseETicketNo(List<PPOcrV6Result> results) {
 		// 1) 标签定位
-		String v = LabelMatcher.matchValue(results, "电子客票号");
-		if (v != null) {
-			Matcher m = ETICKET_NO_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
-			}
+		LabeledMatch m = LabelMatcher.matchValueWithBox(results, "电子客票号");
+		if (m.hasValue()) {
+			Matcher regex = ETICKET_NO_PATTERN.matcher(m.value());
+			if (regex.find()) return LabeledMatch.of(regex.group(), m.matches());
 		}
 		// 2) P1 优化：全图找 25 位纯数字（票面"电子客票号"label 经常被吞）
 		for (PPOcrV6Result r : results) {
@@ -806,26 +835,22 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 			if (text.contains("¥") || text.contains("￥") || text.contains("元")) continue;
 			// 必须是 25 位连续数字（可能含分隔符）
 			String digits = text.replaceAll("[^0-9]", "");
-			if (digits.length() == 25) {
-				return digits;
-			}
+			if (digits.length() == 25) return LabeledMatch.of(digits, r);
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
 	// ========================================================================
 	// 其他
 	// ========================================================================
 
-	private static String parseInvoiceDate(List<PPOcrV6Result> results) {
-		String v = LabelMatcher.matchValueFromPrefix(results, "开票日期");
-		if (v != null) {
-			Matcher m = DATE_PATTERN.matcher(v);
-			if (m.find()) {
-				return m.group();
-			}
+	private static LabeledMatch parseInvoiceDate(List<PPOcrV6Result> results) {
+		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "开票日期");
+		if (m.hasValue()) {
+			Matcher regex = DATE_PATTERN.matcher(m.value());
+			if (regex.find()) return LabeledMatch.of(regex.group(), m.matches());
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
 	/**
@@ -834,74 +859,68 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * <p>P0 优化：旧版只走标签定位，实际票面"售站"标签经常被吞（如 OCR 框只有"天津售"、
 	 * "银川售"等），需要从票面底部兜底。
 	 */
-	private static String parseSellStation(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseSellStation(List<PPOcrV6Result> results) {
 		// 1) 标签
-		String v = LabelMatcher.matchValue(results, "售站");
-		if (v != null) {
-			return v;
-		}
+		LabeledMatch m = LabelMatcher.matchValueWithBox(results, "售站");
+		if (m.hasValue()) return m;
 		// 2) 兜底：票面底部（y > 全图 y 中位数）找"XX售"模式
 		int maxY = 0;
 		for (PPOcrV6Result r : results) {
 			maxY = Math.max(maxY, LabelMatcher.maxY(r));
 		}
-		int bottomThreshold = maxY * 2 / 3;
-		String best = null;
+		int bottomThreshold = maxY * SELL_STATION_BOTTOM_RATIO_NUM / SELL_STATION_BOTTOM_RATIO_DEN;
+		PPOcrV6Result best = null;
+		String bestStation = null;
 		int bestY = Integer.MIN_VALUE;
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
 			if (LabelMatcher.minY(r) < bottomThreshold) continue;
-			Matcher m = SELL_STATION_PATTERN.matcher(text);
-			if (m.find()) {
+			Matcher regex = SELL_STATION_PATTERN.matcher(text);
+			if (regex.find()) {
 				int y = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
 				if (y > bestY) {
 					bestY = y;
-					best = m.group(1);
+					best = r;
+					bestStation = regex.group(1);
 				}
 			}
 		}
-		if (best != null) {
-			log.debug("火车票解析：售站按底部正则兜底 \"{}\"", best);
-		}
-		return best;
+		if (best == null) return LabeledMatch.textOnly(null);
+		log.debug("火车票解析：售站按底部正则兜底 \"{}\"", bestStation);
+		return LabeledMatch.of(bestStation, best);
 	}
 
-	private static String parseSerialNumber(List<PPOcrV6Result> results) {
-		String v = LabelMatcher.matchValue(results, "序列号");
-		if (v != null) {
+	private static LabeledMatch parseSerialNumber(List<PPOcrV6Result> results) {
+		LabeledMatch m = LabelMatcher.matchValueWithBox(results, "序列号");
+		if (m.hasValue()) {
 			// 序列号通常是 12~20 位数字字母混合
-			String cleaned = v.replaceAll("\\s+", "");
-			return cleaned;
+			String cleaned = m.value().replaceAll("\\s+", "");
+			return LabeledMatch.of(cleaned, m.matches());
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
-	private static String parseChangedFlag(List<PPOcrV6Result> results) {
+	private static LabeledMatch parseChangedFlag(List<PPOcrV6Result> results) {
 		// 标签 "标识" / "改签标识"
-		String v = LabelMatcher.matchValueFromPrefix(results, "标识");
-		if (v == null) {
-			v = LabelMatcher.matchValueFromPrefix(results, "改签标识");
-		}
-		if (v != null) {
-			for (String kw : CHANGED_FLAG_KEYWORDS) {
-				if (v.contains(kw)) {
-					return kw;
-				}
+		for (String label : List.of("标识", "改签标识")) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
+			if (m.hasValue()) {
+				String keyword = findFirstKeyword(m.value(), CHANGED_FLAG_KEYWORDS);
+				if (keyword != null) return LabeledMatch.of(keyword, m.matches());
 			}
 		}
 		// 兜底：扫所有框
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text == null || text.isEmpty()) continue;
-			for (String kw : CHANGED_FLAG_KEYWORDS) {
-				if (text.contains(kw)) {
-					log.debug("火车票解析：改签标识按关键字兜底 \"{}\"", kw);
-					return kw;
-				}
+			String keyword = findFirstKeyword(text, CHANGED_FLAG_KEYWORDS);
+			if (keyword != null) {
+				log.debug("火车票解析：改签标识按关键字兜底 \"{}\"", keyword);
+				return LabeledMatch.of(keyword, r);
 			}
 		}
-		return null;
+		return LabeledMatch.textOnly(null);
 	}
 
 	// ========================================================================
@@ -931,12 +950,14 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 *
 	 * <p>到达站（right）优先 y 更大的候选（更靠下，OCR 中始发在到达上方）。
 	 *
-	 * @param maxY     票面顶部 y 上限（超过此值不算票面顶部）
-	 * @param maxX     左侧/右侧 x 边界（Integer.MAX_VALUE 表示不限制）
-	 * @param side     "left" / "right"，决定取 x 最小还是 x 大于全图中间
+	 * @param maxY  票面顶部 y 上限（超过此值不算票面顶部）
+	 * @param maxX  左侧/右侧 x 边界（Integer.MAX_VALUE 表示不限制）
+	 * @param side  "left" / "right"，决定取 x 最小还是 x 大于全图中间
+	 * @param role  日志用场景名（"始发"/"到达"）
 	 * @return 站名（去掉"站"后缀）
 	 */
-	private static String pickStationByPosition(List<PPOcrV6Result> results, int maxY, int maxX, String side) {
+	private static LabeledMatch pickStationByPosition(List<PPOcrV6Result> results,
+													   int maxY, int maxX, String side, String role) {
 		int imgMaxX = 0;
 		for (PPOcrV6Result r : results) {
 			imgMaxX = Math.max(imgMaxX, LabelMatcher.maxX(r));
@@ -964,13 +985,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 				// 不带"站"后缀：只接受 2-5 字纯中文
 				if (!text.matches("[\\u4e00-\\u9fa5]{2,5}")) continue;
 				// 排除常见机构/标签词
-				if (text.contains("局") || text.contains("司") || text.contains("所")
-					|| text.contains("院") || text.contains("处") || text.contains("部")
-					|| text.contains("厅") || text.contains("署") || text.contains("税")
-					|| text.contains("运") || text.contains("铁") || text.contains("公司")
-					|| text.contains("公司") || text.contains("集团") || text.contains("公交")
-					|| text.contains("汽车") || text.contains("出租") || text.contains("国"))
-					continue;
+				if (containsAnyChar(text, STATION_NOISE_CHARS)) continue;
 				station = text;
 			}
 			if (!station.matches("[\\u4e00-\\u9fa5]{2,5}")) continue;
@@ -991,10 +1006,15 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 				bestStation = station;
 			}
 		}
-		if (best == null) return null;
-		log.debug("火车票解析：{} 站按位置兜底 \"{}\"", side, bestStation);
-		return bestStation;
+		if (best == null) return LabeledMatch.textOnly(null);
+		log.debug("火车票解析：{} 站按位置兜底 \"{}\"", role, bestStation);
+		return LabeledMatch.of(bestStation, best);
 	}
+
+	/** 站名兜底中需要排除的机构关键字（单字粒度）。 */
+	private static final Set<Character> STATION_NOISE_CHARS = Set.of(
+		'局', '司', '所', '院', '处', '部', '厅', '署', '税',
+		'运', '铁', '国');
 
 	/**
 	 * 判断字符串是否含任一关键字。
@@ -1019,10 +1039,19 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	}
 
 	/**
+	 * 返回第一个非 null 的参数。
+	 */
+	private static String firstNonNull(String... values) {
+		if (values == null) return null;
+		for (String v : values) {
+			if (v != null) return v;
+		}
+		return null;
+	}
+
+	/**
 	 * 日期时间切分结果。
 	 */
-	private static class DateTimeSplit {
-		String date;
-		String time;
+	private record DateTimeSplit(String date, String time) {
 	}
 }
