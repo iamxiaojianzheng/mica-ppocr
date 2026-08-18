@@ -35,9 +35,8 @@ import java.util.List;
  * <p>封装 OpenCV 加载、模型初始化、OCR 推理、可视化等通用流程，
  * 子类只需指定：
  * <ul>
- *   <li>{@link #newParser()} —— 返回绑定好泛型的 {@link BaseStructuredParser} 实例；</li>
+ *   <li>{@link #newParser(PPOcrV6Engine)} —— 返回绑定好泛型的 {@link BaseStructuredParser} 实例；</li>
  *   <li>{@link #printResult(Object)} —— 按证件类型输出字段；</li>
- *   <li>{@link #IMAGE_PATH} / {@link #VIS_PATH}（或重写 {@link #demo(String, String)}）。</li>
  * </ul>
  *
  * <p>典型子类（{@code VehicleLicenseMain} 仅 30 行）：
@@ -51,8 +50,8 @@ import java.util.List;
  *         new VehicleLicenseMain().demo(IMAGE_PATH, VIS_PATH);
  *     }
  *
- *     @Override protected VehicleLicenseParser newParser() {
- *         return new VehicleLicenseParser(null);
+ *     @Override protected VehicleLicenseParser newParser(PPOcrV6Engine engine) {
+ *         return new VehicleLicenseParser(engine);
  *     }
  *
  *     @Override protected void printResult(VehicleLicenseResult r) {
@@ -76,32 +75,6 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	 * 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify）
 	 */
 	protected static final boolean USE_DOC_ORIENTATION = true;
-
-	/**
-	 * 文档方向分类置信度阈值；低于此值视为 0°（不旋转）。
-	 *
-	 * <p>采用 {@code 0.4} 作为经验阈值。取值依据（实测 doc_ori 模型的 4 类 softmax 概率）：
-	 * <ul>
-	 *   <li>idcard1（手机横拍、270° 倒置）：score=0.430 → 必须 ≥ 0.4 才能正确旋转</li>
-	 *   <li>taxi1 / taxi3（正向图、doc_ori 误判 180°）：score=0.387/0.396 → 必须 > 0.4 才能丢弃</li>
-	 *   <li>其它 taxi2/4/5、train1~5 全部 score < 0.3，0.4 阈值也不会误触发</li>
-	 * </ul>
-	 *
-	 * <p>{@code 0.4} 是当前样本集下"误判丢弃 / 误判旋转"的最佳折中点。
-	 * PPOcrV6Config 默认是 0.3（更激进），{@code DocOrientationPostprocessor} 默认 0.5（更保守），
-	 * 本项目根据实测样本选择 0.4。
-	 */
-	protected static final float DOC_ORIENTATION_THRESH = 0.4f;
-
-	/**
-	 * 推理图片路径，相对工程根目录。子类可在常量中赋值。
-	 */
-	protected String IMAGE_PATH;
-
-	/**
-	 * 可视化输出路径；传 null 跳过可视化。
-	 */
-	protected String VIS_PATH;
 
 	/**
 	 * 新建一个解析器实例（{@code engine} 传 null 即可，本基类已自行管理 OCR）。
@@ -178,7 +151,6 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 			.recCharDictPath(dict)
 			.useDocOrientationClassify(USE_DOC_ORIENTATION)
 			.docOrientationModelPath(docOriModel)
-			.docOrientationThresh(DOC_ORIENTATION_THRESH)
 			.build();
 
 		long t0 = System.currentTimeMillis();

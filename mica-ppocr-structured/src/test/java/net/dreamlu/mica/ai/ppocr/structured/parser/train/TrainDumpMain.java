@@ -68,7 +68,6 @@ public class TrainDumpMain extends BaseTest<TrainTicketParser, TrainTicketResult
 			.recCharDictPath(dict)
 			.useDocOrientationClassify(USE_DOC_ORIENTATION)
 			.docOrientationModelPath(docOriModel)
-			.docOrientationThresh(DOC_ORIENTATION_THRESH)
 			.build();
 
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {

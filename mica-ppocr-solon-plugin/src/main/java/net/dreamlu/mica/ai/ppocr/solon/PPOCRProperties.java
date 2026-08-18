@@ -79,12 +79,20 @@ public class PPOCRProperties {
 	private String docOrientationModelPath;
 
 	/**
-	 * 文档方向分类置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1]，默认 0.3。
+	 * 文档方向分类置信度阈值，低于此值视为 0°（不旋转）。范围 [0, 1]，默认 0.4。
 	 *
-	 * <p>实测 doc_ori 在 4 类问题上可能给出 [0.19, 0.19, 0.19, 0.43] 这种"4 类接近随机"的分布，
-	 * 此时若用 0.5 阈值会触发降级丢失方向；0.3 是更实用的弱信号保留阈值。
+	 * <p>采用 {@code 0.4} 作为经验阈值。取值依据（实测 doc_ori 模型的 4 类 softmax 概率）：
+	 * <ul>
+	 *   <li>idcard1（手机横拍、270° 倒置）：score=0.430 → 必须 ≥ 0.4 才能正确旋转</li>
+	 *   <li>taxi1 / taxi3（正向图、doc_ori 误判 180°）：score=0.387/0.396 → 必须 > 0.4 才能丢弃</li>
+	 *   <li>其它 taxi2/4/5、train1~5 全部 score &lt; 0.3，0.4 阈值也不会误触发</li>
+	 * </ul>
+	 *
+	 * <p>{@code 0.4} 是当前样本集下"误判丢弃 / 误判旋转"的最佳折中点。
+	 * 调高（如 0.5）会让 idcard1 类真实倒置图失去旋转机会；
+	 * 调低（如 0.3）会让 taxi1/3 这种 doc_ori 弱信号被误触，反而把正向图转成 180°。
 	 */
-	private float docOrientationThresh = 0.3f;
+	private float docOrientationThresh = 0.4f;
 
 	/** ONNX 内部线程数 */
 	private int intraOpNumThreads = 1;
