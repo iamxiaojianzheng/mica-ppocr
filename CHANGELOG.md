@@ -3,14 +3,14 @@
 ## 发行版本
 
 ### 下一版 - 2026-08-18
-- feat(structured): 新增火车票和出租车票 OCR 结构化解析器。火车票支持车次、始发/到达站、日期时间、座位类型、金额、票号、电子客票号、改签标识等字段；出租车票支持发票代码/号码、车牌号、上下车时间、里程、金额、燃油附加费、预约叫车服务费、总金额、开票城市等字段。LabelMatcher 扩展 matchValueByCenterWithBox / matchValueByLabelKeywordWithBox / matchValueByKeywordWithBox / matchPatternWithBox / matchSubstringWithBox / matchValueByLabelKeyword 等基础能力，新增 applyFieldBox 字段框回填；Spring Boot Starter 与 Solon Plugin 同步注册解析器到 PPOcrTemplate，模板解析器数量从 6 提升至 8；新增端到端集成测试和真实样本图，测试使用 JDK HttpURLConnection 抓取避免新增依赖。
-- feat(core): 模型路径支持 `classpath:` 前缀打包到 jar。新增 `ModelResourceLoader` 统一识别 `classpath:` 前缀，`PPOcrV6Config.detModelPath / recModelPath / docOrientationModelPath / recCharDictPath` 均可写 `classpath:models/ppocr-v6/tiny/det.onnx`，把模型打进 Spring Boot Fat Jar 的 `BOOT-INF/classes/` 或业务 jar 的 resources 下即可；`env.createSession` 改走 `byte[]` 重载避免 jar 内资源无法 `createSession`；`CtcLabelDecoder` 增加 `byte[]` 构造，原 `String/Path` 构造委托 `ModelResourceLoader`。
-- feat(idcard): 兼容 15 位身份证号解析。身份证号正则拆为 18 位 / 15 位两条，find 兜底先 18 后 15；新增 `birthDateFromIdNumber`：15 位 YY 默认按 19YY 补全，18 位 YYYY 直接取；`parseBirthDate` 增加身份证号推算兜底，应对 OCR "出生"标签整体残缺；新增 5 个测试用例覆盖 15 位正面、推算出生日期、正则顺序。
-- docs(skill): 新增 `mica-ppocr-custom-parser` 自定义结构化解析器 skill。覆盖从 `BaseStructuredParser<R>` / `BaseStructuredResult` 继承、`LabelMatcher` 公共工具调用、Spring Boot 自动配置注册、`PPOcrTemplate` 集成，到 `BaseTest` 可视化调试与单测的完整链路；面向"加个 XX 证件/票据/卡证解析器"等自定义结构化识别场景。
-- refactor(structured): 优化火车票与出租车票解析器遵循 java 代码规范。`applyField` 统一回填字段值与字段框到 `fieldBoxes`，便于页面高亮；长方法按语义拆分（`parseTimeRange` → `extractTimeFromLabel` / `extractTimeFromFragment` 等）；`MIN_SCORE` / `TOTAL_AMOUNT_Y_GAP` / `Y_OVERLAP_DELTA` 等魔术数字提为类常量；移除冗余 `NORMALIZE_NUMBER` 工具与 debug 日志。
-- fix(taxi): 修复 `parseTotalAmount` 误把"金额"行值当总金额的回归。`findLabelBox("总金额")` 因 `"总金额".contains("金额")` 把"金额"框当 fragment 返回，导致 `matchValueFromPrefixWithBox("总金额")` 直接拿到 `¥40.60`（金额行）当总金额。引入严格 `findExactOrPrefixBox`（仅接受整框文本等于 label 或以 label 开头的合并框），并配合 `findValueRightOfLabel` 与合并框剥值同时处理两种版式，taxi1/3 实测回归到 `42.00` / `27.00`。
-- refactor(config): 调整文档方向分类阈值为 0.4 以优化识别效果。`PPOcrV6Config` 与 Spring Boot / Solon 的 `PPOCRProperties` 中 `docOrientationThresh` 默认值由 0.3 调至 0.4；移除测试代码中显式传递的过时 `DOC_ORIENTATION_THRESH` 常量；`BaseTest.newParser` 新增 `PPOcrV6Engine` 参数支持引擎传递。
-- refactor(test): 清理 `test_images/train` 中非火车票样本。
+- feat(structured): 新增火车票和出租车票 OCR 结构化解析器，模板解析器数量从 6 提升至 8。
+- feat(core): 模型路径支持 `classpath:` 前缀，可把模型打进 Spring Boot Fat Jar。
+- feat(idcard): 兼容 15 位身份证号解析，并增加按身份证号推算出生日期的兜底。
+- docs(skill): 新增 `mica-ppocr-custom-parser` skill，覆盖自定义结构化解析器全链路。
+- refactor(structured): 火车票 / 出租车票解析器重构：字段框回填、长方法拆分、常量提取。
+- fix(taxi): 修复 totalAmount 误把"金额"行值当总金额的回归。
+- refactor(config): 文档方向分类阈值由 0.3 调至 0.4。
+- refactor(test): 清理 test_images/train 非火车票样本。
 
 ### v1.1.3 - 2026-08-15
 - feat(idcard): 优化身份证多标签合并框解析逻辑。新增正面字段标签数组，支持"性别男民族汉"双标签连写的合并框切分；性别、民族字段解析兼容标签与数值合并场景；身份证号解析加入正则兜底，处理标签残缺或合并场景；补充标签残缺及标签与值合并场景的单元测试。
