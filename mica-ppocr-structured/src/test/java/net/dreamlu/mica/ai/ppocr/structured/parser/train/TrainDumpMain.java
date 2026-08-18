@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
+package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
@@ -30,26 +30,28 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * 批量跑 invoice1~invoice5 OCR，把原始框坐标保存为 JSON（便于后续测试直接读取，跳过 ONNX 推理），
- * 同时输出每张发票的结构化解析字段，便于人工核对期望值。
+ * 批量跑 train1~train5 OCR，把原始框坐标保存为 JSON（便于后续测试直接读取，跳过 ONNX 推理），
+ * 同时输出每张火车票的结构化解析字段，便于人工核对期望值。
  *
- * <p>输出目录：{@code src/test/resources/ocr-json/invoice/}，文件：{@code invoice{N}.json}。
+ * <p>输出目录：{@code src/test/resources/ocr-json/train/}，文件：{@code train{N}.json}。
+ *
+ * <p>参考实现：{@link net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceDumpMain}。
  */
-public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
+public class TrainDumpMain extends BaseTest<TrainTicketParser, TrainTicketResult> {
 
 	private static final String[] IMAGES = {
-		"test_images/invoice/invoice1.jpg",
-		"test_images/invoice/invoice2.jpg",
-		"test_images/invoice/invoice3.jpg",
-		"test_images/invoice/invoice4.jpg",
-		"test_images/invoice/invoice5.jpg",
+		"test_images/train/train1.png",
+		"test_images/train/train2.png",
+		"test_images/train/train3.png",
+		"test_images/train/train4.png",
+		"test_images/train/train5.png",
 	};
 
 	public static void main(String[] args) throws IOException {
-		Path outDir = Paths.get("mica-ppocr-structured/src/test/resources/ocr-json/invoice");
+		Path outDir = Paths.get("mica-ppocr-structured/src/test/resources/ocr-json/train");
 		Files.createDirectories(outDir);
 		System.out.println("OCR JSON 输出目录: " + outDir.toAbsolutePath());
-		new InvoiceDumpMain().run(outDir);
+		new TrainDumpMain().run(outDir);
 	}
 
 	private void run(Path outDir) throws IOException {
@@ -102,42 +104,39 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 	}
 
 	@Override
-	protected InvoiceParser newParser(PPOcrV6Engine engine) {
-		return new InvoiceParser(engine);
+	protected TrainTicketParser newParser(PPOcrV6Engine engine) {
+		return new TrainTicketParser(engine);
 	}
 
 	@Override
-	protected void printResult(InvoiceResult inv) {
-		System.out.println("发票代码       " + inv.getInvoiceCode());
-		System.out.println("发票号码       " + inv.getInvoiceNo());
-		System.out.println("开票日期       " + inv.getInvoiceDate());
+	protected void printResult(TrainTicketResult r) {
+		System.out.println("--- 行程 ---");
+		System.out.println("始发站           " + r.getDeparture());
+		System.out.println("到达站           " + r.getArrival());
+		System.out.println("车次             " + r.getTrainNumber());
+		System.out.println("出发日期         " + r.getDepartureDate());
+		System.out.println("出发时间         " + r.getDepartureTime());
+		System.out.println("座位号           " + r.getSeatNumber());
+		System.out.println("席别             " + r.getSeatClass());
 		System.out.println();
-		System.out.println("--- 购买方 ---");
-		System.out.println("名称           " + inv.getBuyerName());
-		System.out.println("税号           " + inv.getBuyerTaxNo());
-		System.out.println("地址电话       " + inv.getBuyerAddressPhone());
-		System.out.println("开户行账号     " + inv.getBuyerBankAccount());
+		System.out.println("--- 乘客 ---");
+		System.out.println("姓名             " + r.getPassengerName());
+		System.out.println("身份证号         " + r.getIdNumber());
 		System.out.println();
-		System.out.println("--- 销售方 ---");
-		System.out.println("名称           " + inv.getSellerName());
-		System.out.println("税号           " + inv.getSellerTaxNo());
-		System.out.println("地址电话       " + inv.getSellerAddressPhone());
-		System.out.println("开户行账号     " + inv.getSellerBankAccount());
+		System.out.println("--- 金额 ---");
+		System.out.println("车票金额         " + r.getAmount());
+		System.out.println("不含税金额       " + r.getAmountExcludingTax());
 		System.out.println();
-		System.out.println("--- 明细 ---");
-		System.out.println("商品/服务名称  " + inv.getGoodsName());
-		System.out.println("金额           " + inv.getAmount());
-		System.out.println("税率           " + inv.getTaxRate());
-		System.out.println("税额           " + inv.getTaxAmount());
+		System.out.println("--- 票号 ---");
+		System.out.println("车票号           " + r.getTicketNo());
+		System.out.println("发票号码         " + r.getInvoiceNo());
+		System.out.println("电子客票号       " + r.getETicketNo());
 		System.out.println();
-		System.out.println("--- 合计 ---");
-		System.out.println("价税合计(大写) " + inv.getTotalAmountUpper());
-		System.out.println("价税合计(小写) " + inv.getTotalAmountLower());
-		System.out.println();
-		System.out.println("--- 底栏 ---");
-		System.out.println("收款人         " + inv.getPayee());
-		System.out.println("复核人         " + inv.getReviewer());
-		System.out.println("开票人         " + inv.getIssuer());
+		System.out.println("--- 其他 ---");
+		System.out.println("开票日期         " + r.getInvoiceDate());
+		System.out.println("售站             " + r.getSellStation());
+		System.out.println("序列号           " + r.getSerialNumber());
+		System.out.println("改签标识         " + r.getChangedFlag());
 	}
 
 	// ====================================================================

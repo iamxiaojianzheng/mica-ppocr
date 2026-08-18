@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * 增值税发票解析器单元测试。
  *
- * <p>真实数据来源：{@code src/test/resources/ocr-json/invoice{N}.json}，
+ * <p>真实数据来源：{@code src/test/resources/ocr-json/invoice/invoice{N}.json}，
  * 由 {@link InvoiceDumpMain} 批量跑真实 OCR 推理后保存，
  * 测试时不依赖 ONNX Runtime / 模型文件，纯 Java 解析逻辑。
  */
@@ -47,7 +47,7 @@ class InvoiceParserTest extends ParserTestSupport {
 	 * 从 classpath 加载真实 OCR 结果（跳过 ONNX 推理，仅测试解析逻辑）。
 	 */
 	private static List<PPOcrV6Result> loadInvoice(String name) throws IOException {
-		String path = "/ocr-json/" + name + ".json";
+		String path = "/ocr-json/invoice/" + name + ".json";
 		List<PPOcrV6Result> list = new ArrayList<>();
 		Pattern p = Pattern.compile(
 			"\"text\":\"((?:[^\"\\\\]|\\\\.)*)\".*\"box\":\\[" +

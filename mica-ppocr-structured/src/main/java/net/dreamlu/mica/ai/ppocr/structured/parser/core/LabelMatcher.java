@@ -22,10 +22,15 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -242,9 +247,11 @@ public class LabelMatcher {
 		int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
 		int labelMinY = minY(labelBox);
 		int labelMaxY = maxY(labelBox);
+		int labelCenterY = (labelMinY + labelMaxY) / 2;
+		int labelMaxX = maxX(labelBox);
 
 		PPOcrV6Result best = null;
-		int bestX = Integer.MAX_VALUE;
+		int bestScore = Integer.MAX_VALUE;
 		for (PPOcrV6Result r : results) {
 			if (r == labelBox) continue;
 			String text = r.text();
@@ -254,8 +261,15 @@ public class LabelMatcher {
 			int rCenterX = (x0 + maxX(r)) / 2;
 			if (rCenterX <= labelCenterX) continue;
 			if (maxY(r) < labelMinY || minY(r) > labelMaxY) continue;
-			if (x0 < bestX) {
-				bestX = x0;
+			// 综合打分：x 距离 label 右边为主权重（值框通常紧邻 label 右侧同行），
+			// y 中心偏离为次要打破平局。
+			// 之前 dy*100+dx 在 dy=0 时（即 y 中心与 label 完全相同，如"姓名"label 与"性别"label 同行）
+			// 会让远处的"性别"label 框因 dx 较大但 dy=0 而胜出。
+			int dy = Math.abs((minY(r) + maxY(r)) / 2 - labelCenterY);
+			int dx = x0 - labelMaxX;
+			int score = dx * 10 + dy;
+			if (score < bestScore) {
+				bestScore = score;
 				best = r;
 			}
 		}
@@ -613,5 +627,329 @@ public class LabelMatcher {
 		int max = Integer.MIN_VALUE;
 		for (int[] p : r.box()) max = Math.max(max, p[1]);
 		return max;
+	}
+
+	// ==================================================================
+	// 增强方法：合并框剥值 + 关键字定位 + 几何兜底
+	//   针对真实票据 OCR 输出"标签被吞、标签与值合并、值与单价值
+	//   争抢同一右侧位置"等场景。
+	// ==================================================================
+
+	/**
+	 * 找所有文本含任一 keyword 的 OCR 框。
+	 *
+	 * <p>典型场景：标签被 OCR 切碎成 fragment（如"上车"独立成一框），
+	 * 仍可用此方法在所有框中按 fragment 定位。
+	 *
+	 * @param results  OCR 识别结果列表
+	 * @param keywords 关键字列表（任一命中即返回）
+	 * @return 命中的 OCR 框列表（保持原顺序）
+	 */
+	public static List<PPOcrV6Result> findBoxesByKeyword(List<PPOcrV6Result> results, String... keywords) {
+		if (keywords == null || keywords.length == 0) return List.of();
+		List<PPOcrV6Result> hits = new ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text == null || text.isEmpty()) continue;
+			for (String kw : keywords) {
+				if (kw == null || kw.isEmpty()) continue;
+				if (text.contains(kw)) {
+					hits.add(r);
+					break;
+				}
+			}
+		}
+		return hits;
+	}
+
+	/**
+	 * 找含任一 keyword 的 OCR 框，再按 valueExtractor 从框文本里切值。
+	 * 返回首个非空提取结果。
+	 *
+	 * <p>典型场景：OCR 把"上车K0870>21:17"识别成单框，label 找不到，
+	 * 但"上车"作为 fragment 命中此框；用 {@code text -> extractTime(text)} 从
+	 * 中切出"21:17"。
+	 *
+	 * @param results         OCR 识别结果列表
+	 * @param keywords        关键字列表（任一命中即视为候选框）
+	 * @param valueExtractor  从候选框文本提取字段值的函数；返回 null 表示未切出
+	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
+	 */
+	public static LabeledMatch matchValueByKeywordWithBox(List<PPOcrV6Result> results,
+														  List<String> keywords,
+														  Function<String, String> valueExtractor) {
+		if (keywords == null || keywords.isEmpty()) return LabeledMatch.textOnly(null);
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text == null || text.isEmpty()) continue;
+			boolean hit = false;
+			for (String kw : keywords) {
+				if (kw != null && !kw.isEmpty() && text.contains(kw)) {
+					hit = true;
+					break;
+				}
+			}
+			if (!hit) continue;
+			String value = valueExtractor.apply(text);
+			if (value != null) {
+				log.debug("结构化解析：keyword {} 命中框 \"{}\" 切出值 \"{}\"", keywords, text, value);
+				return LabeledMatch.of(value, r);
+			}
+		}
+		return LabeledMatch.textOnly(null);
+	}
+
+	/**
+	 * 在 {@code minScore} 阈值下，从所有 OCR 框中找"最底部"含正则的框。
+	 *
+	 * <p>典型场景：总金额 / 票价等通常出现在票面下半部，label 经常被吞，
+	 * 可按 y 最大 + 正则匹配兜底。
+	 *
+	 * @param results       OCR 识别结果列表
+	 * @param pattern       匹配正则（{@code find()} 命中即视为候选）
+	 * @param minScore      最小置信度过滤（噪声框排除）
+	 * @param valueCleaner  命中后对正则 group 做二次清洗（如剥货币符号）；
+	 *                      为 null 时直接返回正则 group
+	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
+	 */
+	public static LabeledMatch matchBottomPatternWithBox(List<PPOcrV6Result> results,
+														Pattern pattern,
+														float minScore,
+														Function<String, String> valueCleaner) {
+		PPOcrV6Result best = null;
+		String bestHit = null;
+		int bestY = Integer.MIN_VALUE;
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text == null || text.isEmpty()) continue;
+			if (r.score() < minScore) continue;
+			Matcher m = pattern.matcher(text);
+			if (!m.find()) continue;
+			int y = (minY(r) + maxY(r)) / 2;
+			if (y > bestY) {
+				bestY = y;
+				best = r;
+				bestHit = m.group();
+			}
+		}
+		if (best == null) return LabeledMatch.textOnly(null);
+		String value = valueCleaner != null ? valueCleaner.apply(bestHit) : bestHit;
+		if (value == null || value.isEmpty()) return LabeledMatch.textOnly(null);
+		log.debug("结构化解析：底部正则兜底命中 \"{}\"（y={}）", best.text(), bestY);
+		return LabeledMatch.of(value, best);
+	}
+
+	/**
+	 * 在所有 OCR 框中扫"含指定关键字的 fragment 标签"，定位对应右侧 y 重叠的值。
+	 *
+	 * <p>典型场景：OCR 把"日期"label 切碎成单字"期"（如"日上下单里"+ 右侧
+	 * "期：2021年03月26日"），此方法先用 {@link #findBoxesByKeyword} 定位
+	 * fragment 标签框，再在右侧 y 重叠区域找值。
+	 *
+	 * <p>与 {@link #matchValueByCenterWithBox} 的差异：本方法显式接受 fragment
+	 * 关键字列表，而非"label 包含 text"。
+	 *
+	 * @param results        OCR 识别结果列表
+	 * @param labelKeywords  标签 fragment 关键字列表（如 ["日期", "期"]）
+	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
+	 */
+	public static LabeledMatch matchValueByLabelKeywordWithBox(List<PPOcrV6Result> results,
+															   List<String> labelKeywords) {
+		if (labelKeywords == null || labelKeywords.isEmpty()) return LabeledMatch.textOnly(null);
+		// 找 fragment 标签框：取文本等于某 keyword（最严格）或以 keyword 开头
+		PPOcrV6Result labelBox = null;
+		for (String kw : labelKeywords) {
+			if (kw == null || kw.isEmpty()) continue;
+			for (PPOcrV6Result r : results) {
+				String text = r.text();
+				if (text == null || text.isEmpty()) continue;
+				if (text.equals(kw) || text.startsWith(kw) || text.endsWith(kw)) {
+					labelBox = r;
+					break;
+				}
+			}
+			if (labelBox != null) break;
+		}
+		if (labelBox == null) return LabeledMatch.textOnly(null);
+
+		// 在 labelBox 右侧 y 重叠 + y 中心距离最小
+		int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
+		int labelCenterY = (minY(labelBox) + maxY(labelBox)) / 2;
+		int labelMaxX = maxX(labelBox);
+		PPOcrV6Result best = null;
+		int bestScore = Integer.MAX_VALUE;
+		for (PPOcrV6Result r : results) {
+			if (r == labelBox) continue;
+			String text = r.text();
+			if (text == null || text.isEmpty()) continue;
+			int x0 = minX(r);
+			int rCenterX = (x0 + maxX(r)) / 2;
+			if (rCenterX <= labelCenterX) continue;
+			if (maxY(r) < minY(labelBox) || minY(r) > maxY(labelBox)) continue;
+			int dy = Math.abs((minY(r) + maxY(r)) / 2 - labelCenterY);
+			int dx = x0 - labelMaxX;
+			int score = dx * 10 + dy;
+			if (score < bestScore) {
+				bestScore = score;
+				best = r;
+			}
+		}
+		if (best == null) return LabeledMatch.textOnly(null);
+		return LabeledMatch.of(best.text(), best);
+	}
+
+	// ==================================================================
+	// 互斥分配（label-value mutual exclusion）
+	//   解决"金额行"等多 label 抢同一右侧值的问题：
+	//   例如"金额"/"燃油附加费"/"总金额"在同一行右侧时，
+	//   简单最近 x 距离会让 3 个 label 都选到同一值。
+	// ==================================================================
+
+	/**
+	 * 互斥分配 label-value 配对（贪心最佳优先）。
+	 *
+	 * <p>使用场景：多个 label 位于同一 y 区域，各自的 value 候选在同一右侧列上。
+	 * 简单按"最近 x 距离"会重复选到同一 value；此方法用贪心保证每个 value 最多
+	 * 被一个 label 占用。
+	 *
+	 * <p>算法（O(L·V) 贪心）：
+	 * <ol>
+	 *   <li>对每个 label 找出所有候选 value（label 右侧 + y 重叠 + valueExtractor 非空）；</li>
+	 *   <li>计算每个 (label, value) 配对的分数（dx*10+dy，越低越好）；</li>
+	 *   <li>按分数升序处理配对，先确定最低分的（label, value）配对，标记 value 已占用；</li>
+	 *   <li>继续处理下一对，如果 value 已被占用或 label 已确定，跳过；</li>
+	 *   <li>直到所有 label 都被处理或无候选。</li>
+	 * </ol>
+	 *
+	 * @param results        OCR 识别结果列表
+	 * @param labelDefs      label 定义列表（name, primaryLabel, altKeywords[]）
+	 * @param valueExtractor 从候选 value 文本提取字段值的函数（null 表示该 value 不合格）
+	 * @param yOverlapDelta  y 重叠容差（像素，默认 5）
+	 * @return labelName → value 的映射
+	 */
+	public static Map<String, String> assignExclusiveValues(
+			List<PPOcrV6Result> results,
+			List<LabelDef> labelDefs,
+			Function<String, String> valueExtractor,
+			int yOverlapDelta) {
+		Map<String, String> result = new LinkedHashMap<>();
+		if (labelDefs == null || labelDefs.isEmpty()) return result;
+
+		// 1) 收集所有 label 框
+		Map<String, PPOcrV6Result> labelBoxes = new HashMap<>();
+		for (LabelDef def : labelDefs) {
+			PPOcrV6Result box = findLabelBox(results, def.primaryLabel);
+			if (box == null && def.altKeywords != null && def.altKeywords.length > 0) {
+				// 尝试 altKeywords 定位
+				List<PPOcrV6Result> candidates = findBoxesByKeyword(results, def.altKeywords);
+				PPOcrV6Result best = null;
+				int bestLen = Integer.MAX_VALUE;
+				for (PPOcrV6Result c : candidates) {
+					if (c.text().length() < bestLen) {
+						bestLen = c.text().length();
+						best = c;
+					}
+				}
+				box = best;
+			}
+			if (box != null) {
+				labelBoxes.put(def.name, box);
+			}
+		}
+		// 1.5) 排除"被另一 label 占用"的 labelBox：
+		//     如果 label A 的 labelBox 与 label B 的 labelBox 相同，且 A 的 primaryLabel
+		//     是 B 的 primaryLabel 的真子串（如"金额" ⊂ "总金额"），则 A 优先，B 置 null
+		//     （避免"总金额"借用"金额"label box 导致候选集合错乱）
+		for (int i = 0; i < labelDefs.size(); i++) {
+			LabelDef defA = labelDefs.get(i);
+			PPOcrV6Result boxA = labelBoxes.get(defA.name);
+			if (boxA == null) continue;
+			for (int j = 0; j < labelDefs.size(); j++) {
+				if (i == j) continue;
+				LabelDef defB = labelDefs.get(j);
+				PPOcrV6Result boxB = labelBoxes.get(defB.name);
+				if (boxB == null) continue;
+				// 如果 A 和 B 共享 labelBox，且 A 的 primaryLabel 是 B 的子串（A 比 B 短），
+				// A 保留，B 失去 labelBox
+				if (boxA == boxB
+					&& defB.primaryLabel.contains(defA.primaryLabel)
+					&& !defA.primaryLabel.equals(defB.primaryLabel)) {
+					labelBoxes.put(defB.name, null);
+				}
+			}
+		}
+
+		// 2) 收集所有 (labelName, valueBox, value, score) 配对
+		List<ScoredPair> pairs = new ArrayList<>();
+		for (LabelDef def : labelDefs) {
+			PPOcrV6Result labelBox = labelBoxes.get(def.name);
+			if (labelBox == null) continue;
+			int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
+			int labelCenterY = (minY(labelBox) + maxY(labelBox)) / 2;
+			int labelMaxX = maxX(labelBox);
+			int labelMinY = minY(labelBox);
+			int labelMaxY = maxY(labelBox);
+			for (PPOcrV6Result r : results) {
+				String text = r.text();
+				if (text == null || text.isEmpty()) continue;
+				// 合并框场景（如"金额 40.60"）：先尝试从合并框剥值
+				//    注意：label box 自己也可能是合并框（label + value 合并），
+				//    所以合并框检查要在 label box skip 之前
+				if ((r == labelBox || text.startsWith(def.primaryLabel))
+					&& text.length() > def.primaryLabel.length()) {
+					String stripped = text.substring(def.primaryLabel.length()).trim();
+					String value = valueExtractor.apply(stripped);
+					if (value != null) {
+						pairs.add(new ScoredPair(def.name, r, value, 0));
+					}
+					continue;
+				}
+				if (r == labelBox) continue;
+				int x0 = minX(r);
+				int rCenterX = (x0 + maxX(r)) / 2;
+				if (rCenterX <= labelCenterX) continue;
+				if (maxY(r) < labelMinY + yOverlapDelta || minY(r) > labelMaxY - yOverlapDelta) continue;
+				String value = valueExtractor.apply(text);
+				if (value == null) continue;
+				int dy = Math.abs((minY(r) + maxY(r)) / 2 - labelCenterY);
+				int dx = x0 - labelMaxX;
+				int score = dx * 10 + dy;
+				pairs.add(new ScoredPair(def.name, r, value, score));
+			}
+		}
+
+		// 3) 贪心最佳优先：按分数升序，确定配对
+		pairs.sort(Comparator.comparingInt(p -> p.score));
+		Set<PPOcrV6Result> usedValues = new HashSet<>();
+		Set<String> doneLabels = new HashSet<>();
+		for (ScoredPair p : pairs) {
+			if (doneLabels.contains(p.labelName)) continue;
+			if (usedValues.contains(p.valueBox)) continue;
+			result.put(p.labelName, p.value);
+			usedValues.add(p.valueBox);
+			doneLabels.add(p.labelName);
+		}
+		return result;
+	}
+
+	/**
+	 * 互斥分配的 label 定义。
+	 *
+	 * @param name          字段名（结果 Map 的 key）
+	 * @param primaryLabel  主标签
+	 * @param altKeywords   OCR 漏识别标签时的备选关键字
+	 */
+	public record LabelDef(String name, String primaryLabel, String... altKeywords) {
+		public LabelDef {
+			if (name == null || primaryLabel == null) {
+				throw new IllegalArgumentException("name and primaryLabel are required");
+			}
+		}
+	}
+
+	/**
+	 * 互斥分配的内部数据结构。
+	 */
+	private record ScoredPair(String labelName, PPOcrV6Result valueBox, String value, int score) {
 	}
 }

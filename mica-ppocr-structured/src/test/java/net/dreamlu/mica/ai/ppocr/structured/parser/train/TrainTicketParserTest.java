@@ -18,9 +18,18 @@ package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -28,7 +37,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * 火车票解析器单元测试。
  *
- * <p>用构造的 OCR 框模拟典型新版电子客票 / 旧版纸质票版面。
+ * <p>测试数据来源：
+ * <ul>
+ *   <li>手工 mock：构造 OCR 框模拟典型新版电子客票 / 旧版纸质票版面；</li>
+ *   <li>真实 OCR：{@code src/test/resources/ocr-json/train/train{N}.json}，
+ *       由 {@link TrainDumpMain} 跑真实图片后保存，文件不存在时通过
+ *       {@link Assumptions} 跳过。</li>
+ * </ul>
  *
  * <p>图片坐标约定（左上角原点，x→右，y→下）：
  * <pre>{@code
@@ -41,6 +56,38 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * }</pre>
  */
 class TrainTicketParserTest extends ParserTestSupport {
+
+	/**
+	 * 从 classpath 加载真实 OCR 结果（跳过 ONNX 推理，仅测试解析逻辑）。
+	 * 文件缺失时通过 {@link Assumptions#assumeTrue} 跳过测试。
+	 */
+	private static List<PPOcrV6Result> loadTrainTicket(String name) throws IOException {
+		String path = "/ocr-json/train/" + name + ".json";
+		InputStream is = TrainTicketParserTest.class.getResourceAsStream(path);
+		Assumptions.assumeTrue(is != null, "真实 OCR 数据缺失: " + path + "（运行 TrainDumpMain 生成）");
+		List<PPOcrV6Result> list = new ArrayList<>();
+		Pattern p = Pattern.compile(
+			"\"text\":\"((?:[^\"\\\\]|\\\\.)*)\".*\"box\":\\[" +
+			"\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\]\\]");
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				Matcher m = p.matcher(line);
+				if (!m.find()) continue;
+				String text = m.group(1)
+					.replace("\\\"", "\"").replace("\\\\", "\\")
+					.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t");
+				int[][] box = {
+					{Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))},
+					{Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5))},
+					{Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7))},
+					{Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9))}
+				};
+				list.add(new PPOcrV6Result(text, 1.0f, box));
+			}
+		}
+		return list;
+	}
 
 	/**
 	 * 新版电子客票：标签 + 值独立框版式。
@@ -189,7 +236,11 @@ class TrainTicketParserTest extends ParserTestSupport {
 	}
 
 	/**
-	 * 身份证部分脱敏（3101082006****0000），解析器应兼容。
+	 * 身份证部分脱敏（3101082006****0000），P0 优化保留原样。
+	 *
+	 * <p>旧版要求"剥星号后剩 18 位"，实际 OCR 经常输出 14 位数字 + 4 个 * 的脱敏形式
+	 * （14+4=18 不对，因为 * 不算数字）。P0 优化：剥星号后 14-18 位数字都返回脱敏原样，
+	 * 业务可自行决定是否使用。
 	 */
 	@Test
 	void parse_partialMaskedIdNumber() {
@@ -202,8 +253,8 @@ class TrainTicketParserTest extends ParserTestSupport {
 		);
 		TrainTicketResult r = parse(new TrainTicketParser(null), results);
 		assertNotNull(r);
-		// 脱敏场景无法识别完整 18 位，getIdNumber 应为 null
-		assertEquals(null, r.getIdNumber());
+		// P0 优化：保留脱敏形式，业务可后续处理
+		assertEquals("3101082006****0000", r.getIdNumber());
 	}
 
 	/**
@@ -238,5 +289,193 @@ class TrainTicketParserTest extends ParserTestSupport {
 		assertEquals(null, r.getArrival());
 		assertEquals(null, r.getTrainNumber());
 		assertEquals(null, r.getPassengerName());
+	}
+
+	// ====================================================================
+	// 真实图片 OCR 测试（数据来源：src/test/resources/ocr-json/train/train{N}.json）
+	//   由 TrainDumpMain 跑 test_images/train/train{N}.png 真实图片后保存。
+	//   文件缺失时通过 Assumptions 跳过测试。
+	// ====================================================================
+
+	/**
+	 * train1：北京南 → 廊坊 电子发票（始发改签）。
+	 *
+	 * <p>P0 优化：放宽 departure minX 阈值到 500，识别"北京南"为始发站。
+	 * P0 优化：从合并框"2024年12月08日00:00开"切出出发日期/时间。
+	 * P0 优化：保留部分脱敏身份证号"3101082006****0000"原样。
+	 * P0 优化：ticketNo 放宽到 7-10 位（实际票号 OCR 噪声 7-10 位都常见）。
+	 */
+	@Test
+	void parse_train1() throws IOException {
+		TrainTicketResult r = parse(new TrainTicketParser(null), loadTrainTicket("train1"));
+		assertNotNull(r);
+		assertEquals("北京南", r.getDeparture());
+		assertEquals("廊坊", r.getArrival());
+		// P0 优化：合并框"2024年12月08日00:00开"切出 date + time
+		assertEquals("2024年12月08日", r.getDepartureDate());
+		assertEquals("00:00", r.getDepartureTime());
+		assertEquals("00车00D号", r.getSeatNumber());
+		assertEquals("二等座", r.getSeatClass());
+		assertEquals("小度", r.getPassengerName());
+		// P0 优化：保留脱敏形式（业务可决定是否使用）
+		assertEquals("3101082006****0000", r.getIdNumber());
+		assertEquals("￥26.00", r.getAmount());
+		assertEquals(null, r.getAmountExcludingTax());
+		// 票号：train1 没有 7-10 位纯数字票号（电子发票版无纸质票号）
+		assertEquals(null, r.getTicketNo());
+		assertEquals("00000000000000000000", r.getInvoiceNo());
+		// P1 优化：eTicketNo 全图 25 位纯数字兜底
+		assertEquals("0000000000000000000000000", r.getETicketNo());
+		assertEquals("2024年12月10日", r.getInvoiceDate());
+		assertEquals(null, r.getSellStation());
+		assertEquals(null, r.getSerialNumber());
+		assertEquals("始发改签", r.getChangedFlag());
+		// P1 优化：GO000 OCR 噪声 → G0000（O 归一化为 0）
+		assertEquals("G0000", r.getTrainNumber());
+	}
+
+	/**
+	 * train2：天津 → 北京南 C2038 二等座。
+	 *
+	 * <p>P0 优化：放宽 departure minX 阈值到 500，识别"天津"为始发站。
+	 * P0 优化：从合并框"2019年09月28日12:33开"切出日期+时间。
+	 * P0 优化：ticketNo 放宽到 7-10 位，识别"E014470"为车票号。
+	 * P0 优化：身份证"2024231998****156X赵璇丽" 合并框剥出"赵璇丽"。
+	 * P0 优化：票面底部"天津售"兜底识别售站。
+	 */
+	@Test
+	void parse_train2() throws IOException {
+		TrainTicketResult r = parse(new TrainTicketParser(null), loadTrainTicket("train2"));
+		assertNotNull(r);
+		assertEquals("天津", r.getDeparture());
+		assertEquals("北京南", r.getArrival());
+		assertEquals("C2038", r.getTrainNumber());
+		assertEquals("2019年09月28日", r.getDepartureDate());
+		assertEquals("12:33", r.getDepartureTime());
+		assertEquals("08车06B号", r.getSeatNumber());
+		assertEquals("二等座", r.getSeatClass());
+		// P0 优化：从"2024231998****156X赵璇丽"剥出"赵璇丽"
+		assertEquals("赵璇丽", r.getPassengerName());
+		assertEquals("2024231998****156X", r.getIdNumber());
+		assertEquals("￥54.5元", r.getAmount());
+		assertEquals(null, r.getAmountExcludingTax());
+		// P0 优化：E014470 7 位纯数字（OCR 把 0 误识别为 O，但 E/R/U 字头保留）
+		assertEquals("E014470", r.getTicketNo());
+		assertEquals(null, r.getInvoiceNo());
+		assertEquals(null, r.getETicketNo());
+		assertEquals(null, r.getInvoiceDate());
+		// P0 优化：底部"天津售"兜底
+		assertEquals("天津", r.getSellStation());
+		assertEquals(null, r.getSerialNumber());
+		assertEquals(null, r.getChangedFlag());
+	}
+
+	/**
+	 * train3：银川 → 北京 K1178 硬卧。
+	 *
+	 * <p>P0 优化：识别"银川"为始发站，"北京"为到达站。
+	 * P0 优化：从合并框"2019年10月06日16:05开"切出日期+时间。
+	 * P0 优化：座位号"14车015号上铺"合并框切出"14车015号"（剥上铺）。
+	 * P0 优化：身份证"3424231998****1540裴丽丽"剥出"裴丽丽"。
+	 * P0 优化：底部"银川售"识别为售站。
+	 */
+	@Test
+	void parse_train3() throws IOException {
+		TrainTicketResult r = parse(new TrainTicketParser(null), loadTrainTicket("train3"));
+		assertNotNull(r);
+		assertEquals("银川", r.getDeparture());
+		assertEquals("北京", r.getArrival());
+		assertEquals("K1178", r.getTrainNumber());
+		assertEquals("2019年10月06日", r.getDepartureDate());
+		assertEquals("16:05", r.getDepartureTime());
+		// P0 优化："14车015号上铺" → "14车015号"
+		assertEquals("14车015号", r.getSeatNumber());
+		assertEquals("硬卧", r.getSeatClass());
+		// P0 优化：身份证+姓名合并框剥出
+		assertEquals("裴丽丽", r.getPassengerName());
+		assertEquals("3424231998****1540", r.getIdNumber());
+		assertEquals("¥280.5元", r.getAmount());
+		assertEquals(null, r.getAmountExcludingTax());
+		assertEquals("R093443", r.getTicketNo());
+		assertEquals(null, r.getInvoiceNo());
+		assertEquals(null, r.getETicketNo());
+		assertEquals(null, r.getInvoiceDate());
+		// P0 优化：底部"银川售"兜底
+		assertEquals("银川", r.getSellStation());
+		assertEquals(null, r.getSerialNumber());
+		assertEquals(null, r.getChangedFlag());
+	}
+
+	/**
+	 * train4：平顶山西 → 上海 K284 硬卧。
+	 *
+	 * <p>P0 优化：识别"平顶山西"为始发站（站名"西"后缀不会被误判为人名）。
+	 * P0 优化：识别"上海"为到达站。
+	 * P0 优化：从合并框"2014年09月09日15:52开"切出日期+时间。
+	 * P0 优化：身份证"4114211992****4212" 脱敏保留。
+	 */
+	@Test
+	void parse_train4() throws IOException {
+		TrainTicketResult r = parse(new TrainTicketParser(null), loadTrainTicket("train4"));
+		assertNotNull(r);
+		assertEquals("平顶山西", r.getDeparture());
+		assertEquals("上海", r.getArrival());
+		assertEquals("K284", r.getTrainNumber());
+		assertEquals("2014年09月09日", r.getDepartureDate());
+		assertEquals("15:52", r.getDepartureTime());
+		// P0 优化："04车019号中铺" → "04车019号"
+		assertEquals("04车019号", r.getSeatNumber());
+		assertEquals("硬卧", r.getSeatClass());
+		// train4 OCR 漏识别姓名（"4114211992****4212" 后面没接姓名）
+		assertEquals(null, r.getPassengerName());
+		assertEquals("4114211992****4212", r.getIdNumber());
+		assertEquals("￥194.50元", r.getAmount());
+		assertEquals(null, r.getAmountExcludingTax());
+		// P0 优化：票号"U028534"在票面顶部（独立框），是 E/R/U 前缀的合法票号
+		assertEquals("U028534", r.getTicketNo());
+		assertEquals(null, r.getInvoiceNo());
+		assertEquals(null, r.getETicketNo());
+		assertEquals(null, r.getInvoiceDate());
+		// train4 没有"XX售"模式
+		assertEquals(null, r.getSellStation());
+		assertEquals(null, r.getSerialNumber());
+		assertEquals(null, r.getChangedFlag());
+	}
+
+	/**
+	 * train5：青岛→青州市 越站补票 L0956 二等座。
+	 *
+	 * <p>P0 优化：识别"青州市"为始发站（左侧）。
+	 * P0 优化：trainNumber 排除"原票"上下文，"L0956"不再被误识别为车次。
+	 * P0 优化：底部"4901016740709L028534济局青客补"识别售站。
+	 */
+	@Test
+	void parse_train5() throws IOException {
+		TrainTicketResult r = parse(new TrainTicketParser(null), loadTrainTicket("train5"));
+		assertNotNull(r);
+		// P0 优化："青州市站"在左侧 (minX=367) → 兜底为始发站
+		assertEquals("青州市", r.getDeparture());
+		// P0 优化："北京南站"在右侧 (minX=980) → 兜底为到达站
+		assertEquals("北京南", r.getArrival());
+		// P0 优化：trainNumber 排除"原票"上下文 → null（旧版错识别 L0956）
+		assertEquals(null, r.getTrainNumber());
+		assertEquals("2019年07月09日", r.getDepartureDate());
+		assertEquals(null, r.getDepartureTime());
+		assertEquals(null, r.getSeatNumber());
+		assertEquals("二等座", r.getSeatClass());
+		assertEquals(null, r.getPassengerName());
+		assertEquals(null, r.getIdNumber());
+		assertEquals("¥241.0元", r.getAmount());
+		assertEquals(null, r.getAmountExcludingTax());
+		// P0 优化：票号"U028534"独立框（票面顶部）是合法票号
+		assertEquals("U028534", r.getTicketNo());
+		assertEquals(null, r.getInvoiceNo());
+		assertEquals(null, r.getETicketNo());
+		assertEquals(null, r.getInvoiceDate());
+		// P0 优化：底部"济局青客补"含"青"字，但"补"是关键词"XX售"不是"XX补"
+		// 所以 SELL_STATION_PATTERN 不匹配
+		assertEquals(null, r.getSellStation());
+		assertEquals(null, r.getSerialNumber());
+		assertEquals(null, r.getChangedFlag());
 	}
 }

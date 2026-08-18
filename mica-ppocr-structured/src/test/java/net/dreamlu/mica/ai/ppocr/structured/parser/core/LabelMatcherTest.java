@@ -192,4 +192,90 @@ class LabelMatcherTest {
 		Pattern p = Pattern.compile("\\d+");
 		assertNull(LabelMatcher.labelOrFallback(null, results, p, "数字", false));
 	}
+
+	// ==================================================================
+	// 互斥分配测试（label-value mutual exclusion）
+	// ==================================================================
+
+	/**
+	 * 场景：3 个 label 在同一行右侧，各自的 value 候选都是 3 个独立框。
+	 * 验证：互斥分配保证每个 value 最多被一个 label 占用。
+	 */
+	@Test
+	void assignExclusiveValues_basic() {
+		List<PPOcrV6Result> results = List.of(
+			// 3 个 label（同一 y 范围）
+			box("金额", 0, 0, 60, 20),
+			box("附加费", 0, 30, 60, 50),
+			box("总金额", 0, 60, 60, 80),
+			// 3 个 value（同一 y 范围）
+			box("40.60", 80, 0, 160, 20),
+			box("1.00", 80, 30, 160, 50),
+			box("42.00", 80, 60, 160, 80)
+		);
+		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
+			List.of(
+				new LabelMatcher.LabelDef("amount", "金额", "Fare"),
+				new LabelMatcher.LabelDef("fuelSurcharge", "附加费"),
+				new LabelMatcher.LabelDef("totalAmount", "总金额")
+			),
+			text -> text.matches("\\d+\\.\\d+") ? text : null,
+			5);
+		assertEquals("40.60", result.get("amount"));
+		assertEquals("1.00", result.get("fuelSurcharge"));
+		assertEquals("42.00", result.get("totalAmount"));
+	}
+
+	/**
+	 * 场景：2 个 label 抢同一 value（典型冲突）。
+	 * 验证：分数最低的 label 拿到 value，另一个 label 拿到 null。
+	 */
+	@Test
+	void assignExclusiveValues_conflictResolution() {
+		List<PPOcrV6Result> results = List.of(
+			// "金额" 在左，"总金额" 也在左（y 重叠）
+			box("金额", 0, 0, 60, 20),
+			box("总金额", 0, 0, 80, 20),  // 稍宽一点
+			// 唯一的 value 在右
+			box("42.00", 100, 0, 180, 20)
+		);
+		// "金额" 距 value 更近（x=60 → 100 = dx=40）
+		// "总金额" 距 value 较远（x=80 → 100 = dx=20）
+		// 总金额的 dx 反而更小！所以"总金额"应优先拿到
+		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
+			List.of(
+				new LabelMatcher.LabelDef("amount", "金额"),
+				new LabelMatcher.LabelDef("totalAmount", "总金额")
+			),
+			text -> text.matches("\\d+\\.\\d+") ? text : null,
+			5);
+		// 总金额 dx 更小（20 vs 40），应优先
+		assertEquals("42.00", result.get("totalAmount"));
+		assertNull(result.get("amount"));
+	}
+
+	/**
+	 * 场景：valueExtractor 拒绝某些 value（带 * 的身份证）。
+	 * 验证：被拒绝的 value 不会被任何 label 占用。
+	 */
+	@Test
+	void assignExclusiveValues_rejectsInvalidValues() {
+		List<PPOcrV6Result> results = List.of(
+			box("姓名", 0, 0, 60, 20),
+			box("年龄", 0, 30, 60, 50),
+			box("张三", 80, 0, 140, 20),
+			box("25", 80, 30, 140, 50)
+		);
+		// 只接受纯数字
+		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
+			List.of(
+				new LabelMatcher.LabelDef("name", "姓名"),
+				new LabelMatcher.LabelDef("age", "年龄")
+			),
+			text -> text.matches("\\d+") ? text : null,
+			5);
+		// "张三" 不匹配数字，被拒绝
+		assertNull(result.get("name"));
+		assertEquals("25", result.get("age"));
+	}
 }

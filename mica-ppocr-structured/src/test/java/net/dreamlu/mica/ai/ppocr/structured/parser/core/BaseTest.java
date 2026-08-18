@@ -79,9 +79,19 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 
 	/**
 	 * 文档方向分类置信度阈值；低于此值视为 0°（不旋转）。
-	 * 与 PPOcrV6Config 默认值保持一致（0.3）。
+	 *
+	 * <p>采用 {@code 0.4} 作为经验阈值。取值依据（实测 doc_ori 模型的 4 类 softmax 概率）：
+	 * <ul>
+	 *   <li>idcard1（手机横拍、270° 倒置）：score=0.430 → 必须 ≥ 0.4 才能正确旋转</li>
+	 *   <li>taxi1 / taxi3（正向图、doc_ori 误判 180°）：score=0.387/0.396 → 必须 > 0.4 才能丢弃</li>
+	 *   <li>其它 taxi2/4/5、train1~5 全部 score < 0.3，0.4 阈值也不会误触发</li>
+	 * </ul>
+	 *
+	 * <p>{@code 0.4} 是当前样本集下"误判丢弃 / 误判旋转"的最佳折中点。
+	 * PPOcrV6Config 默认是 0.3（更激进），{@code DocOrientationPostprocessor} 默认 0.5（更保守），
+	 * 本项目根据实测样本选择 0.4。
 	 */
-	protected static final float DOC_ORIENTATION_THRESH = 0.3f;
+	protected static final float DOC_ORIENTATION_THRESH = 0.4f;
 
 	/**
 	 * 推理图片路径，相对工程根目录。子类可在常量中赋值。
