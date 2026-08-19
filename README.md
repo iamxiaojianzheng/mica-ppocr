@@ -194,6 +194,18 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 
 通用能力下沉到 [`LabelMatcher`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/LabelMatcher.java)：标签定位 + 位置匹配 + 正则兜底 + 版面布局兜底，并提供 `WithBox` 系列重载（返回 `LabeledMatch(value, box)`，便于解析器回填 `fieldBoxes`）。实现 [`BaseStructuredParser<R>`](mica-ppocr-structured/src/main/java/net/dreamlu/mica/ai/ppocr/structured/parser/core/BaseStructuredParser.java) 接口即可挂载到 `PPOcrTemplate.parse(..., parser)` 上（见 §6.3）。
 
+### 5.4 AI 辅助开发（Skill）
+
+项目内置 [`mica-ppocr-custom-parser`](.agents/skills/mica-ppocr-custom-parser/SKILL.md) skill，覆盖从继承 `BaseStructuredParser<R>` / `BaseStructuredResult`、调用 `LabelMatcher` 公共工具、Spring Boot 自动配置注册，到 `BaseTest` 可视化调试与单测的完整开发链路。
+
+通过 [skills.sh](https://skills.sh/) 一键安装到 Mavis / Claude Code / Cursor 等 AI 编码工具：
+
+```bash
+npx skills add lets-mica/mica-ppocr
+```
+
+安装后，当你提出"加个 XX 证件 / 票据解析器"、"自定义结构化解析"等需求时，AI 会自动加载该 skill 给出符合项目规范的实现。
+
 ---
 
 ## 6. Spring Boot Starter
