@@ -2,15 +2,12 @@
 
 ## 发行版本
 
-### 下一版 - 2026-08-18
+### 下一版 - 2026-08-22
 - feat(structured): 新增火车票和出租车票 OCR 结构化解析器，模板解析器数量从 6 提升至 8。
-- feat(core): 模型路径支持 `classpath:` 前缀，可把模型打进 Spring Boot Fat Jar。
-- feat(idcard): 兼容 15 位身份证号解析，并增加按身份证号推算出生日期的兜底。
+- feat(idcard): 兼容 15 位身份证号解析，并增加按身份证号推算出生日期的兜底。gitee #IK94VR 感谢 `@zhanghaiyang` 反馈
+- feat(core): 模型路径支持 `classpath:` 前缀，可把模型打进 Spring Boot Fat Jar。tiny、small 模型尺寸较小方便内置，简化部署。
+- refactor(config): 文档方向分类阈值由 0.3 调至 0.4。detLimitSideLen、detLimitType 默认组合由 64 + min 改为 960 + max（PaddleX v4 / v5 / v6 的官方推荐组合）。
 - docs(skill): 新增 `mica-ppocr-custom-parser` skill，覆盖自定义结构化解析器全链路。
-- refactor(structured): 火车票 / 出租车票解析器重构：字段框回填、长方法拆分、常量提取。
-- fix(taxi): 修复 totalAmount 误把"金额"行值当总金额的回归。
-- refactor(config): 文档方向分类阈值由 0.3 调至 0.4。
-- refactor(test): 清理 test_images/train 非火车票样本。
 
 ### v1.1.3 - 2026-08-15
 - feat(idcard): 优化身份证多标签合并框解析逻辑。新增正面字段标签数组，支持"性别男民族汉"双标签连写的合并框切分；性别、民族字段解析兼容标签与数值合并场景；身份证号解析加入正则兜底，处理标签残缺或合并场景；补充标签残缺及标签与值合并场景的单元测试。

@@ -28,8 +28,8 @@ class PPOcrV6ConfigTest {
 	@Test
 	void defaults_checkValues() {
 		PPOcrV6Config config = PPOcrV6Config.defaults();
-		assertEquals(64, config.getDetLimitSideLen());
-		assertEquals("min", config.getDetLimitType());
+		assertEquals(960, config.getDetLimitSideLen());
+		assertEquals("max", config.getDetLimitType());
 		assertEquals(4000, config.getDetMaxSideLimit());
 		assertEquals(0.3f, config.getDetThresh());
 		assertEquals(0.6f, config.getDetBoxThresh());

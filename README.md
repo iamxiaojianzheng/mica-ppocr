@@ -233,8 +233,8 @@ mica:
       rec-model-path: models/ppocr-v6/tiny/rec.onnx          # 识别模型
       rec-char-dict-path: models/ppocr-v6/tiny/dict.txt      # 识别字符字典
       # ===== 检测（DB 后处理）参数 =====
-      # det-limit-side-len: 64                                # 检测图像短边限制
-      # det-limit-type: min                                   # 限制类型：min / max
+      # det-limit-side-len: 960                               # 检测限制边长（PaddleX v4/v5/v6 默认）
+      # det-limit-type: max                                   # 限制类型：min / max（默认 max，限长边）
       # det-max-side-limit: 4000                              # 检测最大边长限制
       # det-thresh: 0.3                                       # 检测像素阈值
       # det-box-thresh: 0.6                                   # 检测框阈值
@@ -248,8 +248,8 @@ mica:
       # doc-orientation-thresh: 0.3                           # 置信度阈值 < 此值视为 0°；实测 0.3 比 0.5 更稳
       # ===== 性能 / 运行模式 =====
       # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
-      # intra-op-num-threads: 1                               # ONNX 内部线程数
-      # inter-op-num-threads: 1                               # ONNX 交互线程数
+      # intra-op-num-threads: 1                               # ONNX 单算子内并行线程数；推荐 = 物理核数
+      # inter-op-num-threads: 1                               # 默认 1，OCR 流水线严格串行，interOp 设大也没用
 ```
 
 ### 6.2 PPOcrTemplate API
@@ -368,11 +368,34 @@ public PPOCRPropertiesCustomizer tierEnvCustomizer() {
 }
 ```
 
-## 7. 许可证
+## 7. 调优建议
+
+### 7.1 CPU 注意事项
+
+`intra-op-num-threads`：ONNX 单算子内 OpenMP 并行线程数
+
+**为什么是物理核数？**
+
+ORT 内部每个 ONNX 算子（conv / matmul / pooling 等）会启动一个 OpenMP 线程池并行执行。当线程数 ≤ 物理核数时，每个线程独占一个物理核，无争抢、cache 命中率高；当线程数 > 物理核数时，OS 会把多个线程挤到同一物理核上，触发严重的 cache 抖动，反而拖慢推理。
+
+| CPU | 物理核 | 逻辑核（含超线程） | 推荐值 | 说明 |
+|-----|--------|------------------|--------|------|
+| 入门笔记本 | 4 | 8 | 4 | i5-1135G7、R5-5500U 等 |
+| 主流 8 核 | 8 | 16 | 8 | R7-5800H/6800H、i7-11800H 等 |
+| 高端笔记本 | 14 | 20 | 14 | i7-12700H / i9-13900H（P 核） |
+| 服务器 | 16~64 | 32~128 | 16~64 | Xeon / EPYC，按物理核数取 |
+
+### 7.2 GPU 注意事项
+
+1. **切换 GPU 包**：在 `mica-ppocr-core/pom.xml` 把 `onnxruntime` 替换为 `onnxruntime_gpu`（版本对齐 ONNX Runtime 官方发布），并确保主机已安装匹配的 CUDA / cuDNN。
+2. **开启加速**：`PPOcrV6Config.builder().preferAccelerator(true)`，或在 `application.yml` 中设 `mica.ai.ppocr.prefer-accelerator: true`。Provider 选择由 [`OrtProviders`](mica-ppocr-core/src/main/java/net/dreamlu/mica/ai/ppocr/utils/OrtProviders.java) 完成：macOS 优先 `CoreMLExecutionProvider`，否则 `CUDAExecutionProvider`，都不可用时回退 CPU。
+3. **线程数**：GPU 模式下 `intra-op-num-threads` 设为 `1`（甚至 `0` 让 ORT 自管），把并行让给 GPU 自己的 stream；`inter-op-num-threads` 保持默认 `1`。
+
+## 8. 许可证
 
 Apache License Version 2.0
 
-## 8. 微信
+## 9. 微信
 
 ![如梦技术](docs/images/dreamlu-weixin.jpg)
 

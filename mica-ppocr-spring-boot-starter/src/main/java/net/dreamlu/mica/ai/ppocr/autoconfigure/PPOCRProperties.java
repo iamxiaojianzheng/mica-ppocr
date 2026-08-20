@@ -43,11 +43,18 @@ public class PPOCRProperties {
 	/** 识别字符字典路径（必填） */
 	private String recCharDictPath;
 
-	/** 检测图像短边限制 */
-	private int detLimitSideLen = 64;
+	/**
+	 * 检测图像限制边长（默认 960）。PaddleX v4/v5/v6 官方推荐值。
+	 *
+	 * <p>与 {@link #detLimitType} 配合使用：长边 / 短边超过此值时按比例缩放。
+	 * 默认组合 {@code 960 + "max"} 与 PaddleX 官方行为对齐。
+	 */
+	private int detLimitSideLen = 960;
 
-	/** 检测限制类型: min / max */
-	private String detLimitType = "min";
+	/**
+	 * 检测限制类型（默认 "max"）：min（短边限制，原 PP-OCRv2/v3 行为） / max（长边限制，PaddleX v4/v5/v6 默认）。
+	 */
+	private String detLimitType = "max";
 
 	/** 检测最大边长限制 */
 	private int detMaxSideLimit = 4000;

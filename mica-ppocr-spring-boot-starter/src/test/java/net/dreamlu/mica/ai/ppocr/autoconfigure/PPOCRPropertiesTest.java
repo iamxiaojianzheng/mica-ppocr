@@ -29,8 +29,8 @@ class PPOCRPropertiesTest {
 	void shouldHaveDefaultValues() {
 		PPOCRProperties props = new PPOCRProperties();
 		assertTrue(props.isEnabled());
-		assertEquals(64, props.getDetLimitSideLen());
-		assertEquals("min", props.getDetLimitType());
+		assertEquals(960, props.getDetLimitSideLen());
+		assertEquals("max", props.getDetLimitType());
 		assertEquals(4000, props.getDetMaxSideLimit());
 		assertEquals(0.3f, props.getDetThresh());
 		assertEquals(0.6f, props.getDetBoxThresh());
