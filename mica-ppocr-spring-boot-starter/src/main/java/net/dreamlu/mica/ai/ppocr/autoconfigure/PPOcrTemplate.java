@@ -21,6 +21,7 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
@@ -71,6 +72,7 @@ public final class PPOcrTemplate {
 	private final InvoiceParser invoiceParser;
 	private final TrainTicketParser trainTicketParser;
 	private final TaxiReceiptParser taxiReceiptParser;
+	private final HouseholdRegisterParser householdRegisterParser;
 
 	/**
 	 * 构造模板，传入已初始化的推理引擎与 8 个结构化解析器实例。
@@ -93,7 +95,8 @@ public final class PPOcrTemplate {
 						 BusinessLicenseParser businessLicenseParser,
 						 InvoiceParser invoiceParser,
 						 TrainTicketParser trainTicketParser,
-						 TaxiReceiptParser taxiReceiptParser) {
+						 TaxiReceiptParser taxiReceiptParser,
+						 HouseholdRegisterParser householdRegisterParser) {
 		if (engine == null) {
 			throw new IllegalArgumentException("PPOcrV6Engine must not be null");
 		}
@@ -121,6 +124,9 @@ public final class PPOcrTemplate {
 		if (taxiReceiptParser == null) {
 			throw new IllegalArgumentException("TaxiReceiptParser must not be null");
 		}
+		if (householdRegisterParser == null) {
+			throw new IllegalArgumentException("HouseholdRegisterParser must not be null");
+		}
 		this.engine = engine;
 		this.vehicleLicenseParser = vehicleLicenseParser;
 		this.idCardParser = idCardParser;
@@ -130,6 +136,7 @@ public final class PPOcrTemplate {
 		this.invoiceParser = invoiceParser;
 		this.trainTicketParser = trainTicketParser;
 		this.taxiReceiptParser = taxiReceiptParser;
+		this.householdRegisterParser = householdRegisterParser;
 	}
 
 	// ==================================================================
@@ -277,5 +284,14 @@ public final class PPOcrTemplate {
 	 */
 	public TaxiReceiptParser taxiReceipt() {
 		return taxiReceiptParser;
+	}
+
+	/**
+	 * 获取户口本结构化解析器。
+	 *
+	 * @return 户口本解析器实例（已绑定当前 engine）
+	 */
+	public HouseholdRegisterParser householdRegister() {
+		return householdRegisterParser;
 	}
 }

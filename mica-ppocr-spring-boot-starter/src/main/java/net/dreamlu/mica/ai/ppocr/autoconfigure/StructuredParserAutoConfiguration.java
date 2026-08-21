@@ -21,6 +21,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
@@ -155,6 +156,18 @@ public class StructuredParserAutoConfiguration {
 	}
 
 	/**
+	 * 注册户口本解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 户口本解析器
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	public HouseholdRegisterParser householdRegisterParser(PPOcrV6Engine engine) {
+		return new HouseholdRegisterParser(engine);
+	}
+
+	/**
 	 * 注册 PP-OCR 结构化识别模板。
 	 *
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
@@ -168,6 +181,7 @@ public class StructuredParserAutoConfiguration {
 	 * @param invoiceParser         发票解析器
 	 * @param trainTicketParser     火车票解析器
 	 * @param taxiReceiptParser     出租车票解析器
+	 * @param householdRegisterParser 户口本解析器
 	 * @return 结构化识别模板
 	 */
 	@Bean
@@ -181,7 +195,8 @@ public class StructuredParserAutoConfiguration {
 									   BusinessLicenseParser businessLicenseParser,
 									   InvoiceParser invoiceParser,
 									   TrainTicketParser trainTicketParser,
-									   TaxiReceiptParser taxiReceiptParser) {
+									   TaxiReceiptParser taxiReceiptParser,
+									   HouseholdRegisterParser householdRegisterParser) {
 		return new PPOcrTemplate(engine,
 			vehicleLicenseParser,
 			idCardParser,
@@ -190,6 +205,7 @@ public class StructuredParserAutoConfiguration {
 			businessLicenseParser,
 			invoiceParser,
 			trainTicketParser,
-			taxiReceiptParser);
+			taxiReceiptParser,
+			householdRegisterParser);
 	}
 }
