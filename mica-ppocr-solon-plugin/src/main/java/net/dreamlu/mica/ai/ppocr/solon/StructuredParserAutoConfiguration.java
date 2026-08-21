@@ -33,9 +33,6 @@ import org.noear.solon.annotation.Condition;
 import org.noear.solon.annotation.Configuration;
 import org.noear.solon.core.AppContext;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * 结构化解析器自动配置（Solon 版）。
  *
@@ -126,15 +123,17 @@ public class StructuredParserAutoConfiguration {
 	 * {@link BaseStructuredParser} 子类，绕开 Solon 4.x 对
 	 * {@code List<BaseStructuredParser<?>>} 自动注入的不稳定支持。
 	 *
-	 * @param engine PP-OCRv6 推理引擎
+	 * <p>解析器查找采用懒加载（见 {@link PPOcrTemplate#get(Class)}），此构造器不强制
+	 * 在创建期收集所有解析器，避免 Solon 4.x 下 {@code @Configuration} 内 {@code @Bean} 方法
+	 * 注册顺序未定导致的非确定结果。
+	 *
+	 * @param context 应用程序上下文
+	 * @param engine  PP-OCRv6 推理引擎
 	 * @return 结构化识别模板
 	 */
 	@Bean
 	@Condition(onMissingBean = PPOcrTemplate.class, onBean = PPOcrV6Engine.class)
-	public PPOcrTemplate ppocrTemplate(AppContext appContext, PPOcrV6Engine engine) {
-		// Solon 4.x 的 getBeansOfType(Class) / getWrapsOfType(Class) 按精确类型匹配，
-		List<BaseStructuredParser<?>> parsers = new ArrayList<>();
-		appContext.getBeansOfType(BaseStructuredParser.class).forEach(parsers::add);
-		return new PPOcrTemplate(engine, parsers);
+	public PPOcrTemplate ppocrTemplate(AppContext context, PPOcrV6Engine engine) {
+		return new PPOcrTemplate(context, engine);
 	}
 }

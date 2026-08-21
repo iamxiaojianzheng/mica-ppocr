@@ -32,9 +32,8 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-
-import java.util.List;
 
 /**
  * 结构化解析器自动配置。
@@ -122,15 +121,14 @@ public class StructuredParserAutoConfiguration {
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
 	 * 容器自动收集所有 {@link BaseStructuredParser} bean 注入 {@code parsers}。
 	 *
+	 * @param context 应用程序上下文
 	 * @param engine  PP-OCRv6 推理引擎
-	 * @param parsers 容器中全部 {@link BaseStructuredParser} 实例
 	 * @return 结构化识别模板
 	 */
 	@Bean
 	@ConditionalOnMissingBean
 	@ConditionalOnBean(PPOcrV6Engine.class)
-	public PPOcrTemplate ppocrTemplate(PPOcrV6Engine engine,
-									   List<BaseStructuredParser<?>> parsers) {
-		return new PPOcrTemplate(engine, parsers);
+	public PPOcrTemplate ppocrTemplate(ApplicationContext context, PPOcrV6Engine engine) {
+		return new PPOcrTemplate(context, engine);
 	}
 }

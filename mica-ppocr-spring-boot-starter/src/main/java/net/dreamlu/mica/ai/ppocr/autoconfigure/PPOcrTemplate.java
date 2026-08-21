@@ -28,15 +28,13 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+import org.springframework.context.ApplicationContext;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * PP-OCR 结构化识别模板。
@@ -81,20 +79,14 @@ public final class PPOcrTemplate {
 	 *
 	 * <p>相同类型的解析器重复注册时，仅保留首次出现的实例。
 	 *
-	 * @param engine   PP-OCRv6 推理引擎（不为 null）
-	 * @param parsers  结构化解析器列表（不为 null 且非空；元素不允许为 null）
+	 * @param context Spring 应用上下文（不为 null）
+	 * @param engine  PP-OCRv6 推理引擎（不为 null）
 	 * @throws IllegalArgumentException engine 为 null、parsers 为 null 或空、元素为 null
 	 */
-	public PPOcrTemplate(PPOcrV6Engine engine, List<BaseStructuredParser<?>> parsers) {
-		if (engine == null) {
-			throw new IllegalArgumentException("PPOcrV6Engine must not be null");
-		}
-		if (parsers == null || parsers.isEmpty()) {
-			throw new IllegalArgumentException("parsers must not be null or empty");
-		}
-		this.engine = engine;
+	public PPOcrTemplate(ApplicationContext context, PPOcrV6Engine engine) {
+		this.engine = Objects.requireNonNull(engine, "PPOcrV6Engine must not be null");
 		Map<Class<?>, BaseStructuredParser<?>> map = new LinkedHashMap<>();
-		for (BaseStructuredParser<?> parser : parsers) {
+		for (BaseStructuredParser<?> parser : context.getBeansOfType(BaseStructuredParser.class).values()) {
 			if (parser == null) {
 				throw new IllegalArgumentException("parser must not be null");
 			} else {

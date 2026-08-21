@@ -28,15 +28,14 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+import org.noear.solon.core.AppContext;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * PP-OCR 结构化识别模板。
@@ -72,36 +71,30 @@ import java.util.Map;
  * Solon 场景下由容器管理 engine 的关闭；非 Solon 场景由调用方自行关闭 engine。
  */
 public final class PPOcrTemplate {
+	private final AppContext appContext;
 	private final PPOcrV6Engine engine;
 	private final Map<Class<?>, BaseStructuredParser<?>> parsers;
 
 	/**
-	 * 构造模板，传入已初始化的推理引擎与若干结构化解析器。
+	 * 构造模板，传入已初始化的推理引擎与 Solon {@link AppContext}。
 	 *
-	 * <p>相同类型的解析器重复注册时，仅保留首次出现的实例。
+	 * <p>解析器采用懒加载：构造时不立即通过 {@link AppContext#getBeansOfType} 收集。
+	 * 原因是 Solon 4.x 下 {@link PPOcrTemplate} 的 {@code @Bean} 方法与各解析器
+	 * {@code @Bean} 方法同属一个 {@code @Configuration} 时，构造期容器内 {@code BeanWrap}
+	 * 注册顺序未确定，{@code getBeansOfType} 返回的结果非确定（实测在
+	 * {@code mica-ppocr-solon-plugin} 集成测试中数量在 1~9 之间波动）。
 	 *
-	 * @param engine  PP-OCRv6 推理引擎（不为 null）
-	 * @param parsers 结构化解析器列表（不为 null 且非空；元素不允许为 null）
-	 * @throws IllegalArgumentException engine 为 null、parsers 为 null 或空、元素为 null
+	 * <p>改为在每次 {@link #get(Class)} 调用时再 {@code getBean(...)}，此时容器已启动完毕，
+	 * 各解析器必定已注册。同时缓存结果以避免重复查找。
+	 *
+	 * @param appContext AppContext（不为 null）
+	 * @param engine     PP-OCRv6 推理引擎（不为 null）
+	 * @throws IllegalArgumentException 任一参数为 null
 	 */
-	public PPOcrTemplate(PPOcrV6Engine engine, List<BaseStructuredParser<?>> parsers) {
-		if (engine == null) {
-			throw new IllegalArgumentException("PPOcrV6Engine must not be null");
-		}
-		if (parsers == null || parsers.isEmpty()) {
-			throw new IllegalArgumentException("parsers must not be null or empty");
-		}
-		this.engine = engine;
-		Map<Class<?>, BaseStructuredParser<?>> map = new LinkedHashMap<>();
-		for (BaseStructuredParser<?> parser : parsers) {
-			if (parser == null) {
-				throw new IllegalArgumentException("parser must not be null");
-			} else {
-				// 相同类型重复注册，以首次为准
-				map.putIfAbsent(parser.getClass(), parser);
-			}
-		}
-		this.parsers = Collections.unmodifiableMap(map);
+	public PPOcrTemplate(AppContext appContext, PPOcrV6Engine engine) {
+		this.appContext = Objects.requireNonNull(appContext, "AppContext must not be null");
+		this.engine = Objects.requireNonNull(engine, "PPOcrV6Engine must not be null");
+		this.parsers = new ConcurrentHashMap<>();
 	}
 
 	// ==================================================================
@@ -182,6 +175,9 @@ public final class PPOcrTemplate {
 	/**
 	 * 通用查表入口：按 {@code Class} 取出已注册的解析器。
 	 *
+	 * <p>采用懒加载策略：首次访问时通过 {@link AppContext#getBean(Class)} 实时查找并缓存，
+	 * 避免在构造期通过 {@link AppContext#getBeansOfType} 收集子类的竞态问题（详见构造器 javadoc）。
+	 *
 	 * <p>类型不匹配时直接抛 {@link ClassCastException}（由 {@link Class#cast(Object)} 触发）；
 	 * 未注册时抛 {@link IllegalArgumentException}。
 	 *
@@ -194,9 +190,20 @@ public final class PPOcrTemplate {
 		if (type == null) {
 			throw new IllegalArgumentException("type must not be null");
 		}
-		BaseStructuredParser<?> parser = parsers.get(type);
+		BaseStructuredParser<?> structuredParser = this.parsers.get(type);
+		if (structuredParser != null) {
+			return type.cast(structuredParser);
+		}
+		BaseStructuredParser<?> parser = this.parsers.get(type);
 		if (parser == null) {
-			throw new IllegalArgumentException("No parser registered: " + type.getName());
+			parser = this.appContext.getBean(type);
+			if (parser == null) {
+				// AppContext#getBean 在未注册时也会返回 null，此处统一包装成 IAE
+				throw new IllegalArgumentException("No parser registered: " + type.getName());
+			} else {
+				// 缓存以避免重复查找；并发场景下用 putIfAbsent 避免覆盖并发结果
+				this.parsers.putIfAbsent(type, parser);
+			}
 		}
 		return type.cast(parser);
 	}
