@@ -469,12 +469,15 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	 *
 	 * <p>label 已定位但右侧无值时直接返回 null（不兜底扫所有框），
 	 * 避免把 gender 行的"女"误当作 relationship 值。
+	 *
+	 * <p>label 框为下片 fragment（"户主关系"）时使用 strictY=true 严格 y 中心匹配，
+	 * 避免把上方行的"女"/"男"（OCR 误识别为 relationship 位置）当作 relationship 值。
 	 */
 	private static LabeledMatch parseRelationship(List<PPOcrV6Result> results) {
 		// 1) 标签变体（多关键字匹配）：按"label 框在右列顶部"原则精确定位
 		PPOcrV6Result labelBox = findRelationshipLabelBox(results);
 		if (labelBox != null) {
-			LabeledMatch m = matchValueToRightOfLabel(results, labelBox, "与户主关系");
+			LabeledMatch m = matchValueToRightOfLabel(results, labelBox, "与户主关系", true);
 			if (m.hasValue()) {
 				return cleanRelationship(m);
 			}
@@ -805,7 +808,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 				int rCY = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
 				if (Math.abs(rCY - mainCY) > mainH) continue;
 				int dx = x0 - mainMaxX;
-				if (dx < 0 || dx > 100) continue;
+				// 容忍 dx 略为负值（最多 30px 横向重叠）：
+				// OCR 切日期时可能把"2019 / 年 / 11 / 月 / 11"交错切碎，
+				// 后续日期片会落在当前主框的 x 范围左侧（如"月"在"11"之后）。
+				if (dx < -30 || dx > 100) continue;
 				if (text.matches("[A-Za-z\\s]+")) continue;
 				int dy = Math.abs(rCY - mainCY);
 				int score = dx * 10 + dy;
@@ -837,17 +843,18 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 			mainMaxX = LabelMatcher.maxX(next);
 		}
 		String finalVal = value.replaceAll("\\s+", "");
-		// 自动补"日"
+		// 自动补"日"：仅当日期含"日"前的数字（"yyyy年MM月dd"）但缺"日"字时补"日"
+		// 部分日期 "yyyy年MM月"（无日）则不补，保持原样（如 register3 的"2003年11月"）
+		// 用 REG_DATE_PARTIAL_PATTERN（不要求"日"前的数字）区分"完整日期无日" vs "部分日期"
 		if (DATE_PATTERN.matcher(finalVal).find()) {
-			// 必须以"日"结尾（DATE_PATTERN 允许"日"可选）
-			if (!finalVal.endsWith("日")) {
+			if (!finalVal.endsWith("日") && !REG_DATE_PARTIAL_PATTERN.matcher(finalVal).matches()) {
 				finalVal = finalVal + "日";
 			}
 			return LabeledMatch.of(finalVal, boxes);
 		}
-		// 部分日期 "yyyy 年 MM 月 dd"（无日），自动补 "日"
-		if (DATE_PARTIAL_PATTERN.matcher(finalVal).find()) {
-			return LabeledMatch.of(finalVal + "日", boxes);
+		// 部分日期 "yyyy 年 MM 月"（无日），保持原样不补"日"
+		if (REG_DATE_PARTIAL_PATTERN.matcher(finalVal).matches()) {
+			return LabeledMatch.of(finalVal, boxes);
 		}
 		return LabeledMatch.of(finalVal, boxes);
 	}
@@ -1134,6 +1141,11 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 				if (mergedDate != null) {
 					return LabeledMatch.of(mergedDate, merged.matches());
 				}
+				// 部分日期（"yyyy年MM月" 无"日"）也接受，如 register3 的"2003年11月"
+				Matcher partial = REG_DATE_PARTIAL_PATTERN.matcher(merged.value());
+				if (partial.matches()) {
+					return LabeledMatch.of(partial.group(), merged.matches());
+				}
 				// 宽松正则
 				Matcher loose = REG_DATE_LOOSE_PATTERN.matcher(merged.value());
 				if (loose.find()) {
@@ -1239,6 +1251,9 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 
 	/**
 	 * 扩展版 matchValueWithBox：先用原 label 定位，找不到再用"带空格"变体。
+	 *
+	 * <p>当 OCR 把 label 写成"登记日期："（带冒号）等"label + 纯标点"形式时，
+	 * 仍然将其作为 label 框处理，继续向右查找 value 框。
 	 */
 	private static LabeledMatch matchValueWithBoxWithSpaces(List<PPOcrV6Result> results, String label) {
 		PPOcrV6Result labelBox = findLabelBoxWithSpaces(results, label);
@@ -1247,7 +1262,11 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		String labelText = labelBox.text();
 		if (labelText.startsWith(label) && labelText.length() > label.length()) {
-			return LabeledMatch.textOnly(null);
+			String afterLabel = labelText.substring(label.length());
+			// 容忍"label + 纯标点"形式（如"登记日期："），label 后只有标点 / 空白时仍当作 label 框
+			if (!afterLabel.matches("[：:，,\\s]+")) {
+				return LabeledMatch.textOnly(null);
+			}
 		}
 		int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
 		int labelMinY = LabelMatcher.minY(labelBox);
@@ -1305,8 +1324,21 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	 * 找到 label 框后，按"右侧 y 重叠 + x 最近"取 value 框。
 	 *
 	 * <p>变体（skipTexts）：可指定要排除的文本（label 碎片不应被当作 value）。
+	 *
+	 * <p>变体（strictY）：是否使用严格 y 中心匹配（无 ±10 容差）。
+	 * true 时候选框 y 中心必须落在 label y 范围内，用于 label 框是 fragment
+	 * （如下片 fragment）的场景，避免把上方/下方行的值误匹配进来。
 	 */
 	private static LabeledMatch matchValueToRightOfLabel(List<PPOcrV6Result> results, PPOcrV6Result labelBox, String selfLabel, String... skipTexts) {
+		return matchValueToRightOfLabel(results, labelBox, selfLabel, false, skipTexts);
+	}
+
+	/**
+	 * {@link #matchValueToRightOfLabel(List, PPOcrV6Result, String, String...)} 的 strictY 重载。
+	 *
+	 * @param strictY true=严格 y 中心匹配（无 ±10 容差）；false=±10 容差（默认）
+	 */
+	private static LabeledMatch matchValueToRightOfLabel(List<PPOcrV6Result> results, PPOcrV6Result labelBox, String selfLabel, boolean strictY, String... skipTexts) {
 		String labelText = labelBox.text();
 		if (labelText.startsWith(selfLabel.replaceAll("\\s+", "")) && labelText.length() > selfLabel.length()) {
 			return LabeledMatch.textOnly(null);
@@ -1340,9 +1372,14 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 			if (x0 <= labelMaxX - 10) continue;
 			if (LabelMatcher.maxY(r) < labelMinY || LabelMatcher.minY(r) > labelMaxY) continue;
 			int rCenterY = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
-			// y 中心必须在 label y 范围内（±10px 容差），
-			// 防止相邻行的值被误匹配（如 gender "女" 被当作 relationship 值）
-			if (rCenterY < labelMinY - 10 || rCenterY > labelMaxY + 10) continue;
+			// y 中心必须在 label y 范围内。
+			// strictY=true：无容差，用于 label 是 fragment 时排除上方/下方行的值；
+			// strictY=false：±10px 容差，吸收 OCR 框边界 1~7px 抖动。
+			if (strictY) {
+				if (rCenterY < labelMinY || rCenterY > labelMaxY) continue;
+			} else {
+				if (rCenterY < labelMinY - 10 || rCenterY > labelMaxY + 10) continue;
+			}
 			int dy = Math.abs(rCenterY - labelCenterY);
 			int dx = x0 - labelMaxX;
 			int score = dx * 10 + dy;
