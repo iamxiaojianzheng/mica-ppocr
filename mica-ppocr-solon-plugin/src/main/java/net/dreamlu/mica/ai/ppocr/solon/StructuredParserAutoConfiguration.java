@@ -21,23 +21,35 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+import org.noear.solon.Solon;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
 import org.noear.solon.annotation.Configuration;
+import org.noear.solon.core.AppContext;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 结构化解析器自动配置（Solon 版）。
  *
- * 当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
- * 自动注册 8 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票）和 {@link PPOcrTemplate} 模板。
+ * <p>当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
+ * 自动注册 9 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票 / 户口本）
+ * 和 {@link PPOcrTemplate} 模板。
  *
- * <p>解析器依赖 {@link PPOcrV6Engine} bean 存在；{@link PPOcrTemplate}
- * 封装了 "OCR 推理 + 结构化解析" 一站式调用。
+ * <p>每个解析器都是独立 {@code @Bean}，配合 {@code onMissingBean}，
+ * 业务方可精确 override 单个解析器实现。
+ *
+ * <p>注意：组装 {@link PPOcrTemplate} 时通过 {@link org.noear.solon.Solon#context()} 拿到 AppContext
+ * 再调用 {@code getBeansOfType(BaseStructuredParser.class)} 手动收集子类，
+ * 而非 {@code List<BaseStructuredParser<?>>} 自动注入——
+ * Solon 4.x 的参数注入对嵌套 wildcard 泛型解析不稳定，手动收集更可靠。
  *
  * <p>使用示例：
  * <pre>{@code
@@ -48,140 +60,82 @@ import org.noear.solon.annotation.Configuration;
  * }</pre>
  */
 @Configuration
-@Condition(onClass=BaseStructuredParser.class, onExpression = "${mica.ai.ppocr.enabled:true} == true")
+@Condition(onClass = BaseStructuredParser.class, onExpression = "${mica.ai.ppocr.enabled:true} == true")
 public class StructuredParserAutoConfiguration {
 
-	/**
-	 * 注册行驶证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 行驶证解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = VehicleLicenseParser.class)
 	public VehicleLicenseParser vehicleLicenseParser(PPOcrV6Engine engine) {
 		return new VehicleLicenseParser(engine);
 	}
 
-	/**
-	 * 注册身份证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 身份证解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = IdCardParser.class)
 	public IdCardParser idCardParser(PPOcrV6Engine engine) {
 		return new IdCardParser(engine);
 	}
 
-	/**
-	 * 注册银行卡解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 银行卡解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = BankCardParser.class)
 	public BankCardParser bankCardParser(PPOcrV6Engine engine) {
 		return new BankCardParser(engine);
 	}
 
-	/**
-	 * 注册驾驶证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 驾驶证解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = DriverLicenseParser.class)
 	public DriverLicenseParser driverLicenseParser(PPOcrV6Engine engine) {
 		return new DriverLicenseParser(engine);
 	}
 
-	/**
-	 * 注册营业执照解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 营业执照解析器
-	 */
 	@Bean
-	@Condition(onMissingBean=BusinessLicenseParser.class)
+	@Condition(onMissingBean = BusinessLicenseParser.class)
 	public BusinessLicenseParser businessLicenseParser(PPOcrV6Engine engine) {
 		return new BusinessLicenseParser(engine);
 	}
 
-	/**
-	 * 注册增值税发票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 发票解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = InvoiceParser.class)
 	public InvoiceParser invoiceParser(PPOcrV6Engine engine) {
 		return new InvoiceParser(engine);
 	}
 
-	/**
-	 * 注册火车票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 火车票解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = TrainTicketParser.class)
 	public TrainTicketParser trainTicketParser(PPOcrV6Engine engine) {
 		return new TrainTicketParser(engine);
 	}
 
-	/**
-	 * 注册出租车票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 出租车票解析器
-	 */
 	@Bean
 	@Condition(onMissingBean = TaxiReceiptParser.class)
 	public TaxiReceiptParser taxiReceiptParser(PPOcrV6Engine engine) {
 		return new TaxiReceiptParser(engine);
 	}
 
+	@Bean
+	@Condition(onMissingBean = HouseholdRegisterParser.class)
+	public HouseholdRegisterParser householdRegisterParser(PPOcrV6Engine engine) {
+		return new HouseholdRegisterParser(engine);
+	}
+
 	/**
 	 * 注册 PP-OCR 结构化识别模板。
 	 *
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
+	 * 通过 {@link Solon#context()} 拿到 AppContext，再调用
+	 * {@code getBeansOfType(BaseStructuredParser.class)} 手动收集所有
+	 * {@link BaseStructuredParser} 子类，绕开 Solon 4.x 对
+	 * {@code List<BaseStructuredParser<?>>} 自动注入的不稳定支持。
 	 *
-	 * @param engine                PP-OCRv6 推理引擎
-	 * @param vehicleLicenseParser  行驶证解析器
-	 * @param idCardParser          身份证解析器
-	 * @param bankCardParser        银行卡解析器
-	 * @param driverLicenseParser   驾驶证解析器
-	 * @param businessLicenseParser 营业执照解析器
-	 * @param invoiceParser         发票解析器
-	 * @param trainTicketParser     火车票解析器
-	 * @param taxiReceiptParser     出租车票解析器
+	 * @param engine PP-OCRv6 推理引擎
 	 * @return 结构化识别模板
 	 */
 	@Bean
 	@Condition(onMissingBean = PPOcrTemplate.class, onBean = PPOcrV6Engine.class)
-	public PPOcrTemplate ppocrTemplate(PPOcrV6Engine engine,
-									   VehicleLicenseParser vehicleLicenseParser,
-									   IdCardParser idCardParser,
-									   BankCardParser bankCardParser,
-									   DriverLicenseParser driverLicenseParser,
-									   BusinessLicenseParser businessLicenseParser,
-									   InvoiceParser invoiceParser,
-									   TrainTicketParser trainTicketParser,
-									   TaxiReceiptParser taxiReceiptParser) {
-		return new PPOcrTemplate(engine,
-			vehicleLicenseParser,
-			idCardParser,
-			bankCardParser,
-			driverLicenseParser,
-			businessLicenseParser,
-			invoiceParser,
-			trainTicketParser,
-			taxiReceiptParser);
+	public PPOcrTemplate ppocrTemplate(AppContext appContext, PPOcrV6Engine engine) {
+		// Solon 4.x 的 getBeansOfType(Class) / getWrapsOfType(Class) 按精确类型匹配，
+		// 抽象父类拿不到子类实例；改用 subBeansOfType(Class, Consumer) 按 isAssignableFrom 流式收集。
+		List<BaseStructuredParser<?>> parsers = new ArrayList<>();
+		appContext.subBeansOfType(BaseStructuredParser.class, parsers::add);
+		return new PPOcrTemplate(engine, parsers);
 	}
 }

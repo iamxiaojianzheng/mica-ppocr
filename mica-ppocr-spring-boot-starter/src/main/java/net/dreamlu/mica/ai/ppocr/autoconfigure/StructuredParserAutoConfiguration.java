@@ -34,14 +34,17 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
+import java.util.List;
+
 /**
  * 结构化解析器自动配置。
  *
- * 当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
- * 自动注册 8 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票）和 {@link PPOcrTemplate} 模板。
+ * <p>当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
+ * 自动注册 9 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票 / 户口本）
+ * 和 {@link PPOcrTemplate} 模板。
  *
- * <p>解析器依赖 {@link PPOcrV6Engine} bean 存在，由容器注入；{@link PPOcrTemplate}
- * 封装了 "OCR 推理 + 结构化解析" 一站式调用。
+ * <p>每个解析器都是独立 {@code @Bean}，配合 {@link ConditionalOnMissingBean}，
+ * 业务方可精确 override 单个解析器实现。
  *
  * <p>使用示例：
  * <pre>{@code
@@ -59,108 +62,54 @@ import org.springframework.context.annotation.Bean;
 @AutoConfigureAfter(PPOCRAutoConfiguration.class)
 public class StructuredParserAutoConfiguration {
 
-	/**
-	 * 注册行驶证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 行驶证解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public VehicleLicenseParser vehicleLicenseParser(PPOcrV6Engine engine) {
 		return new VehicleLicenseParser(engine);
 	}
 
-	/**
-	 * 注册身份证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 身份证解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public IdCardParser idCardParser(PPOcrV6Engine engine) {
 		return new IdCardParser(engine);
 	}
 
-	/**
-	 * 注册银行卡解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 银行卡解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public BankCardParser bankCardParser(PPOcrV6Engine engine) {
 		return new BankCardParser(engine);
 	}
 
-	/**
-	 * 注册驾驶证解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 驾驶证解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public DriverLicenseParser driverLicenseParser(PPOcrV6Engine engine) {
 		return new DriverLicenseParser(engine);
 	}
 
-	/**
-	 * 注册营业执照解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 营业执照解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public BusinessLicenseParser businessLicenseParser(PPOcrV6Engine engine) {
 		return new BusinessLicenseParser(engine);
 	}
 
-	/**
-	 * 注册增值税发票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 发票解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public InvoiceParser invoiceParser(PPOcrV6Engine engine) {
 		return new InvoiceParser(engine);
 	}
 
-	/**
-	 * 注册火车票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 火车票解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public TrainTicketParser trainTicketParser(PPOcrV6Engine engine) {
 		return new TrainTicketParser(engine);
 	}
 
-	/**
-	 * 注册出租车票解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 出租车票解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public TaxiReceiptParser taxiReceiptParser(PPOcrV6Engine engine) {
 		return new TaxiReceiptParser(engine);
 	}
 
-	/**
-	 * 注册户口本解析器。
-	 *
-	 * @param engine PP-OCRv6 推理引擎
-	 * @return 户口本解析器
-	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public HouseholdRegisterParser householdRegisterParser(PPOcrV6Engine engine) {
@@ -171,41 +120,17 @@ public class StructuredParserAutoConfiguration {
 	 * 注册 PP-OCR 结构化识别模板。
 	 *
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
+	 * 容器自动收集所有 {@link BaseStructuredParser} bean 注入 {@code parsers}。
 	 *
-	 * @param engine                PP-OCRv6 推理引擎
-	 * @param vehicleLicenseParser  行驶证解析器
-	 * @param idCardParser          身份证解析器
-	 * @param bankCardParser        银行卡解析器
-	 * @param driverLicenseParser   驾驶证解析器
-	 * @param businessLicenseParser 营业执照解析器
-	 * @param invoiceParser         发票解析器
-	 * @param trainTicketParser     火车票解析器
-	 * @param taxiReceiptParser     出租车票解析器
-	 * @param householdRegisterParser 户口本解析器
+	 * @param engine  PP-OCRv6 推理引擎
+	 * @param parsers 容器中全部 {@link BaseStructuredParser} 实例
 	 * @return 结构化识别模板
 	 */
 	@Bean
 	@ConditionalOnMissingBean
 	@ConditionalOnBean(PPOcrV6Engine.class)
 	public PPOcrTemplate ppocrTemplate(PPOcrV6Engine engine,
-									   VehicleLicenseParser vehicleLicenseParser,
-									   IdCardParser idCardParser,
-									   BankCardParser bankCardParser,
-									   DriverLicenseParser driverLicenseParser,
-									   BusinessLicenseParser businessLicenseParser,
-									   InvoiceParser invoiceParser,
-									   TrainTicketParser trainTicketParser,
-									   TaxiReceiptParser taxiReceiptParser,
-									   HouseholdRegisterParser householdRegisterParser) {
-		return new PPOcrTemplate(engine,
-			vehicleLicenseParser,
-			idCardParser,
-			bankCardParser,
-			driverLicenseParser,
-			businessLicenseParser,
-			invoiceParser,
-			trainTicketParser,
-			taxiReceiptParser,
-			householdRegisterParser);
+									   List<BaseStructuredParser<?>> parsers) {
+		return new PPOcrTemplate(engine, parsers);
 	}
 }

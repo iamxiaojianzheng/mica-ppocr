@@ -20,7 +20,9 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
@@ -31,22 +33,28 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * PP-OCR 结构化识别模板（Solon 插件版）。
+ * PP-OCR 结构化识别模板。
  *
- * <p>持有 {@link PPOcrV6Engine} 与 8 个内置结构化解析器实例，对外提供：
+ * <p>持有 {@link PPOcrV6Engine} 与若干 {@link BaseStructuredParser} 实现，对外提供：
  * <ul>
  *   <li>{@link #run(String)} / {@link #run(File)} / {@link #run(Path)} / {@link #run(byte[])} /
  *       {@link #run(InputStream)} —— 纯 OCR 识别，返回散落文字框列表；</li>
  *   <li>{@link #vehicleLicense()} / {@link #idCard()} / {@link #bankCard()} /
  *       {@link #driverLicense()} / {@link #businessLicense()} / {@link #invoice()} /
- *       {@link #trainTicket()} / {@link #taxiReceipt()} ——
- *       获取 8 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载。</li>
+ *       {@link #trainTicket()} / {@link #taxiReceipt()} / {@link #householdRegister()} ——
+ *       获取 9 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载；</li>
+ *   <li>{@link #get(Class)} —— 通用查表入口，自定义解析器或不想加 getter 时使用。</li>
  * </ul>
  *
- * <p>典型用法：
+ * <p>内部按 {@code parser.getClass()} 建索引，相同类型重复注册以首次为准（{@link LinkedHashMap} 保序）。
+ *
+ * <p>典型用法（Solon 上传）：
  * <pre>{@code
  * @Autowired
  * private PPOcrTemplate ppocr;
@@ -55,81 +63,45 @@ import java.util.List;
  * public VehicleLicenseResult recognize(@RequestParam("file") MultipartFile file) throws IOException {
  *     return ppocr.vehicleLicense().parse(file.getBytes());
  * }
+ *
+ * // 自定义解析器或不想加 getter 的场景
+ * MyCustomResult r = ppocr.get(MyCustomParser.class).parse(bytes);
  * }</pre>
  *
  * <p>本类不接管 {@link PPOcrV6Engine} 的生命周期：
- * Solon 场景下由容器管理 engine 的关闭；非容器场景由调用方自行关闭 engine。
+ * Solon 场景下由容器管理 engine 的关闭；非 Solon 场景由调用方自行关闭 engine。
  */
 public final class PPOcrTemplate {
-
 	private final PPOcrV6Engine engine;
-	private final VehicleLicenseParser vehicleLicenseParser;
-	private final IdCardParser idCardParser;
-	private final BankCardParser bankCardParser;
-	private final DriverLicenseParser driverLicenseParser;
-	private final BusinessLicenseParser businessLicenseParser;
-	private final InvoiceParser invoiceParser;
-	private final TrainTicketParser trainTicketParser;
-	private final TaxiReceiptParser taxiReceiptParser;
+	private final Map<Class<?>, BaseStructuredParser<?>> parsers;
 
 	/**
-	 * 构造模板，传入已初始化的推理引擎与 8 个结构化解析器实例。
+	 * 构造模板，传入已初始化的推理引擎与若干结构化解析器。
 	 *
-	 * @param engine                  PP-OCRv6 推理引擎（不为 null）
-	 * @param vehicleLicenseParser    行驶证解析器（不为 null）
-	 * @param idCardParser            身份证解析器（不为 null）
-	 * @param bankCardParser          银行卡解析器（不为 null）
-	 * @param driverLicenseParser     驾驶证解析器（不为 null）
-	 * @param businessLicenseParser   营业执照解析器（不为 null）
-	 * @param invoiceParser           发票解析器（不为 null）
-	 * @param trainTicketParser       火车票解析器（不为 null）
-	 * @param taxiReceiptParser       出租车票解析器（不为 null）
+	 * <p>相同类型的解析器重复注册时，仅保留首次出现的实例。
+	 *
+	 * @param engine  PP-OCRv6 推理引擎（不为 null）
+	 * @param parsers 结构化解析器列表（不为 null 且非空；元素不允许为 null）
+	 * @throws IllegalArgumentException engine 为 null、parsers 为 null 或空、元素为 null
 	 */
-	public PPOcrTemplate(PPOcrV6Engine engine,
-						 VehicleLicenseParser vehicleLicenseParser,
-						 IdCardParser idCardParser,
-						 BankCardParser bankCardParser,
-						 DriverLicenseParser driverLicenseParser,
-						 BusinessLicenseParser businessLicenseParser,
-						 InvoiceParser invoiceParser,
-						 TrainTicketParser trainTicketParser,
-						 TaxiReceiptParser taxiReceiptParser) {
+	public PPOcrTemplate(PPOcrV6Engine engine, List<BaseStructuredParser<?>> parsers) {
 		if (engine == null) {
 			throw new IllegalArgumentException("PPOcrV6Engine must not be null");
 		}
-		if (vehicleLicenseParser == null) {
-			throw new IllegalArgumentException("VehicleLicenseParser must not be null");
-		}
-		if (idCardParser == null) {
-			throw new IllegalArgumentException("IdCardParser must not be null");
-		}
-		if (bankCardParser == null) {
-			throw new IllegalArgumentException("BankCardParser must not be null");
-		}
-		if (driverLicenseParser == null) {
-			throw new IllegalArgumentException("DriverLicenseParser must not be null");
-		}
-		if (businessLicenseParser == null) {
-			throw new IllegalArgumentException("BusinessLicenseParser must not be null");
-		}
-		if (invoiceParser == null) {
-			throw new IllegalArgumentException("InvoiceParser must not be null");
-		}
-		if (trainTicketParser == null) {
-			throw new IllegalArgumentException("TrainTicketParser must not be null");
-		}
-		if (taxiReceiptParser == null) {
-			throw new IllegalArgumentException("TaxiReceiptParser must not be null");
+		if (parsers == null || parsers.isEmpty()) {
+			throw new IllegalArgumentException("parsers must not be null or empty");
 		}
 		this.engine = engine;
-		this.vehicleLicenseParser = vehicleLicenseParser;
-		this.idCardParser = idCardParser;
-		this.bankCardParser = bankCardParser;
-		this.driverLicenseParser = driverLicenseParser;
-		this.businessLicenseParser = businessLicenseParser;
-		this.invoiceParser = invoiceParser;
-		this.trainTicketParser = trainTicketParser;
-		this.taxiReceiptParser = taxiReceiptParser;
+		Map<Class<?>, BaseStructuredParser<?>> map = new LinkedHashMap<>();
+		for (BaseStructuredParser<?> parser : parsers) {
+			if (parser == null) {
+				throw new IllegalArgumentException("parser must not be null");
+			} else {
+				// 相同类型重复注册，以首次为准
+				map.putIfAbsent(parser.getClass(), parser);
+			}
+		}
+		this.parsers = Collections.unmodifiableMap(map);
 	}
 
 	// ==================================================================
@@ -208,12 +180,34 @@ public final class PPOcrTemplate {
 	// ==================================================================
 
 	/**
+	 * 通用查表入口：按 {@code Class} 取出已注册的解析器。
+	 *
+	 * <p>类型不匹配时直接抛 {@link ClassCastException}（由 {@link Class#cast(Object)} 触发）；
+	 * 未注册时抛 {@link IllegalArgumentException}。
+	 *
+	 * @param type 解析器类型（不为 null）
+	 * @param <T>  解析器类型参数
+	 * @return 已绑定的解析器实例
+	 * @throws IllegalArgumentException 未注册该类型
+	 */
+	public <T extends BaseStructuredParser<?>> T get(Class<T> type) {
+		if (type == null) {
+			throw new IllegalArgumentException("type must not be null");
+		}
+		BaseStructuredParser<?> parser = parsers.get(type);
+		if (parser == null) {
+			throw new IllegalArgumentException("No parser registered: " + type.getName());
+		}
+		return type.cast(parser);
+	}
+
+	/**
 	 * 获取行驶证结构化解析器。
 	 *
 	 * @return 行驶证解析器实例（已绑定当前 engine）
 	 */
 	public VehicleLicenseParser vehicleLicense() {
-		return vehicleLicenseParser;
+		return get(VehicleLicenseParser.class);
 	}
 
 	/**
@@ -222,7 +216,7 @@ public final class PPOcrTemplate {
 	 * @return 身份证解析器实例（已绑定当前 engine）
 	 */
 	public IdCardParser idCard() {
-		return idCardParser;
+		return get(IdCardParser.class);
 	}
 
 	/**
@@ -231,7 +225,7 @@ public final class PPOcrTemplate {
 	 * @return 银行卡解析器实例（已绑定当前 engine）
 	 */
 	public BankCardParser bankCard() {
-		return bankCardParser;
+		return get(BankCardParser.class);
 	}
 
 	/**
@@ -240,7 +234,7 @@ public final class PPOcrTemplate {
 	 * @return 驾驶证解析器实例（已绑定当前 engine）
 	 */
 	public DriverLicenseParser driverLicense() {
-		return driverLicenseParser;
+		return get(DriverLicenseParser.class);
 	}
 
 	/**
@@ -249,7 +243,7 @@ public final class PPOcrTemplate {
 	 * @return 营业执照解析器实例（已绑定当前 engine）
 	 */
 	public BusinessLicenseParser businessLicense() {
-		return businessLicenseParser;
+		return get(BusinessLicenseParser.class);
 	}
 
 	/**
@@ -258,7 +252,7 @@ public final class PPOcrTemplate {
 	 * @return 发票解析器实例（已绑定当前 engine）
 	 */
 	public InvoiceParser invoice() {
-		return invoiceParser;
+		return get(InvoiceParser.class);
 	}
 
 	/**
@@ -267,7 +261,7 @@ public final class PPOcrTemplate {
 	 * @return 火车票解析器实例（已绑定当前 engine）
 	 */
 	public TrainTicketParser trainTicket() {
-		return trainTicketParser;
+		return get(TrainTicketParser.class);
 	}
 
 	/**
@@ -276,6 +270,15 @@ public final class PPOcrTemplate {
 	 * @return 出租车票解析器实例（已绑定当前 engine）
 	 */
 	public TaxiReceiptParser taxiReceipt() {
-		return taxiReceiptParser;
+		return get(TaxiReceiptParser.class);
+	}
+
+	/**
+	 * 获取户口本结构化解析器。
+	 *
+	 * @return 户口本解析器实例（已绑定当前 engine）
+	 */
+	public HouseholdRegisterParser householdRegister() {
+		return get(HouseholdRegisterParser.class);
 	}
 }
