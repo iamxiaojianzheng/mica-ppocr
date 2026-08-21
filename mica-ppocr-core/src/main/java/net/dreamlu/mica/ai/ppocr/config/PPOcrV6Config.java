@@ -45,7 +45,7 @@ public final class PPOcrV6Config {
 	 * 官方推荐组合，长边 > 960 才缩放，精度无损、速度最优。
 	 */
 	@Builder.Default
-	private int detLimitSideLen = 960;
+	private int detLimitSideLen = 64;
 
 	/**
 	 * 检测：限制类型，min 或 max（默认 max）。
@@ -54,7 +54,7 @@ public final class PPOcrV6Config {
 	 * 见 {@link #detLimitSideLen}。
 	 */
 	@Builder.Default
-	private String detLimitType = "max";
+	private String detLimitType = "min";
 
 	/** 检测：最大边长限制 */
 	@Builder.Default
