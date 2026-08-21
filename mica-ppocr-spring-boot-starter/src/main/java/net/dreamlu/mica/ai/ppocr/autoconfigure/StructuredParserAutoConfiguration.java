@@ -61,54 +61,108 @@ import org.springframework.context.annotation.Bean;
 @AutoConfigureAfter(PPOCRAutoConfiguration.class)
 public class StructuredParserAutoConfiguration {
 
+	/**
+	 * 注册行驶证解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 行驶证解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public VehicleLicenseParser vehicleLicenseParser(PPOcrV6Engine engine) {
 		return new VehicleLicenseParser(engine);
 	}
 
+	/**
+	 * 注册身份证解析器（正反面自动判定）。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 身份证解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public IdCardParser idCardParser(PPOcrV6Engine engine) {
 		return new IdCardParser(engine);
 	}
 
+	/**
+	 * 注册银行卡解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 银行卡解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public BankCardParser bankCardParser(PPOcrV6Engine engine) {
 		return new BankCardParser(engine);
 	}
 
+	/**
+	 * 注册驾驶证解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 驾驶证解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public DriverLicenseParser driverLicenseParser(PPOcrV6Engine engine) {
 		return new DriverLicenseParser(engine);
 	}
 
+	/**
+	 * 注册营业执照解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 营业执照解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public BusinessLicenseParser businessLicenseParser(PPOcrV6Engine engine) {
 		return new BusinessLicenseParser(engine);
 	}
 
+	/**
+	 * 注册增值税发票解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 发票解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public InvoiceParser invoiceParser(PPOcrV6Engine engine) {
 		return new InvoiceParser(engine);
 	}
 
+	/**
+	 * 注册火车票解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 火车票解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public TrainTicketParser trainTicketParser(PPOcrV6Engine engine) {
 		return new TrainTicketParser(engine);
 	}
 
+	/**
+	 * 注册出租车票解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 出租车票解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public TaxiReceiptParser taxiReceiptParser(PPOcrV6Engine engine) {
 		return new TaxiReceiptParser(engine);
 	}
 
+	/**
+	 * 注册户口本解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 户口本解析器实例
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public HouseholdRegisterParser householdRegisterParser(PPOcrV6Engine engine) {
@@ -119,7 +173,8 @@ public class StructuredParserAutoConfiguration {
 	 * 注册 PP-OCR 结构化识别模板。
 	 *
 	 * <p>仅当容器中存在 {@link PPOcrV6Engine} 时才创建，避免在未配置模型路径时启动失败。
-	 * 容器自动收集所有 {@link BaseStructuredParser} bean 注入 {@code parsers}。
+	 * 模板构造时通过 {@link ApplicationContext} 收集容器中全部 {@link BaseStructuredParser}
+	 * bean 并按类型建索引，供 {@code get(Class)} 通用查表与各解析器 getter 使用。
 	 *
 	 * @param context 应用程序上下文
 	 * @param engine  PP-OCRv6 推理引擎

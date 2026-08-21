@@ -160,6 +160,11 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	// 构造
 	// ==================================================================
 
+	/**
+	 * 构造户籍登记簿解析器，注入推理引擎。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 */
 	public HouseholdRegisterParser(PPOcrV6Engine engine) {
 		super(engine);
 	}

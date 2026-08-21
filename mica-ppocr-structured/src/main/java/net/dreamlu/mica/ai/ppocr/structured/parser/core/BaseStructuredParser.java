@@ -55,7 +55,7 @@ import java.util.List;
  * }
  * }</pre>
  *
- * <p>Spring / Solon 场景下由容器注入 engine；非容器场景可通过 {@link net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate}
+ * <p>Spring / Solon 场景下由容器注入 engine；非容器场景可通过 {@code PPOcrTemplate}
  * 的 {@code vehicleLicense()} / {@code idCard()} 等方法获取已绑定 engine 的实例。
  *
  * @param <R> 业务结果类型

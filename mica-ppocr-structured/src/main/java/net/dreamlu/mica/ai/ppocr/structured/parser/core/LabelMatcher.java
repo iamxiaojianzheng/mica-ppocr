@@ -940,6 +940,9 @@ public class LabelMatcher {
 	 * @param altKeywords   OCR 漏识别标签时的备选关键字
 	 */
 	public record LabelDef(String name, String primaryLabel, String... altKeywords) {
+		/**
+		 * 参数校验：name 与 primaryLabel 均不可为 null。
+		 */
 		public LabelDef {
 			if (name == null || primaryLabel == null) {
 				throw new IllegalArgumentException("name and primaryLabel are required");

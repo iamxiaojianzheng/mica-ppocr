@@ -36,6 +36,10 @@ public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDe
 	 * 不旋转的便捷构造器（rotatedDegrees 默认 0）。
 	 *
 	 * <p>主要为了保留旧调用兼容性：{@code new PPOcrV6Result(text, score, box)}。
+	 *
+	 * @param text  识别文本
+	 * @param score 置信度，范围 [0, 1]
+	 * @param box   文本框四顶点，顺序：左上、右上、右下、左下
 	 */
 	public PPOcrV6Result(String text, float score, int[][] box) {
 		this(text, score, box, 0);
