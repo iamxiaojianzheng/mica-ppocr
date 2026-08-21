@@ -133,9 +133,8 @@ public class StructuredParserAutoConfiguration {
 	@Condition(onMissingBean = PPOcrTemplate.class, onBean = PPOcrV6Engine.class)
 	public PPOcrTemplate ppocrTemplate(AppContext appContext, PPOcrV6Engine engine) {
 		// Solon 4.x 的 getBeansOfType(Class) / getWrapsOfType(Class) 按精确类型匹配，
-		// 抽象父类拿不到子类实例；改用 subBeansOfType(Class, Consumer) 按 isAssignableFrom 流式收集。
 		List<BaseStructuredParser<?>> parsers = new ArrayList<>();
-		appContext.subBeansOfType(BaseStructuredParser.class, parsers::add);
+		appContext.getBeansOfType(BaseStructuredParser.class).forEach(parsers::add);
 		return new PPOcrTemplate(engine, parsers);
 	}
 }

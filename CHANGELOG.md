@@ -2,11 +2,13 @@
 
 ## 发行版本
 
-### 下一版 - 2026-08-22
-- feat(structured): 新增火车票和出租车票 OCR 结构化解析器，模板解析器数量从 6 提升至 8。
+### v1.1.4 - 2026-08-22
+- feat(structured): 新增火车票和出租车票 OCR 结构化解析器。
+- feat(parser): 新增户口本（常住人口登记卡）OCR 结构化解析器。支持姓名、性别、出生地、民族、籍贯、出生日期、户号等字段的标签匹配和正则兜底识别，处理标签切碎、多行标签及跨框合并等 OCR 异常情况。
 - feat(idcard): 兼容 15 位身份证号解析，并增加按身份证号推算出生日期的兜底。gitee #IK94VR 感谢 `@zhanghaiyang` 反馈
 - feat(core): 模型路径支持 `classpath:` 前缀，可把模型打进 Spring Boot Fat Jar。tiny、small 模型尺寸较小方便内置，简化部署。
 - refactor(config): 文档方向分类阈值由 0.3 调至 0.4。detLimitSideLen、detLimitType 默认组合由 64 + min 改为 960 + max（PaddleX v4 / v5 / v6 的官方推荐组合）。
+- refactor(core): 简化 PPOcrTemplate 结构化解析器管理实现。构造器参数从固定多个解析器改为列表形式，用 LinkedHashMap 按类型索引解析器并支持通用 get(Class) 获取；Solon 与 Spring Boot Starter 同步新增户口本解析器注册及参数校验。
 - docs(skill): 新增 `mica-ppocr-custom-parser` skill，覆盖自定义结构化解析器全链路。
 
 ### v1.1.3 - 2026-08-15
