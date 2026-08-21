@@ -372,7 +372,7 @@ public PPOCRPropertiesCustomizer tierEnvCustomizer() {
 
 ### 7.1 CPU 注意事项
 
-`intra-op-num-threads`：ONNX 单算子内 OpenMP 并行线程数
+`intra-op-num-threads`：ONNX 单算子内 OpenMP 并行线程数，建议设置为 CPU 物理核数。
 
 **为什么是物理核数？**
 
