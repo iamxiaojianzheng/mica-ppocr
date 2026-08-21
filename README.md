@@ -236,8 +236,8 @@ mica:
       rec-model-path: models/ppocr-v6/tiny/rec.onnx          # 识别模型
       rec-char-dict-path: models/ppocr-v6/tiny/dict.txt      # 识别字符字典
       # ===== 检测（DB 后处理）参数 =====
-      # det-limit-side-len: 960                               # 检测限制边长（PaddleX v4/v5/v6 默认）
-      # det-limit-type: max                                   # 限制类型：min / max（默认 max，限长边）
+      # det-limit-side-len: 64                                # 检测限制边长（默认 64，证件类场景推荐）
+      # det-limit-type: min                                   # 限制类型：min / max（默认 min，限短边）
       # det-max-side-limit: 4000                              # 检测最大边长限制
       # det-thresh: 0.3                                       # 检测像素阈值
       # det-box-thresh: 0.6                                   # 检测框阈值
@@ -248,7 +248,7 @@ mica:
       # ===== 可选：文档方向分类（PP-LCNet_x1_0_doc_ori）=====
       # use-doc-orientation-classify: false                   # 是否启用整图 4 方向分类 + 自动旋转
       # doc-orientation-model-path: models/ppocr-v6/doc_ori/doc_ori.onnx  # 启用时必填
-      # doc-orientation-thresh: 0.3                           # 置信度阈值 < 此值视为 0°；实测 0.3 比 0.5 更稳
+      # doc-orientation-thresh: 0.4                           # 置信度阈值 < 此值视为 0°；实测 0.4 是误判丢弃 / 误判旋转的最佳折中
       # ===== 性能 / 运行模式 =====
       # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
       # intra-op-num-threads: 1                               # ONNX 单算子内并行线程数；推荐 = 物理核数

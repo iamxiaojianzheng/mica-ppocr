@@ -38,20 +38,22 @@ public final class PPOcrV6Config {
 	private String recCharDictPath;
 
 	/**
-	 * 检测：限制边长（默认 960）。
+	 * 检测：限制边长（默认 64）。
 	 *
-	 * <p>PaddleX v4 / v5 / v6 官方推荐值。原默认值 64 是 PP-OCRv2/v3 时代"短边放大"
-	 * 残留，对 4K/2K 大图会做大量无效缩放。960 + {@code detLimitType="max"} 是当前
-	 * 官方推荐组合，长边 > 960 才缩放，精度无损、速度最优。
+	 * <p>当原图长边或短边（由 {@link #detLimitType} 决定）超过该值时按比例缩放，
+	 * 否则保持原图分辨率。64 + {@code detLimitType="min"} 是 PP-OCR 面向
+	 * 证件 / 卡证类小图场景的经典组合：保证短边至少 64，像素信息充足，
+	 * 对 4K/2K 大图也不会做无效放大。
 	 */
 	@Builder.Default
 	private int detLimitSideLen = 64;
 
 	/**
-	 * 检测：限制类型，min 或 max（默认 max）。
+	 * 检测：限制类型，min 或 max（默认 min）。
 	 *
-	 * <p>PaddleX v4 / v5 / v6 官方默认 max。原默认值 "min" 是 PP-OCRv2/v3 时代行为。
-	 * 见 {@link #detLimitSideLen}。
+	 * <p>{@code min} 表示约束"短边"，{@code max} 表示约束"长边"。
+	 * 证件类场景默认使用 {@code min}，配合较小的 {@link #detLimitSideLen}
+	 * 即可获得稳定识别效果；通用文档 / 自然场景可改用 {@code max} + 较大边长。
 	 */
 	@Builder.Default
 	private String detLimitType = "min";
