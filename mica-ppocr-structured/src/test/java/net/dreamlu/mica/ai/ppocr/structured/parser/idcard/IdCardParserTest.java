@@ -205,6 +205,29 @@ class IdCardParserTest extends ParserTestSupport {
 
 
 	@Test
+	void parse_front_shortLineMultilineAddress() {
+		// 模拟住址跨行且第二行为短文本（如"1组"），测试中心 x 靠左时不被误杀
+		List<PPOcrV6Result> results = List.of(
+			box("姓名胡奇", 84, 70, 216, 100),
+			box("性别男民族汉", 82, 113, 276, 145),
+			box("出生2000年11月3日", 80, 154, 319, 185),
+			box("住址四川省金堂县平桥乡清堰", 76, 199, 362, 231),
+			box("1组", 139, 229, 173, 255),
+			box("公民身份号码", 66, 312, 194, 337),
+			box("510121200011038877", 219, 315, 505, 344)
+		);
+		IdCardResult r = parse(new IdCardParser(null), results);
+		assertEquals(IdCardSide.FRONT, r.getSide());
+		assertEquals("胡奇", r.getName());
+		assertEquals("男", r.getGender());
+		assertEquals("汉", r.getNation());
+		assertEquals("2000年11月3日", r.getBirthDate());
+		assertEquals("四川省金堂县平桥乡清堰1组", r.getAddress());
+		assertEquals("510121200011038877", r.getIdNumber());
+	}
+
+
+	@Test
 	void parse_front_15digit() {
 		// 模拟 15 位身份证正面（早期签发，常见于历史档案/老照片）：6位区划 + 6位 YYMMDD + 3位顺序
 		List<PPOcrV6Result> results = CollUtil.listOf(
