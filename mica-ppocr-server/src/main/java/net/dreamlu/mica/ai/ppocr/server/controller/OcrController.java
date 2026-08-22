@@ -2,15 +2,17 @@ package net.dreamlu.mica.ai.ppocr.server.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import net.dreamlu.mica.ai.ppocr.autoconfigure.PPOcrTemplate;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptResult;
+import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -23,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OCR 识别服务 REST 接口
+ * OCR 识别服务 REST 接口（全量包含通用文本检测与 9 种卡证票据结构化解析）
  *
  * @author Antigravity
  */
@@ -73,7 +75,7 @@ public class OcrController {
     /**
      * 机动车行驶证结构化识别
      */
-    @Operation(summary = "行驶证结构化解析", description = "精准解析行驶证号牌号码、车辆类型、所有人、住址、使用性质、品牌型号、车辆识别代号(VIN)、发动机号码、注册日期、发证日期等关键属性，并返回关键字段高亮区域")
+    @Operation(summary = "行驶证结构化解析", description = "精准解析行驶证号牌号码、车辆类型、所有人、住址、使用性质、品牌型号、车辆识别代号(VIN)、发动机号码、注册日期、发证日期等关键属性")
     @PostMapping(value = "/vehicle", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public VehicleLicenseResult recognizeVehicle(
             @Parameter(description = "行驶证照片文件", required = true)
@@ -123,6 +125,39 @@ public class OcrController {
             @Parameter(description = "发票照片或 PDF 截屏图片", required = true)
             @RequestParam("file") MultipartFile file) throws IOException {
         return ppocr.invoice().parse(file.getBytes());
+    }
+
+    /**
+     * 火车票结构化识别
+     */
+    @Operation(summary = "火车票结构化解析", description = "解析始发站、到达站、车次、出发日期、时间、座位号、席别、乘客姓名、身份证号、车票金额、车票号等")
+    @PostMapping(value = "/train-ticket", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public TrainTicketResult recognizeTrainTicket(
+            @Parameter(description = "火车票照片文件", required = true)
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ppocr.trainTicket().parse(file.getBytes());
+    }
+
+    /**
+     * 出租车票结构化识别
+     */
+    @Operation(summary = "出租车票结构化解析", description = "解析发票代码、发票号码、车牌号、日期、上下车时间、里程、金额、燃油附加费、总金额、开票城市等")
+    @PostMapping(value = "/taxi-receipt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public TaxiReceiptResult recognizeTaxiReceipt(
+            @Parameter(description = "出租车票照片文件", required = true)
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ppocr.taxiReceipt().parse(file.getBytes());
+    }
+
+    /**
+     * 户口本结构化识别
+     */
+    @Operation(summary = "户口本结构化解析", description = "解析户号、姓名、与户主关系、性别、出生地、民族、籍贯、出生日期、公民身份号码、身高、文化程度、服务处所等")
+    @PostMapping(value = "/household-register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public HouseholdRegisterResult recognizeHouseholdRegister(
+            @Parameter(description = "户口本（常住人口登记卡）照片文件", required = true)
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ppocr.householdRegister().parse(file.getBytes());
     }
 
 }

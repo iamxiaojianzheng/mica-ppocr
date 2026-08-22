@@ -63,6 +63,7 @@
         <module>mica-ppocr-solon-plugin</module>
         <module>mica-ppocr-spring-boot-starter</module>
         <module>mica-ppocr-server</module>
+        <module>mica-ppocr-client</module>
     </modules>
 
     <dependencyManagement>

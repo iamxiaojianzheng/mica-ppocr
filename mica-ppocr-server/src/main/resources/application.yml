@@ -12,14 +12,28 @@ spring:
 mica:
   ai:
     ppocr:
-      enabled: true
+      enabled: ${PPOCR_ENABLED:true}
+      # 模型文件路径
       det-model-path: ${DET_MODEL_PATH:models/ppocr-v6/tiny/det.onnx}
       rec-model-path: ${REC_MODEL_PATH:models/ppocr-v6/tiny/rec.onnx}
       rec-char-dict-path: ${REC_CHAR_DICT_PATH:models/ppocr-v6/tiny/dict.txt}
+      # 线程与并发配置
+      intra-threads: ${INTRA_THREADS:2}
+      inter-threads: ${INTER_THREADS:2}
+      # 检测阶段高级调优参数
+      det-limit-side-len: ${DET_LIMIT_SIDE_LEN:960}
+      det-limit-type: ${DET_LIMIT_TYPE:min}
+      det-max-side-limit: ${DET_MAX_SIDE_LIMIT:4000}
+      det-thresh: ${DET_THRESH:0.3}
+      det-box-thresh: ${DET_BOX_THRESH:0.6}
+      det-unclip-ratio: ${DET_UNCLIP_RATIO:1.5}
+      # 识别批处理大小与加速开关
+      rec-batch-size: ${REC_BATCH_SIZE:6}
+      prefer-accelerator: ${PREFER_ACCELERATOR:false}
+      # 文档方向自动纠偏配置
       use-doc-orientation-classify: ${USE_DOC_ORIENTATION:true}
       doc-orientation-model-path: ${DOC_ORI_MODEL_PATH:models/ppocr-v6/doc_ori/doc_ori.onnx}
-      doc-orientation-thresh: 0.4
-      intra-op-num-threads: ${INTRA_THREADS:2}
+      doc-orientation-thresh: ${DOC_ORI_THRESH:0.4}
 
 logging:
   level:

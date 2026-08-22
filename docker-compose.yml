@@ -3,28 +3,46 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: mica-ppocr-server:1.1.6
     container_name: mica-ppocr-server
+    restart: always
     ports:
       - "8090:8090"
     environment:
       - PORT=8090
       - JAVA_OPTS=-Xms512m -Xmx2g -Dfile.encoding=UTF-8
-      # 可根据需要配置切换模型的路径（默认为 tiny 档位）
+      # -------------------------------------------------------------
+      # 1. PP-OCRv6 核心模型路径配置
+      # -------------------------------------------------------------
       - DET_MODEL_PATH=models/ppocr-v6/tiny/det.onnx
       - REC_MODEL_PATH=models/ppocr-v6/tiny/rec.onnx
       - REC_CHAR_DICT_PATH=models/ppocr-v6/tiny/dict.txt
+      # -------------------------------------------------------------
+      # 2. 文档方向自动纠偏配置
+      # -------------------------------------------------------------
       - USE_DOC_ORIENTATION=true
       - DOC_ORI_MODEL_PATH=models/ppocr-v6/doc_ori/doc_ori.onnx
+      - DOC_ORI_THRESH=0.4
+      # -------------------------------------------------------------
+      # 3. ONNX Runtime 线程与资源控制
+      # -------------------------------------------------------------
       - INTRA_THREADS=2
+      - INTER_THREADS=2
+      - REC_BATCH_SIZE=6
+      - PREFER_ACCELERATOR=false
+      # -------------------------------------------------------------
+      # 4. 检测算法阈值与图像边长限制调优
+      # -------------------------------------------------------------
+      - DET_LIMIT_SIDE_LEN=960
+      - DET_LIMIT_TYPE=min
+      - DET_MAX_SIDE_LIMIT=4000
+      - DET_THRESH=0.3
+      - DET_BOX_THRESH=0.6
+      - DET_UNCLIP_RATIO=1.5
     volumes:
-      # 挂载宿主机的模型目录，方便在宿主机随时切换/更新模型文件
-      - ./models:/app/models:ro
-      - ./logs:/app/logs
-    restart: unless-stopped
+      # 挂载宿主机的 models 目录，实现模型动态热替换而无需重新构建容器镜像
+      - ./models:/app/models
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8090/api/ocr/health || exit 1"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 20s
