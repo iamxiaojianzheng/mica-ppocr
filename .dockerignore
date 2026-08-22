@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+.agents
+target/
+**/target/
+*.iml
+*.log
+docs/
+test_images/

@@ -1,0 +1,27 @@
+server:
+  port: ${PORT:8090}
+
+spring:
+  application:
+    name: mica-ppocr-server
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+mica:
+  ai:
+    ppocr:
+      enabled: true
+      det-model-path: ${DET_MODEL_PATH:models/ppocr-v6/tiny/det.onnx}
+      rec-model-path: ${REC_MODEL_PATH:models/ppocr-v6/tiny/rec.onnx}
+      rec-char-dict-path: ${REC_CHAR_DICT_PATH:models/ppocr-v6/tiny/dict.txt}
+      use-doc-orientation-classify: ${USE_DOC_ORIENTATION:true}
+      doc-orientation-model-path: ${DOC_ORI_MODEL_PATH:models/ppocr-v6/doc_ori/doc_ori.onnx}
+      doc-orientation-thresh: 0.4
+      intra-op-num-threads: ${INTRA_THREADS:2}
+
+logging:
+  level:
+    root: INFO
+    net.dreamlu.mica.ai.ppocr: INFO

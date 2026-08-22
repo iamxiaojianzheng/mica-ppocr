@@ -1,0 +1,30 @@
+services:
+  mica-ppocr-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mica-ppocr-server:1.1.6
+    container_name: mica-ppocr-server
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - JAVA_OPTS=-Xms512m -Xmx2g -Dfile.encoding=UTF-8
+      # 可根据需要配置切换模型的路径（默认为 tiny 档位）
+      - DET_MODEL_PATH=models/ppocr-v6/tiny/det.onnx
+      - REC_MODEL_PATH=models/ppocr-v6/tiny/rec.onnx
+      - REC_CHAR_DICT_PATH=models/ppocr-v6/tiny/dict.txt
+      - USE_DOC_ORIENTATION=true
+      - DOC_ORI_MODEL_PATH=models/ppocr-v6/doc_ori/doc_ori.onnx
+      - INTRA_THREADS=2
+    volumes:
+      # 挂载宿主机的模型目录，方便在宿主机随时切换/更新模型文件
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8090/api/ocr/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
