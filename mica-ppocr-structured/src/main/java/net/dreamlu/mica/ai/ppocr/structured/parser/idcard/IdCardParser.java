@@ -127,27 +127,26 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
-	 * 性别提取：优先标签定位，兼容 "性别男民族汉" 双标签连写合并框。
+	 * 性别提取：优先尝试合并框切割（兼容 "性别男民族汉" 双标签连写合并框），未命中时走标准标签定位。
 	 */
 	private static String parseGender(List<PPOcrV6Result> results) {
-		String labelValue = LabelMatcher.matchValueFromPrefix(results, "性别");
-		if (labelValue != null) {
-			return cutAtNextLabel(labelValue);
+		String mergedValue = LabelMatcher.matchSubstring(results, text -> cutAtNextLabel(afterLabel(text, "性别")));
+		if (mergedValue != null) {
+			return mergedValue;
 		}
-		// 合并框（"性别男民族汉"）：从任意文本中按 "性别" 标签切出
-		return LabelMatcher.matchSubstring(results, text -> cutAtNextLabel(afterLabel(text, "性别")));
+		String labelValue = LabelMatcher.matchValueFromPrefix(results, "性别");
+		return cutAtNextLabel(labelValue);
 	}
 
 	/**
-	 * 民族提取：优先标签定位，兼容 "性别男民族汉" 双标签连写合并框。
+	 * 民族提取：优先尝试合并框切割（兼容 "性别男民族汉" 双标签连写合并框），未命中时走标准标签定位。
 	 */
 	private static String parseNation(List<PPOcrV6Result> results) {
-		String labelValue = LabelMatcher.matchValueFromPrefix(results, "民族");
-		if (labelValue != null) {
-			return labelValue;
+		String mergedValue = LabelMatcher.matchSubstring(results, text -> afterLabel(text, "民族"));
+		if (mergedValue != null) {
+			return mergedValue;
 		}
-		// 合并框（"性别男民族汉"）：从任意文本中按 "民族" 标签切出
-		return LabelMatcher.matchSubstring(results, text -> afterLabel(text, "民族"));
+		return LabelMatcher.matchValueFromPrefix(results, "民族");
 	}
 
 	/**
@@ -252,9 +251,16 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
-	 * 住址提取：按"住址"标签定位，可能跨多框（"安徽省宿州.../庄镇"）。
+	 * 住址提取：按"住址"标签定位，支持合并框及跨多框/跨行（如"四川省金堂县平桥乡清堰" + "1组"）。
 	 *
-	 * <p>住址可能换行，所以需要拼接多个 y 重叠的右侧框。
+	 * <p>住址可能换行，需要拼接多个几何重叠或延伸的右侧/下方框。
+	 *
+	 * <p>核心算法逻辑：
+	 * 1. 先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
+	 *    则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。
+	 * 2. 动态确定下界止点：寻找"公民身份号码"标签或身份证号框的 Y 轴上边缘作为地址区域物理止点，防止吸收底部无关噪声。
+	 * 3. X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，确保左下角短续行（如"1组"）不被误杀。
+	 * 4. 二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。
 	 */
 	private static String parseAddress(List<PPOcrV6Result> results) {
 		// 先用 findLabelBox 找独立"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
@@ -265,7 +271,22 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			return null;
 		}
 
-		// 检查是否是合并框（"住址"被识别成"住址XXX"）；若是，剥出"住址"文本部分的值（地址第一行）
+		// 1. 动态确定住址区域的垂直下界止点 (Bottom Limit)
+		// 寻找"公民身份号码"或身份证号框作为住址区域的下界止点
+		int bottomLimitY = Integer.MAX_VALUE;
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text.contains("公民身份号码") || text.contains("身份证号")
+				|| ID_NUMBER_18_PATTERN.matcher(text).find()
+				|| ID_NUMBER_15_PATTERN.matcher(text).find()) {
+				int minY = LabelMatcher.minY(r);
+				if (minY < bottomLimitY) {
+					bottomLimitY = minY;
+				}
+			}
+		}
+
+		// 2. 检查是否是合并框（"住址"被识别成"住址XXX"）；若是，剥出"住址"文本部分的值（地址第一行）
 		String labelText = labelBox.text();
 		List<PPOcrV6Result> candidates = new ArrayList<>();
 		String firstLineFromMerged = null;
@@ -275,52 +296,91 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			// 不再需要 y 重叠的右侧框（合并框里已含第一行），只找后续跨行框
 		}
 
-		int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
+		int labelMinX = LabelMatcher.minX(labelBox);
 		int labelMinY = LabelMatcher.minY(labelBox);
 		int labelMaxY = LabelMatcher.maxY(labelBox);
+		int oneLineHeight = Math.max(labelMaxY - labelMinY, 15);
 
-		// 收集 y 范围与标签重叠的右侧框，按 y 升序拼接
+		// 3. 收集 y 范围与标签重叠或向下方延伸的候选框
 		for (PPOcrV6Result r : results) {
 			if (r == labelBox) {
 				continue;
 			}
 			String text = r.text();
-			// 跳过含身份证号标签/纯日期/纯英文标签的框
-			if (text.contains("公民身份号码") || text.contains("身份证号")
-				|| text.contains("签发机关") || text.contains("有效期限")
-				|| text.contains("-")) {
+			if (text.isEmpty()) {
 				continue;
 			}
-			// 值框中心 x 必须在标签中心 x 右侧（兼容 OCR 边界框部分重叠）
-			int x0 = LabelMatcher.minX(r);
-			int rCenterX = (x0 + LabelMatcher.maxX(r)) / 2;
-			if (rCenterX <= labelCenterX) {
+
+			// 跳过含身份证号/姓名/性别/民族/出生等其他已知标签及纯日期/纯英文标签的干扰框
+			if (containsAnyLabelOrId(text)) {
 				continue;
 			}
+
+			int rMaxX = LabelMatcher.maxX(r);
+			// 值框右边缘必须在"住址"标签左边缘之后（允许 10px 倾斜/容差，兼容左下角短文本续行）
+			if (rMaxX < labelMinX - 10) {
+				continue;
+			}
+
 			int rMinY = LabelMatcher.minY(r);
 			int rMaxY = LabelMatcher.maxY(r);
-			// y 范围必须与标签框有重叠（允许下方扩展 1 行住址：到 labelMaxY + 一行文本高度）
-			int oneLine = (labelMaxY - labelMinY);
-			if (rMaxY < labelMinY || rMinY > labelMaxY + oneLine) {
+
+			// y 范围控制：
+			// a. 框下边缘不能高于"住址"标签上边缘
+			if (rMaxY < labelMinY - 5) {
 				continue;
 			}
+			// b. 框上边缘必须高于身份证号码下界止点
+			if (rMinY >= bottomLimitY - 2) {
+				continue;
+			}
+			// c. 若未识别到号码框下界，限制最多在住址标签下方延伸 4 行
+			if (bottomLimitY == Integer.MAX_VALUE && rMinY > labelMaxY + 4 * oneLineHeight) {
+				continue;
+			}
+
 			candidates.add(r);
 		}
+
+		// 4. 二维几何拓扑排序：优先按 y 升序（从上到下），同行（y 差值在 10px 内）按 x 升序（从左到右）
+		candidates.sort((r1, r2) -> {
+			int yDiff = LabelMatcher.minY(r1) - LabelMatcher.minY(r2);
+			if (Math.abs(yDiff) <= 10) {
+				return Integer.compare(LabelMatcher.minX(r1), LabelMatcher.minX(r2));
+			}
+			return Integer.compare(LabelMatcher.minY(r1), LabelMatcher.minY(r2));
+		});
+
+		// 5. 组装与清洗
 		StringBuilder sb = new StringBuilder();
 		if (firstLineFromMerged != null) {
 			sb.append(firstLineFromMerged);
 		}
-		// 按 y 升序拼接后续跨行框
-		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
+		// 按排序顺序拼接后续跨行框
 		for (PPOcrV6Result r : candidates) {
 			if (!sb.isEmpty()) {
 				sb.append(' ');
 			}
 			sb.append(r.text());
 		}
+
 		// 去掉内部空白（OCR 噪声 + 拼接引入的空格）
 		String result = sb.toString().replaceAll("\\s+", "");
 		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * 检查文本是否包含其他已知正面/反面字段关键字或身份证号
+	 */
+	private static boolean containsAnyLabelOrId(String text) {
+		if (text.contains("公民身份号码") || text.contains("身份证号")
+			|| text.contains("姓名") || text.contains("性别")
+			|| text.contains("民族") || text.contains("出生")
+			|| text.contains("签发机关") || text.contains("有效期限")) {
+			return true;
+		}
+		return ID_NUMBER_18_PATTERN.matcher(text).find()
+			|| ID_NUMBER_15_PATTERN.matcher(text).find();
 	}
 
 	/**
