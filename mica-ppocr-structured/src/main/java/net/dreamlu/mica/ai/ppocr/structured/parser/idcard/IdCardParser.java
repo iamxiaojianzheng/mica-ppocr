@@ -127,15 +127,97 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
-	 * 性别提取：优先尝试合并框切割（兼容 "性别男民族汉" 双标签连写合并框），未命中时走标准标签定位。
+	 * 性别提取：优先尝试合并框切割（兼容 "性别男民族汉" 双标签连写合并框 + "别男民族汉" "性" 字缺失场景），
+	 * 未命中时走标准标签定位，最后兜底"标签下方 x 重叠"的值框查找
+	 * （兼容 doc_ori 90° 旋转后值框堆叠在标签正下方的场景）。
 	 */
 	private static String parseGender(List<PPOcrV6Result> results) {
-		String mergedValue = LabelMatcher.matchSubstring(results, text -> cutAtNextLabel(afterLabel(text, "性别")));
+		// 1. 合并框切割：标准 "性别男民族汉" + 残片 "别男民族汉" / "性男民族汉" 单框
+		String mergedValue = LabelMatcher.matchSubstring(results, text -> {
+			String std = cutAtNextLabel(afterLabel(text, "性别"));
+			if (std != null) {
+				return std;
+			}
+			// 残片兜底：text 以 "性" 或 "别" 起头，紧跟 "男" / "女"（小模型漏识别 "性别" 之一字）
+			if (text.length() >= 2) {
+				char first = text.charAt(0);
+				char second = text.charAt(1);
+				if ((first == '性' || first == '别') && (second == '男' || second == '女')) {
+					return cutAtNextLabel(text.substring(1));
+				}
+			}
+			return null;
+		});
 		if (mergedValue != null) {
 			return mergedValue;
 		}
+		// 2. 标准标签定位（值在右侧）
 		String labelValue = LabelMatcher.matchValueFromPrefix(results, "性别");
-		return cutAtNextLabel(labelValue);
+		String cut = cutAtNextLabel(labelValue);
+		if (cut != null) {
+			return cut;
+		}
+		// 3. 兜底：值框堆叠在"性别"标签正下方（同 x 范围、y 在下方）
+		return matchValueBelowLabel(results, "性别", "男|女");
+	}
+
+	/**
+	 * 在指定标签框"正下方 + x 重叠"区域找一个值框，按 valuePattern 在文本首部切出值。
+	 *
+	 * <p>典型场景：doc_ori 90° 旋转后，"性别"label 和 "男民族汉" 值框 x 范围几乎相同、
+	 * 上下堆叠；标准 {@code rCenterX > labelCenterX} 策略无法命中，此方法兜底。
+	 *
+	 * @param results      OCR 结果列表
+	 * @param label        字段标签（用于定位 label 框）
+	 * @param valuePattern 值文本首部需匹配的正则（如 "男|女"）
+	 * @return 切出的字段值；无候选时返回 null
+	 */
+	private static String matchValueBelowLabel(List<PPOcrV6Result> results, String label, String valuePattern) {
+		PPOcrV6Result labelBox = LabelMatcher.findLabelBox(results, label);
+		if (labelBox == null) {
+			return null;
+		}
+		int labelMinX = LabelMatcher.minX(labelBox);
+		int labelMaxX = LabelMatcher.maxX(labelBox);
+		int labelMaxY = LabelMatcher.maxY(labelBox);
+		java.util.regex.Pattern p = java.util.regex.Pattern.compile(valuePattern);
+		for (PPOcrV6Result r : results) {
+			if (r == labelBox) {
+				continue;
+			}
+			String text = r.text();
+			if (text == null || text.isEmpty()) {
+				continue;
+			}
+			int rMinX = LabelMatcher.minX(r);
+			int rMaxX = LabelMatcher.maxX(r);
+			int rMinY = LabelMatcher.minY(r);
+			int rMaxY = LabelMatcher.maxY(r);
+			// x 必须与 label 重叠（允许 5px 偏移，兼容轻微倾斜）
+			if (rMaxX < labelMinX - 5 || rMinX > labelMaxX + 5) {
+				continue;
+			}
+			// 候选必须在 label 下方或紧贴下方（rMaxY >= labelMaxY 附近）
+			if (rMaxY < labelMaxY - 5) {
+				continue;
+			}
+			// 取距 label 最近的候选（y 距离最小）
+			int yDist = rMinY - labelMaxY;
+			if (yDist < -10) {
+				// 候选主要在 label 上方，不视为"下方"候选
+				continue;
+			}
+			// 值文本首部必须匹配 valuePattern
+			java.util.regex.Matcher m = p.matcher(text);
+			if (!m.find() || m.start() > 2) {
+				// 只接受首部匹配（容忍 1-2 字前缀噪声如空格）
+				continue;
+			}
+			// 切出值：到下一个正面标签为止
+			String value = text.substring(m.start());
+			return cutAtNextLabel(value);
+		}
+		return null;
 	}
 
 	/**
@@ -256,35 +338,48 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	 * <p>住址可能换行，需要拼接多个几何重叠或延伸的右侧/下方框。
 	 *
 	 * <p>核心算法逻辑：
-	 * 1. 先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
-	 *    则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。
-	 * 2. 动态确定下界止点：寻找"公民身份号码"标签或身份证号框的 Y 轴上边缘作为地址区域物理止点，防止吸收底部无关噪声。
-	 * 3. X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，确保左下角短续行（如"1组"）不被误杀。
-	 * 4. 二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。
+	 * <ol>
+	 *   <li>先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
+	 *       则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。</li>
+	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，任何
+	 *       <b>x 和 y 都与号码框相交</b>的候选都被剔除。这同时覆盖两种布局：
+	 *       <ul>
+	 *         <li>标准布局（号码在地址下方）—— 候选与号码 y 重叠但 x 互不覆盖的情况被自然放过；</li>
+	 *         <li>旋转布局（doc_ori 90° 旋转后号码在地址左侧同 y 范围）—— 原先仅用
+	 *             {@code bottomLimitY = idMinY} 会把"地址续行（位于号码下方）"误剔，
+	 *             区域排斥用 x 不重叠来放过续行、用 y 重叠来剔除真正落入号码列的噪声。</li>
+	 *       </ul>
+	 *   </li>
+	 *   <li>X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，
+	 *       确保左下角短续行（如"1组"）不被误杀。</li>
+	 *   <li>二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。</li>
+	 * </ol>
 	 */
+	/**
+	 * 住址关键字正则（省/市/县/区/镇/村/乡/旗/盟/州），用于无"住址"标签时按内容筛选。
+	 */
+	private static final Pattern ADDR_KEYWORD_PATTERN = Pattern.compile("[省市县区镇乡村旗盟州]");
+	/**
+	 * 日期关键字正则（年/月/日），用于排除被误判为地址的日期框。
+	 */
+	private static final Pattern DATE_KEYWORD_PATTERN = Pattern.compile("[年月日]");
+
 	private static String parseAddress(List<PPOcrV6Result> results) {
 		// 先用 findLabelBox 找独立"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
 		// 则返回的 labelBox 是合并框，需要从中剥出独立的"住址"标签框（构造虚拟框）。
 		PPOcrV6Result labelBox = LabelMatcher.findLabelBox(results, "住址");
 		if (labelBox == null) {
-			log.warn("身份证解析：未找到标签 \"住址\"");
-			return null;
+			// 兜底：标签完全缺失（small 模型常见），按 score + 地址关键字过滤从所有框拼出地址
+			log.warn("身份证解析：未找到标签 \"住址\"，启用无标签兜底");
+			return parseAddressWithoutLabel(results);
 		}
 
-		// 1. 动态确定住址区域的垂直下界止点 (Bottom Limit)
-		// 寻找"公民身份号码"或身份证号框作为住址区域的下界止点
-		int bottomLimitY = Integer.MAX_VALUE;
-		for (PPOcrV6Result r : results) {
-			String text = r.text();
-			if (text.contains("公民身份号码") || text.contains("身份证号")
-				|| ID_NUMBER_18_PATTERN.matcher(text).find()
-				|| ID_NUMBER_15_PATTERN.matcher(text).find()) {
-				int minY = LabelMatcher.minY(r);
-				if (minY < bottomLimitY) {
-					bottomLimitY = minY;
-				}
-			}
-		}
+		// 1. 定位"身份证号码"框（可能与 label 合并），用其区域作为住址的排除区
+		PPOcrV6Result idBox = findIdNumberBox(results);
+		int idMinX = idBox == null ? Integer.MIN_VALUE : LabelMatcher.minX(idBox);
+		int idMaxX = idBox == null ? Integer.MAX_VALUE : LabelMatcher.maxX(idBox);
+		int idMinY = idBox == null ? Integer.MIN_VALUE : LabelMatcher.minY(idBox);
+		int idMaxY = idBox == null ? Integer.MAX_VALUE : LabelMatcher.maxY(idBox);
 
 		// 2. 检查是否是合并框（"住址"被识别成"住址XXX"）；若是，剥出"住址"文本部分的值（地址第一行）
 		String labelText = labelBox.text();
@@ -293,7 +388,6 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		if (labelText.startsWith("住址") && labelText.length() > 2) {
 			// 合并框：第一行地址已含在 labelBox 中，剥前缀得到
 			firstLineFromMerged = labelText.substring(2);
-			// 不再需要 y 重叠的右侧框（合并框里已含第一行），只找后续跨行框
 		}
 
 		int labelMinX = LabelMatcher.minX(labelBox);
@@ -301,7 +395,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		int labelMaxY = LabelMatcher.maxY(labelBox);
 		int oneLineHeight = Math.max(labelMaxY - labelMinY, 15);
 
-		// 3. 收集 y 范围与标签重叠或向下方延伸的候选框
+		// 3. 收集候选框：x/y 几何约束 + 区域排斥
 		for (PPOcrV6Result r : results) {
 			if (r == labelBox) {
 				continue;
@@ -316,26 +410,28 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 				continue;
 			}
 
+			int rMinX = LabelMatcher.minX(r);
 			int rMaxX = LabelMatcher.maxX(r);
-			// 值框右边缘必须在"住址"标签左边缘之后（允许 10px 倾斜/容差，兼容左下角短文本续行）
-			if (rMaxX < labelMinX - 10) {
-				continue;
-			}
-
 			int rMinY = LabelMatcher.minY(r);
 			int rMaxY = LabelMatcher.maxY(r);
 
-			// y 范围控制：
-			// a. 框下边缘不能高于"住址"标签上边缘
+			// a. 值框右边缘必须在"住址"标签左边缘之后（允许 10px 倾斜/容差，兼容左下角短文本续行）
+			if (rMaxX < labelMinX - 10) {
+				continue;
+			}
+			// b. 值框下边缘不能高于"住址"标签上边缘
 			if (rMaxY < labelMinY - 5) {
 				continue;
 			}
-			// b. 框上边缘必须高于身份证号码下界止点
-			if (rMinY >= bottomLimitY - 2) {
+			// c. 区域排斥：候选若与号码框 x/y 都重叠，视为号码列的噪声，剔除
+			//    （标准布局：地址在号码上方 → y 不重叠 → 放过；旋转布局：地址在号码右侧 → x 不重叠 → 放过）
+			if (idBox != null
+				&& rMinX < idMaxX && rMaxX > idMinX
+				&& rMinY < idMaxY && rMaxY > idMinY) {
 				continue;
 			}
-			// c. 若未识别到号码框下界，限制最多在住址标签下方延伸 4 行
-			if (bottomLimitY == Integer.MAX_VALUE && rMinY > labelMaxY + 4 * oneLineHeight) {
+			// d. 若未识别到号码框下界，限制最多在住址标签下方延伸 4 行（防止远处噪声）
+			if (idBox == null && rMinY > labelMaxY + 4 * oneLineHeight) {
 				continue;
 			}
 
@@ -367,6 +463,96 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		// 去掉内部空白（OCR 噪声 + 拼接引入的空格）
 		String result = sb.toString().replaceAll("\\s+", "");
 		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * 住址无标签兜底：当 OCR 完全没识别出"住址"label（small 模型常见），
+	 * 按内容模式（地址关键字 + 置信度阈值）从所有框中筛选并拼出地址。
+	 *
+	 * <p>这是个<b>有损兜底</b>：短地址（如"山东"）会被"必须含地址关键字"过滤掉，
+	 * 实际场景 95%+ 是多字地址，可接受。匹配规则（按顺序）：
+	 * <ol>
+	 *   <li>置信度 ≥ 0.5（砍掉"降""州"这类 score 0.1~0.4 的 OCR 碎屑）；</li>
+	 *   <li>不含已知正面/反面字段关键字（姓名/性别/民族/出生/住址/公民身份号码/签发机关/有效期限）；</li>
+	 *   <li>不含日期关键字（年/月/日），排除被误判为地址的日期框；</li>
+	 *   <li>含至少一个地址关键字（省/市/县/区/镇/村/乡/旗/盟/州）；</li>
+	 *   <li>长度 ≥ 3（砍掉单字噪声）。</li>
+	 * </ol>
+	 * 按 y 升序、同行按 x 升序拼接；多行用空格连接后用 {@code replaceAll("\\s+", "")} 清洗。
+	 */
+	private static String parseAddressWithoutLabel(List<PPOcrV6Result> results) {
+		List<PPOcrV6Result> candidates = new ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text == null || text.isEmpty()) {
+				continue;
+			}
+			if (r.score() < 0.5f) {
+				continue;
+			}
+			if (containsAnyLabelOrId(text)) {
+				continue;
+			}
+			if (DATE_KEYWORD_PATTERN.matcher(text).find()) {
+				continue;
+			}
+			if (!ADDR_KEYWORD_PATTERN.matcher(text).find()) {
+				continue;
+			}
+			if (text.length() < 3) {
+				continue;
+			}
+			candidates.add(r);
+		}
+		if (candidates.isEmpty()) {
+			return null;
+		}
+		// 二维拓扑排序：先 y 升序，同行（y 差 <= 20px）按 x **降序**
+		// 关键：ID 卡竖版文字下，第一行地址在右、第二行（缩进）在左，故同 y 时 x 大者优先
+		candidates.sort((r1, r2) -> {
+			int yDiff = LabelMatcher.minY(r1) - LabelMatcher.minY(r2);
+			if (Math.abs(yDiff) <= 20) {
+				return Integer.compare(LabelMatcher.minX(r2), LabelMatcher.minX(r1));
+			}
+			return yDiff;
+		});
+		StringBuilder sb = new StringBuilder();
+		for (PPOcrV6Result r : candidates) {
+			if (!sb.isEmpty()) {
+				sb.append(' ');
+			}
+			sb.append(r.text());
+		}
+		String result = sb.toString().replaceAll("\\s+", "");
+		return result.isEmpty() ? null : result;
+	}
+
+	/**
+	 * 定位"公民身份号码"或身份证号文本框。
+	 *
+	 * <p>优先匹配含 18/15 位身份证号的框（最可能是 label + value 合并框或纯号码框），
+	 * 未命中再回退到任意含"公民身份号码"/"身份证号"关键字的框。
+	 *
+	 * @return 号码框；未识别到时返回 null
+	 */
+	private static PPOcrV6Result findIdNumberBox(List<PPOcrV6Result> results) {
+		PPOcrV6Result idPatternBox = null;
+		PPOcrV6Result labelOnlyBox = null;
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text == null || text.isEmpty()) {
+				continue;
+			}
+			if (ID_NUMBER_18_PATTERN.matcher(text).find() || ID_NUMBER_15_PATTERN.matcher(text).find()) {
+				idPatternBox = r;
+				break;
+			}
+			if (labelOnlyBox == null
+				&& (text.contains("公民身份号码") || text.contains("身份证号"))) {
+				labelOnlyBox = r;
+			}
+		}
+		return idPatternBox != null ? idPatternBox : labelOnlyBox;
 	}
 
 	/**

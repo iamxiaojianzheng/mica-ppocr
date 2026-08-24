@@ -259,14 +259,18 @@ public class LabelMatcher {
 			if (!text.equals(label) && text.length() < label.length() && label.contains(text)) continue;
 			int x0 = minX(r);
 			int rCenterX = (x0 + maxX(r)) / 2;
-			if (rCenterX <= labelCenterX) continue;
+			// 容忍 2px 中心 x 偏差：旋转卡片中"值框正下方"或"值框紧贴 label 左边"时 rCenterX 可能
+			// 略小于 labelCenterX（如"性别"label 与"男民族汉"值框同 x 范围、上下堆叠）。
+			if (rCenterX < labelCenterX - 2) continue;
 			if (maxY(r) < labelMinY || minY(r) > labelMaxY) continue;
-			// 综合打分：x 距离 label 右边为主权重（值框通常紧邻 label 右侧同行），
+			// 综合打分：x 距离 label 边为主权重（值框通常紧邻 label 右侧同行），
 			// y 中心偏离为次要打破平局。
+			// 用 |dx| 对称处理：旋转卡片中"值框紧贴 label 下方"时 dx 可能是负数，
+			// 直接用 dx*10 会得到很低的负分抢走本应选中的右侧候选。
 			// 之前 dy*100+dx 在 dy=0 时（即 y 中心与 label 完全相同，如"姓名"label 与"性别"label 同行）
 			// 会让远处的"性别"label 框因 dx 较大但 dy=0 而胜出。
 			int dy = Math.abs((minY(r) + maxY(r)) / 2 - labelCenterY);
-			int dx = x0 - labelMaxX;
+			int dx = Math.abs(x0 - labelMaxX);
 			int score = dx * 10 + dy;
 			if (score < bestScore) {
 				bestScore = score;
