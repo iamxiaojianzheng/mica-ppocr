@@ -338,6 +338,38 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		return null;
 	}
 
+	/**
+	 * 住址提取：按"住址"标签定位，支持合并框及跨多框/跨行（如"四川省金堂县平桥乡清堰" + "1组"）。
+	 *
+	 * <p>住址可能换行，需要拼接多个几何重叠或延伸的右侧/下方框。
+	 *
+	 * <p>核心算法逻辑：
+	 * <ol>
+	 *   <li>先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
+	 *       则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。</li>
+	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，任何
+	 *       <b>x 和 y 都与号码框相交</b>的候选都被剔除。这同时覆盖两种布局：
+	 *       <ul>
+	 *         <li>标准布局（号码在地址下方）—— 候选与号码 y 重叠但 x 互不覆盖的情况被自然放过；</li>
+	 *         <li>旋转布局（doc_ori 90° 旋转后号码在地址左侧同 y 范围）—— 原先仅用
+	 *             {@code bottomLimitY = idMinY} 会把"地址续行（位于号码下方）"误剔，
+	 *             区域排斥用 x 不重叠来放过续行、用 y 重叠来剔除真正落入号码列的噪声。</li>
+	 *       </ul>
+	 *   </li>
+	 *   <li>X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，
+	 *       确保左下角短续行（如"1组"）不被误杀。</li>
+	 *   <li>二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。</li>
+	 * </ol>
+	 */
+	/**
+	 * 住址关键字正则（省/市/县/区/镇/村/乡/旗/盟/州），用于无"住址"标签时按内容筛选。
+	 */
+	private static final Pattern ADDR_KEYWORD_PATTERN = Pattern.compile("[省市县区镇乡村旗盟州]");
+	/**
+	 * 日期关键字正则（年/月/日），用于排除被误判为地址的日期框。
+	 */
+	private static final Pattern DATE_KEYWORD_PATTERN = Pattern.compile("[年月日]");
+
 	private static String parseAddress(List<PPOcrV6Result> results) {
 		// 先用 findLabelBox 找独立"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
 		// 则返回的 labelBox 是合并框，需要从中剥出独立的"住址"标签框（构造虚拟框）。
@@ -397,21 +429,11 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			if (rMaxY < labelMinY - 5) {
 				continue;
 			}
-			// c. 区域排斥：候选与号码框在 x/y 两个方向均有"过半"重叠时，才视为号码列噪声剔除。
-			//    用重叠比例代替任意相交：倾斜图片中住址续行底边常与号码行顶边轻微擦边
-			//    （如 zhy_idcard06 续行 y 底边仅与号码行相交 ~9px），不能因此误杀。
-			if (idBox != null) {
-				int overlapW = Math.min(rMaxX, idMaxX) - Math.max(rMinX, idMinX);
-				int overlapH = Math.min(rMaxY, idMaxY) - Math.max(rMinY, idMinY);
-				if (overlapW > 0 && overlapH > 0
-					&& overlapW * 2 >= (rMaxX - rMinX)
-					&& overlapH * 2 >= (rMaxY - rMinY)) {
-					continue;
-				}
-			}
-			// d2. 标准布局下住址续行不会出现在号码框下方：剔除号码框下方超过一行的远处噪声
-			//    （如水印残片 "SV"/"SV2"，score 低且位于图片右下角）
-			if (idBox != null && rMinY > idMaxY + oneLineHeight) {
+			// c. 区域排斥：候选若与号码框 x/y 都重叠，视为号码列的噪声，剔除
+			//    （标准布局：地址在号码上方 → y 不重叠 → 放过；旋转布局：地址在号码右侧 → x 不重叠 → 放过）
+			if (idBox != null
+				&& rMinX < idMaxX && rMaxX > idMinX
+				&& rMinY < idMaxY && rMaxY > idMinY) {
 				continue;
 			}
 			// d. 若未识别到号码框下界，限制最多在住址标签下方延伸 4 行（防止远处噪声）
@@ -502,7 +524,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		});
 		StringBuilder sb = new StringBuilder();
 		for (PPOcrV6Result r : candidates) {
-			if (sb.length() > 0) {
+			if (!sb.isEmpty()) {
 				sb.append(' ');
 			}
 			sb.append(r.text());
