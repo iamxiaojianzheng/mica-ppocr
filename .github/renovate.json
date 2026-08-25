@@ -6,7 +6,8 @@
   "packageRules": [
     {
       "matchPackagePatterns": [
-        "^com.microsoft.onnxruntime:onnxruntime$"
+        "^com.microsoft.onnxruntime:onnxruntime$",
+        "^org.springframework.boot:spring-boot-dependencies$"
       ],
       "enabled": false
     }
