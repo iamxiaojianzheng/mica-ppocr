@@ -39,7 +39,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 			box("所有人", 100, 400, 160, 420),
 			box("盛瑞传动股份有限公司", 180, 400, 400, 420),
 			box("车辆识别代号", 100, 500, 200, 520),
-			box("LJ8F3D5H910700001", 220, 505, 400, 520),
+			box("LJXXXXXXXXXXXXXXX", 220, 505, 400, 520),
 			box("发证日期", 100, 600, 180, 620),
 			box("2018-02-24", 200, 605, 300, 620)
 		);
@@ -48,7 +48,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		assertEquals("鲁GH9P12", r.getPlateNo());
 		assertEquals("小型普通客车", r.getVehicleType());
 		assertEquals("盛瑞传动股份有限公司", r.getOwner());
-		assertEquals("LJ8F3D5H910700001", r.getVin());
+		assertEquals("LJXXXXXXXXXXXXXXX", r.getVin());
 		assertEquals("2018-02-24", r.getIssueDate());
 	}
 
@@ -84,10 +84,10 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		// "车辆识别代号" 标签缺失 + 正则兜底也失败 + VIN 带前导点号噪声
 		List<PPOcrV6Result> results = List.of(
 			box("VIN噪声", 100, 200, 200, 220),
-			box(".LL4WG44B8JL339900", 220, 200, 500, 220)
+			box(".LLXXXXXXXXXXXXXXX", 220, 200, 500, 220)
 		);
 		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
-		assertEquals("LL4WG44B8JL339900", r.getVin());
+		assertEquals("LLXXXXXXXXXXXXXXX", r.getVin());
 	}
 
 	@Test
@@ -157,22 +157,8 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_realImageOcrTinyVehicle4() {
-		// 真实样本：test_images/vehicle/vehicle4.png（2989x2200）经 tiny 模型 OCR 输出的
-		// 全部 34 个文本框，box 坐标取自 OCR 实际输出（按左/上/右/下四个极值近似为矩形）。
-		// 值字段已做隐私脱敏：
-		//   - 车牌号     豫A99RR9          → 豫A*****R9
-		//   - 所有人     郑昆              → 张*
-		//   - 住址       中牟县三刘寨村     → XX县XX村
-		//                河南省郑州         → XX省XX市
-		//   - 品牌型号   大众汽车牌SVW6474DFD → XX汽车牌XXXXXXX
-		//   - VIN        SSVUDDTT2J2022558 → SSVUDDTT2J2******
-		//   - 发动机号   111533            → ***533
-		//   - 发证机关   市公安局交/通警察支队 → XX市公安局交 / 通警察XX
-		//   - 合并框     所有人郑昆          → 所有人张*
-		//                址中牟县三刘寨村    → 址XX县XX村
-		// 关键回归点：
-		//   1) "所有人张*" 合并框 → 剥出 owner="张*"
-		//      （旧逻辑会回退到 "Owner" label，把整段 "所有人张*" 当成值）
+		// 真实样本回归（值字段已脱敏，box 坐标与真实样本一致）：
+		// 关键回归点 —— 「label + 值」被 OCR 合并识别成单框时，解析器应能剥出值。
 		List<PPOcrV6Result> results = List.of(
 			box("中华人民共和国机动车行驶证", 699, 313, 2255, 465),
 			box("VehicleLicenseofthePeople''sRepublicofChina", 710, 431, 2251, 520),
@@ -195,13 +181,13 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 			box("Model", 1169, 1202, 1350, 1263),
 			box("XX省XX市", 385, 1322, 899, 1450),
 			box("车辆识别代号", 937, 1320, 1364, 1401),
-			box("SSVUDDTT2J2******", 1432, 1325, 2346, 1459),
+			box("XXXXXXXXXXXXXXXXX", 1432, 1325, 2346, 1459),
 			box("VIN", 939, 1396, 1073, 1459),
-			box("XX市公安局交", 390, 1494, 906, 1624),
+			box("XX市XX交", 390, 1494, 906, 1624),
 			box("发动机号码", 944, 1504, 1305, 1587),
 			box("***533", 1352, 1529, 1693, 1647),
 			box("EngineNo.", 952, 1583, 1226, 1653),
-			box("通警察XX", 390, 1674, 896, 1793),
+			box("通警XX队", 390, 1674, 896, 1793),
 			box("注册日期", 952, 1694, 1226, 1770),
 			box("发证日期", 1807, 1692, 2065, 1772),
 			box("2018-03-12", 1220, 1713, 1759, 1843),
@@ -212,8 +198,6 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("张*", r.getOwner());
 		assertEquals("小型普通客车", r.getVehicleType());
-		// 注：plateNo 在真实样本中是脱敏后的"豫A*****R9"，
-		// 不符合 PLATE_PATTERN（车牌号识别结果会被解析器视为噪声丢弃），
-		// 故此处不断言。owner / vehicleType 是本次关键回归点。
+		// plateNo 因脱敏字符不符合车牌号正则被解析器视为噪声丢弃，不作硬断言。
 	}
 }
