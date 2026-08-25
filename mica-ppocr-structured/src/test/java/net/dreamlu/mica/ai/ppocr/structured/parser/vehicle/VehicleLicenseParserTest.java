@@ -154,4 +154,66 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		assertEquals("京通租赁集团有限公司北京分公司", r.getOwner());
 		assertEquals("小型轿车", r.getVehicleType());
 	}
+
+	@Test
+	void parse_realImageOcrTinyVehicle4() {
+		// 真实样本：test_images/vehicle/vehicle4.png（2989x2200）经 tiny 模型 OCR 输出的
+		// 全部 34 个文本框，box 坐标取自 OCR 实际输出（按左/上/右/下四个极值近似为矩形）。
+		// 值字段已做隐私脱敏：
+		//   - 车牌号     豫A99RR9          → 豫A*****R9
+		//   - 所有人     郑昆              → 张*
+		//   - 住址       中牟县三刘寨村     → XX县XX村
+		//                河南省郑州         → XX省XX市
+		//   - 品牌型号   大众汽车牌SVW6474DFD → XX汽车牌XXXXXXX
+		//   - VIN        SSVUDDTT2J2022558 → SSVUDDTT2J2******
+		//   - 发动机号   111533            → ***533
+		//   - 发证机关   市公安局交/通警察支队 → XX市公安局交 / 通警察XX
+		//   - 合并框     所有人郑昆          → 所有人张*
+		//                址中牟县三刘寨村    → 址XX县XX村
+		// 关键回归点：
+		//   1) "所有人张*" 合并框 → 剥出 owner="张*"
+		//      （旧逻辑会回退到 "Owner" label，把整段 "所有人张*" 当成值）
+		List<PPOcrV6Result> results = List.of(
+			box("中华人民共和国机动车行驶证", 699, 313, 2255, 465),
+			box("VehicleLicenseofthePeople''sRepublicofChina", 710, 431, 2251, 520),
+			box("号牌号码", 353, 538, 655, 629),
+			box("豫A*****R9", 671, 538, 1111, 660),
+			box("车辆类型", 1331, 538, 1628, 621),
+			box("小型普通客车", 1734, 550, 2376, 689),
+			box("PlateNo.", 359, 617, 620, 685),
+			box("VehicleType", 1326, 616, 1629, 685),
+			box("所有人张*", 338, 727, 891, 856),
+			box("Owner", 360, 822, 549, 880),
+			box("址XX县XX村", 574, 916, 1413, 1066),
+			box("住", 358, 938, 466, 1018),
+			box("Address", 368, 1024, 586, 1075),
+			box("使用性质", 361, 1122, 665, 1212),
+			box("非营运", 672, 1125, 991, 1244),
+			box("品牌型号", 1166, 1121, 1468, 1210),
+			box("XX汽车牌XXXXXXX", 1498, 1131, 2578, 1273),
+			box("UseCharacter", 367, 1206, 679, 1261),
+			box("Model", 1169, 1202, 1350, 1263),
+			box("XX省XX市", 385, 1322, 899, 1450),
+			box("车辆识别代号", 937, 1320, 1364, 1401),
+			box("SSVUDDTT2J2******", 1432, 1325, 2346, 1459),
+			box("VIN", 939, 1396, 1073, 1459),
+			box("XX市公安局交", 390, 1494, 906, 1624),
+			box("发动机号码", 944, 1504, 1305, 1587),
+			box("***533", 1352, 1529, 1693, 1647),
+			box("EngineNo.", 952, 1583, 1226, 1653),
+			box("通警察XX", 390, 1674, 896, 1793),
+			box("注册日期", 952, 1694, 1226, 1770),
+			box("发证日期", 1807, 1692, 2065, 1772),
+			box("2018-03-12", 1220, 1713, 1759, 1843),
+			box("2018-03.13.", 2058, 1730, 2608, 1862),
+			box("RegisterDate", 945, 1774, 1221, 1831),
+			box("IssueDate", 1813, 1771, 2054, 1827)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("张*", r.getOwner());
+		assertEquals("小型普通客车", r.getVehicleType());
+		// 注：plateNo 在真实样本中是脱敏后的"豫A*****R9"，
+		// 不符合 PLATE_PATTERN（车牌号识别结果会被解析器视为噪声丢弃），
+		// 故此处不断言。owner / vehicleType 是本次关键回归点。
+	}
 }

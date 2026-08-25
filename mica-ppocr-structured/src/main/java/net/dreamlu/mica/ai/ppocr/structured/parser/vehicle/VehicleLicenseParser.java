@@ -72,8 +72,12 @@ public class VehicleLicenseParser extends BaseStructuredParser<VehicleLicenseRes
 		license.setPlateNo(plateMatch.value());
 		LabelMatcher.applyFieldBox(license, "plateNo", plateMatch);
 
-		// 2. 所有人：中文标签 → 英文别名 → 版面布局兜底
-		LabeledMatch ownerMatch = LabelMatcher.matchValueWithBox(results, "所有人");
+		// 2. 所有人：合并框（"所有人xxx"）→ 中文标签 → 英文别名 → 版面布局兜底
+		//    OCR 常把"所有人"+"姓名"识别成单框"所有人郑昆"——先按合并框剥前缀
+		LabeledMatch ownerMatch = LabelMatcher.matchValueFromPrefixWithBox(results, "所有人");
+		if (!ownerMatch.hasValue()) {
+			ownerMatch = LabelMatcher.matchValueWithBox(results, "所有人");
+		}
 		if (!ownerMatch.hasValue()) {
 			ownerMatch = LabelMatcher.matchValueWithBox(results, "Owner");
 			if (ownerMatch.hasValue()) {
