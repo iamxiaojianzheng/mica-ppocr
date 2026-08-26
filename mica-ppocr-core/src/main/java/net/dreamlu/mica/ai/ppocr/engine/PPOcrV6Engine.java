@@ -633,6 +633,9 @@ public final class PPOcrV6Engine implements Closeable {
 	/**
 	 * 将图片字节解码为 BGR Mat。
 	 *
+	 * <p>{@link MatOfByte} 构造时会分配 native 内存并把 byte[] 拷贝过去，
+	 * imdecode 用完后即丢——必须显式 release，否则每次调用泄漏一个 mob 的 native buffer。
+	 *
 	 * @param imgBytes 图片字节
 	 * @return BGR 格式的 Mat（非空）
 	 * @throws IllegalArgumentException 字节为空或解码失败
@@ -641,7 +644,13 @@ public final class PPOcrV6Engine implements Closeable {
 		if (imgBytes == null || imgBytes.length == 0) {
 			throw new IllegalArgumentException("imgBytes must not be empty");
 		}
-		Mat mat = Imgcodecs.imdecode(new MatOfByte(imgBytes), Imgcodecs.IMREAD_COLOR);
+		MatOfByte mob = new MatOfByte(imgBytes);
+		Mat mat;
+		try {
+			mat = Imgcodecs.imdecode(mob, Imgcodecs.IMREAD_COLOR);
+		} finally {
+			mob.release();
+		}
 		if (mat.empty()) {
 			mat.release();
 			throw new IllegalArgumentException("Failed to decode image from byte[] (unsupported format or corrupted data)");
