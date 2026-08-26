@@ -438,7 +438,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		}
 		// 按排序顺序拼接后续跨行框
 		for (PPOcrV6Result r : candidates) {
-			if (!sb.isEmpty()) {
+			if (sb.length() > 0) {
 				sb.append(' ');
 			}
 			sb.append(r.text());
@@ -502,7 +502,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		});
 		StringBuilder sb = new StringBuilder();
 		for (PPOcrV6Result r : candidates) {
-			if (!sb.isEmpty()) {
+			if (sb.length() > 0) {
 				sb.append(' ');
 			}
 			sb.append(r.text());

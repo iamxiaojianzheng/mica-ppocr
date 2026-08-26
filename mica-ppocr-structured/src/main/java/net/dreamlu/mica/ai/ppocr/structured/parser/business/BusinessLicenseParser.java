@@ -807,7 +807,7 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 				break;
 			}
 			boolean sameLine = isSameLine(prevCenterY, rCenterY, rHeight, oneLine);
-			if (sb.isEmpty()) {
+			if (sb.length() == 0) {
 				sb.append(r.text());
 			} else if (sameLine) {
 				// 同行紧邻：直接拼接（同视觉行的水平续段）

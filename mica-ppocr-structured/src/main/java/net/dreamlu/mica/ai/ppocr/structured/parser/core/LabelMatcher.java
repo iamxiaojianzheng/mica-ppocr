@@ -519,7 +519,7 @@ public class LabelMatcher {
 		candidates.sort(Comparator.comparingInt(LabelMatcher::minY));
 		StringBuilder sb = new StringBuilder();
 		for (PPOcrV6Result r : candidates) {
-			if (!sb.isEmpty()) {
+			if (sb.length() > 0) {
 				sb.append(' ');
 			}
 			sb.append(r.text());
