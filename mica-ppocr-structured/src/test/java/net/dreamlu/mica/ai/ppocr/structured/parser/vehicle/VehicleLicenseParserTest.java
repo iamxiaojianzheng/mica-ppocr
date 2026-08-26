@@ -32,7 +32,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		// 模拟一张行驶证的关键 OCR 框
 		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌号码", 100, 200, 180, 220),
-			box("鲁GH9P12", 200, 205, 280, 220),
+			box("鲁A00000", 200, 205, 280, 220),
 			box("车辆类型", 100, 300, 180, 320),
 			box("小型普通客车", 200, 305, 320, 320),
 			box("所有人", 100, 400, 160, 420),
@@ -44,7 +44,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		);
 		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertNotNull(r);
-		assertEquals("鲁GH9P12", r.getPlateNo());
+		assertEquals("鲁A00000", r.getPlateNo());
 		assertEquals("小型普通客车", r.getVehicleType());
 		assertEquals("盛瑞传动股份有限公司", r.getOwner());
 		assertEquals("LJXXXXXXXXXXXXXXX", r.getVin());
@@ -152,6 +152,115 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
 		assertEquals("京通租赁集团有限公司北京分公司", r.getOwner());
 		assertEquals("小型轿车", r.getVehicleType());
+	}
+
+	@Test
+	void parse_trailerPlateEndsWithGua() {
+		// 挂车车牌以"挂"结尾（如 "津A0000挂"），PLATE_PATTERN 需兼容
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("号牌号码", 50, 143, 108, 162),
+			box("津A0000挂", 115, 147, 205, 170),
+			box("车辆类型", 233, 154, 285, 167),
+			box("重型集装箱半挂车", 306, 144, 448, 168)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("津A0000挂", r.getPlateNo());
+	}
+
+	@Test
+	void parse_trailerPlateFallbackByRegex() {
+		// 挂车车牌 + "号牌号码" 标签缺失，走正则兜底
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("鲁P0000挂", 100, 200, 220, 230),
+			box("车辆类型", 100, 300, 180, 320)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("鲁P0000挂", r.getPlateNo());
+	}
+
+	@Test
+	void parse_plateMergedWithLabel() {
+		// OCR 把"号牌号码"标签和值识别成单框 "号牌号码津A00000"（合并框剥前缀）
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("号牌号码津A00000", 1136, 240, 1345, 271),
+			box("车辆类型", 599, 340, 687, 358),
+			box("重型半挂牵引车", 718, 323, 926, 359)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("津A00000", r.getPlateNo());
+	}
+
+	@Test
+	void parse_plateInMergedNoisyText() {
+		// 车牌嵌在长合并框里（"号牌号码鲁P0000挂检验有效期至2026年04月鲁"），子串搜索兜底
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("号牌号码鲁P0000挂检验有效期至2026年04月鲁", 100, 200, 500, 230),
+			box("车辆类型", 100, 300, 180, 320)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("鲁P0000挂", r.getPlateNo());
+	}
+
+	@Test
+	void parse_vehicleTypeMergedWithLabel() {
+		// OCR 把"车辆类型"标签和值识别成单框 "车辆类型重型集装箱半挂车"（合并框剥前缀）
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("车辆类型重型集装箱半挂车", 18, 101, 193, 120),
+			box("号牌号码", 50, 143, 108, 162),
+			box("津A0000挂", 115, 147, 205, 170)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("重型集装箱半挂车", r.getVehicleType());
+	}
+
+	@Test
+	void parse_ownerPartialLabelSuoRen() {
+		// OCR 把"所有人"识别成残缺"所人"（缺"有"），值在右侧
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("所人", 231, 337, 324, 372),
+			box("黄书俭", 326, 358, 423, 396)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("黄书俭", r.getOwner());
+	}
+
+	@Test
+	void parse_ownerMergedWithRenPrefix() {
+		// OCR 把"所有人"识别成"人"并与公司名合并成单框 "人莘县顺发物流有限公司"
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("人莘县顺发物流有限公司", 388, 221, 443, 510),
+			box("号牌号码", 50, 143, 108, 162)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("莘县顺发物流有限公司", r.getOwner());
+	}
+
+	@Test
+	void parse_ownerRenPrefixProtectedForRenmin() {
+		// "中国人民财产保险股份有限公司" 是合法以"人"开头的公司名，不应剥前缀
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("所有人", 100, 400, 160, 420),
+			box("中国人民财产保险股份有限公司", 180, 400, 400, 420)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("中国人民财产保险股份有限公司", r.getOwner());
+	}
+
+	@Test
+	void parse_ownerLayoutFallbackExcludesNoise() {
+		// 布局兜底应排除车辆类型值（"重型半挂牵引车"）等噪声，选中真正的所有人
+		List<PPOcrV6Result> results = CollUtil.listOf(
+			box("号牌号码", 100, 200, 180, 220),
+			box("冀A00000", 200, 205, 280, 220),
+			box("车辆类型", 516, 297, 605, 326),
+			box("重型半挂牵引车", 638, 317, 851, 362),
+			box("所人", 231, 337, 324, 372),
+			box("黄书俭", 326, 358, 423, 396),
+			box("住址", 228, 396, 320, 427),
+			box("河北省晋州市祁底镇管洽村黄家口街11号", 322, 416, 877, 451)
+		);
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), results);
+		assertEquals("黄书俭", r.getOwner());
 	}
 
 	@Test

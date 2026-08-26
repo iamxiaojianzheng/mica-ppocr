@@ -613,7 +613,7 @@ public class LabelMatcher {
 	 * 找含任一 keyword 的 OCR 框，再按 valueExtractor 从框文本里切值。
 	 * 返回首个非空提取结果。
 	 *
-	 * <p>典型场景：OCR 把"上车K0870>21:17"识别成单框，label 找不到，
+	 * <p>典型场景：OCR 把"上车K0000>21:17"识别成单框，label 找不到，
 	 * 但"上车"作为 fragment 命中此框；用 {@code text -> extractTime(text)} 从
 	 * 中切出"21:17"。
 	 *

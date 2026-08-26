@@ -431,7 +431,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 			}
 		}
 		// 2) fragment 兜底：从含"上车"或"下车"关键字的框里切时间
-		//    处理 OCR 把"上车K0870>21:17"识别成合并框的场景
+		//    处理 OCR 把"上车K0000>21:17"识别成合并框的场景
 		String boardingHint = pickKeyword(labels, '上');
 		String alightingHint = pickKeyword(labels, '下');
 		TimeRange result = TimeRange.empty();

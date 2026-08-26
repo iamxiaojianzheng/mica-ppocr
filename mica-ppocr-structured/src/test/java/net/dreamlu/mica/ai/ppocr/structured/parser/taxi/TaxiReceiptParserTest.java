@@ -366,7 +366,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 * <p>日期 "日期2021-0:3-13" 合并框中 OCR 把日期分隔符 "-" 识别成冒号 "："，
 	 * DATE_PATTERN 不匹配，date=null。
 	 *
-	 * <p>上车时间 OCR 把 "上车 21:17" 识别为合并框 "上车K0870>21:17"，但 "上车时间" 标签
+	 * <p>上车时间 OCR 把 "上车 21:17" 识别为合并框 "上车K0000>21:17"，但 "上车时间" 标签
 	 * 也没识别成独立框；matchValueFromPrefix 走 fragment 兜底找不到 "上车" 框
 	 * （它跟时间被合并了），boardingTime=null。alightingTime="21:55" 来自"下车"+"21:55"两个独立框。
 	 *
@@ -388,7 +388,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		assertEquals("HW0220", r.getPlateNumber());
 		// P0 优化：OCR 噪声日期"2021-0:3-13"经归一化（删除 ":"）→ 2021-03-13
 		assertEquals("2021-03-13", r.getDate());
-		// P0 优化：合并框"上车K0870>21:17" → 关键字"上车"命中 + extractTime 切 "21:17"
+		// P0 优化：合并框"上车K0000>21:17" → 关键字"上车"命中 + extractTime 切 "21:17"
 		assertEquals("21:17", r.getBoardingTime());
 		assertEquals("21:55", r.getAlightingTime());
 		// mileage "15.0km" - P1 优化：直接走 NORMALIZE_NUMBER（不再受 "0015.40" 占位符误导）

@@ -157,7 +157,7 @@ Python↔Java mapping: `numpy`→`utils.NdArrayUtils`, `pyclipper`→`utils.Offs
 | opencv (openpnp) | 4.9.0-0 | Java 8 |
 | jts-core | 1.20.0 | Java 8 |
 | slf4j-api | 2.0.18 | Java 8 |
-| logback-classic | 1.3.15（替代原 1.6.3，1.6.x 是 Java 11） | Java 8 |
+| slf4j-simple | 2.0.18（**test scope only** —— 替代原 logback-classic 1.3.15） | Java 8 |
 | lombok | 1.18.46 | Java 8 |
 | spring-boot-dependencies | 2.7.18（替代原 3.5.16，3.x 是 Java 17） | Java 8 |
 | mica-auto | 2.3.5（替代原 4.0.1，3.x/4.x 是 Java 17） | Java 8 |

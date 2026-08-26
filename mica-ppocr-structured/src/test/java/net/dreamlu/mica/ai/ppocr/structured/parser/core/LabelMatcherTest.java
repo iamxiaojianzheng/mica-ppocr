@@ -43,9 +43,9 @@ class LabelMatcherTest {
 		// 标签在左、值在右、同 y 范围
 		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌号码", 100, 200, 180, 220),
-			box("鲁GH9P12", 200, 205, 280, 220)
+			box("鲁A00000", 200, 205, 280, 220)
 		);
-		assertEquals("鲁GH9P12", LabelMatcher.matchValue(results, "号牌号码"));
+		assertEquals("鲁A00000", LabelMatcher.matchValue(results, "号牌号码"));
 	}
 
 	@Test
@@ -167,23 +167,23 @@ class LabelMatcherTest {
 	@Test
 	void labelOrFallback_keepsLabelValueWhenFormatValid() {
 		List<PPOcrV6Result> results = CollUtil.listOf(
-			box("鲁GH9P12", 0, 0, 100, 20),
+			box("鲁A00000", 0, 0, 100, 20),
 			box("京A12345", 110, 0, 210, 20)
 		);
 		Pattern p = Pattern.compile("[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
-		String v = LabelMatcher.labelOrFallback("鲁GH9P12", results, p, "车牌", false);
-		assertEquals("鲁GH9P12", v);
+		String v = LabelMatcher.labelOrFallback("鲁A00000", results, p, "车牌", false);
+		assertEquals("鲁A00000", v);
 	}
 
 	@Test
 	void labelOrFallback_fallsBackWhenLabelInvalid() {
 		// 标签定位结果格式异常（OCR 噪声），改走正则兜底
 		List<PPOcrV6Result> results = CollUtil.listOf(
-			box("鲁GH9P12?", 0, 0, 100, 20),   // 标签定位但格式异常
+			box("鲁A00000?", 0, 0, 100, 20),   // 标签定位但格式异常
 			box("京A12345", 110, 0, 210, 20)   // 正则兜底命中
 		);
 		Pattern p = Pattern.compile("[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
-		String v = LabelMatcher.labelOrFallback("鲁GH9P12?", results, p, "车牌", false);
+		String v = LabelMatcher.labelOrFallback("鲁A00000?", results, p, "车牌", false);
 		assertEquals("京A12345", v);
 	}
 
