@@ -341,8 +341,9 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	 * <ol>
 	 *   <li>先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
 	 *       则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。</li>
-	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，任何
-	 *       <b>x 和 y 都与号码框相交</b>的候选都被剔除。这同时覆盖两种布局：
+	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，候选
+	 *       与号码框在 x/y 两方向均有<b>过半重叠</b>时剔除（任意相交会误杀倾斜图片中
+	 *       续行底边与号码行顶边擦边的场景）。这同时覆盖两种布局：
 	 *       <ul>
 	 *         <li>标准布局（号码在地址下方）—— 候选与号码 y 重叠但 x 互不覆盖的情况被自然放过；</li>
 	 *         <li>旋转布局（doc_ori 90° 旋转后号码在地址左侧同 y 范围）—— 原先仅用
@@ -423,11 +424,21 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			if (rMaxY < labelMinY - 5) {
 				continue;
 			}
-			// c. 区域排斥：候选若与号码框 x/y 都重叠，视为号码列的噪声，剔除
-			//    （标准布局：地址在号码上方 → y 不重叠 → 放过；旋转布局：地址在号码右侧 → x 不重叠 → 放过）
-			if (idBox != null
-				&& rMinX < idMaxX && rMaxX > idMinX
-				&& rMinY < idMaxY && rMaxY > idMinY) {
+			// c. 区域排斥：候选与号码框在 x/y 两个方向均有"过半"重叠时，才视为号码列噪声剔除。
+			//    用重叠比例代替任意相交：倾斜图片中住址续行底边常与号码行顶边轻微擦边
+			//    （如 zhy_idcard06 续行 y 底边仅与号码行相交 ~9px），不能因此误杀。
+			if (idBox != null) {
+				int overlapW = Math.min(rMaxX, idMaxX) - Math.max(rMinX, idMinX);
+				int overlapH = Math.min(rMaxY, idMaxY) - Math.max(rMinY, idMinY);
+				if (overlapW > 0 && overlapH > 0
+					&& overlapW * 2 >= (rMaxX - rMinX)
+					&& overlapH * 2 >= (rMaxY - rMinY)) {
+					continue;
+				}
+			}
+			// d2. 标准布局下住址续行不会出现在号码框下方：剔除号码框下方超过一行的远处噪声
+			//    （如水印残片 "SV"/"SV2"，score 低且位于图片右下角）
+			if (idBox != null && rMinY > idMaxY + oneLineHeight) {
 				continue;
 			}
 			// d. 若未识别到号码框下界，限制最多在住址标签下方延伸 4 行（防止远处噪声）
