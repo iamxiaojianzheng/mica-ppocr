@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Assumptions;
@@ -94,7 +95,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_electronicTicket() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// 顶部行程
 			box("始发站", 50, 40, 130, 70),
 			box("北京南站", 150, 40, 290, 70),
@@ -146,7 +147,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_paperTicketMergedLabel() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站 北京南站", 50, 40, 320, 70),
 			box("到达站 廊坊站", 400, 40, 620, 70),
 			box("G1234", 100, 110, 180, 140),
@@ -172,7 +173,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_dPrefixTrainNumber() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站", 50, 40, 130, 70),
 			box("上海虹桥", 150, 40, 290, 70),
 			box("到达站", 400, 40, 480, 70),
@@ -193,7 +194,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_kPrefixTrainNumber() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站 北京西", 50, 40, 320, 70),
 			box("到达站 郑州", 400, 40, 620, 70),
 			box("K789", 100, 110, 180, 140),
@@ -214,7 +215,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_eTicketAdditionalFields() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站 北京南", 50, 40, 320, 70),
 			box("到达站 廊坊", 400, 40, 620, 70),
 			box("G1234", 100, 110, 180, 140),
@@ -244,7 +245,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_partialMaskedIdNumber() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站 北京南", 50, 40, 320, 70),
 			box("到达站 廊坊", 400, 40, 620, 70),
 			box("G1234", 100, 110, 180, 140),
@@ -262,7 +263,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_timeFormats() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("始发站", 50, 40, 130, 70),
 			box("北京南站", 150, 40, 290, 70),
 			box("到达站", 400, 40, 480, 70),
@@ -283,7 +284,7 @@ class TrainTicketParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_emptyResults() {
-		TrainTicketResult r = parse(new TrainTicketParser(null), List.of());
+		TrainTicketResult r = parse(new TrainTicketParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertEquals(null, r.getDeparture());
 		assertEquals(null, r.getArrival());

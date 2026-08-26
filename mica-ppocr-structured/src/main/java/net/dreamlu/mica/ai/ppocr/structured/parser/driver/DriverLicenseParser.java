@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -72,7 +73,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	/**
 	 * 签发机关：已知的非签发机关标签前缀（OCR 可能识别成单独的"姓名""性别""有效期限"等框）。
 	 */
-	private static final List<String> ISSUING_AUTHORITY_LABEL_PREFIXES = List.of(
+	private static final List<String> ISSUING_AUTHORITY_LABEL_PREFIXES = CollUtil.listOf(
 		"姓名", "性别", "国籍", "住址", "证号",
 		"出生日期", "初次领证日期", "准驾车型", "有效期限"
 	);
@@ -80,7 +81,7 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	/**
 	 * 签发机关：已知的英文标签片段。
 	 */
-	private static final List<String> ISSUING_AUTHORITY_LABEL_ENDS = List.of(
+	private static final List<String> ISSUING_AUTHORITY_LABEL_ENDS = CollUtil.listOf(
 		"Name", "Sex", "Nationality", "Address",
 		"Date of Birth", "Date of First Issue", "Class", "Valid Period"
 	);

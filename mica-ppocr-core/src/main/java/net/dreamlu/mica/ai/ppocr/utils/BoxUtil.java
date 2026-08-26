@@ -16,6 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.utils;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.experimental.Accessors;
 import lombok.experimental.UtilityClass;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
@@ -158,11 +163,22 @@ public class BoxUtil {
 
 	/**
 	 * 最小面积外接矩形结果。
-	 *
-	 * @param points     [左上, 右上, 右下, 左下] 顺序的 4 顶点
-	 * @param minSideLen 短边长度（像素）
 	 */
-	public record MinAreaBox(Point[] points, float minSideLen) {
+	@Getter
+	@ToString
+	@EqualsAndHashCode
+	@RequiredArgsConstructor
+	@Accessors(fluent = true)
+	public static class MinAreaBox {
+		/**
+		 * [左上, 右上, 右下, 左下] 顺序的 4 顶点
+		 */
+		private final Point[] points;
+		/**
+		 * 短边长度（像素）
+		 */
+		private final float minSideLen;
+
 		/**
 		 * 将顶点转换为 (4, 2) 的 float 数组。
 		 *

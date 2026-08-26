@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`mica-ppocr` is a **Java 17** port of PP-OCRv6 text detection + recognition, running pure
+`mica-ppocr` is a **Java 8 兼容** port of PP-OCRv6 text detection + recognition, running pure
 [ONNX Runtime](https://onnxruntime.ai/) inference with **zero PaddlePaddle dependency**. It is a
 line-for-line port of the single-file Python reference `ppocrv6_onnx.py` from
 [`AIwork4me/ppocrv6_onnx`](https://github.com/AIwork4me/ppocrv6_onnx), reproducing the exact
@@ -13,6 +13,20 @@ pre/post-processing (DB post-process, CTC greedy decode, pyclipper-equivalent po
 **Bit-exactness with the Python reference is the primary correctness goal.** Defaults favor CPU
 single-threaded execution (`intraOp=interOp=1`) to guarantee deterministic, cross-platform output.
 When changing numeric logic, verify against the Python implementation rather than just "looks reasonable."
+
+**Java 8 兼容性约束**：源码编译目标为 Java 8（`<maven.compiler.source>1.8</maven.compiler.source>`），
+所有 runtime 依赖的字节码均已校验为 Java 8（major 52）。禁止使用 Java 9+ 语言特性和标准库 API：
+- **语言特性**：不要用 `record`（用 Lombok `@Value` + `@Accessors(fluent = true)` 替代）；不要用 `instanceof`
+  模式匹配、`switch` 表达式、文本块、`var`
+- **集合工厂**：不要用 `List.of`/`Set.of`/`Map.of`（用 `CollUtil.listOf/setOf/mapOf` 替代）
+- **字符串 API**（Java 11+）：不要用 `String.stripTrailing/stripLeading/strip/isBlank/repeat/lines`，
+  统一用 `CollUtil.stripTrailing/repeat`；其余若用到请在 `CollUtil` 添 helper
+- **IO API**（Java 9/11+）：不要用 `InputStream.readAllBytes` / `Files.writeString` / `Path.of` / `Stream.toList`，
+  统一用 `CollUtil.readAllBytes/writeString/pathOf/toList`
+- **编译参数**：`maven.compiler.release` 故意不设置。Lombok 1.18.x + JDK 17+ 在 `release 1.8`
+  下会触发"不支持发行版本 1.8"；用 `-source/-target` 时若保留 `release` 也会踩坑。
+  且**不要在无 `--release` 情况下混用 Java 11+ API**——`javac` 会用 JDK 17 rt.jar 解析，编译通过但
+  Java 8 运行时 `NoSuchMethodError`。所有 Java 11+ API 都走 `CollUtil` 兜底。
 
 ## Module structure
 
@@ -127,10 +141,24 @@ The pipeline flows: **detect → sort boxes → crop → recognize**.
 
 Python↔Java mapping: `numpy`→`utils.NdArrayUtils`, `pyclipper`→`utils.Offset` (JTS),
 `cv2.minAreaRect`→`Imgproc.minAreaRect`, `np.rot90`→`Core.ROTATE_90_COUNTERCLOCKWISE`,
-`@dataclass(frozen=True)`→Java `record`.
+`@dataclass(frozen=True)`→Lombok `@Value` 类 + `@Accessors(fluent = true)`（保持 `record` 风格的 `xxx()` 访问）。
 
 ### Known divergences from Python
 
 - `pyclipper` uses scaled-integer math; JTS `BufferOp` uses doubles → unclip differs by <1px.
 - No CoreML provider in ONNX Runtime Java API.
 - For CUDA: swap `onnxruntime`→`onnxruntime_gpu` in pom.xml and set `preferAccelerator(true)`.
+
+### 运行时依赖基线（已校验 Java 8 字节码）
+
+| 依赖 | 版本 | 最低 Java |
+|------|------|----------|
+| onnxruntime | 1.18.0 | Java 8 |
+| opencv (openpnp) | 4.9.0-0 | Java 8 |
+| jts-core | 1.20.0 | Java 8 |
+| slf4j-api | 2.0.18 | Java 8 |
+| logback-classic | 1.3.15（替代原 1.6.3，1.6.x 是 Java 11） | Java 8 |
+| lombok | 1.18.46 | Java 8 |
+| spring-boot-dependencies | 2.7.18（替代原 3.5.16，3.x 是 Java 17） | Java 8 |
+| mica-auto | 2.3.5（替代原 4.0.1，3.x/4.x 是 Java 17） | Java 8 |
+| solon | 4.0.6（**保留** — 实测所有 class 文件 max major = 52） | Java 8 |

@@ -16,7 +16,10 @@
 
 package net.dreamlu.mica.ai.ppocr.postprocessor;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import lombok.ToString;
+import lombok.experimental.Accessors;
 import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 
 import java.io.IOException;
@@ -109,7 +112,7 @@ public final class CtcLabelDecoder {
 		list.add("blank");
 		for (String line : lines) {
 			// stripTrailing 是 Java 11+ 标准库方法，仅去掉尾部空白字符
-			list.add(line == null ? "" : line.stripTrailing());
+			list.add(line == null ? "" : CollUtil.stripTrailing(line));
 		}
 		return list.toArray(new String[0]);
 	}
@@ -317,5 +320,10 @@ public final class CtcLabelDecoder {
 	 * @param texts  解码后的字符串数组
 	 * @param scores 每条字符串的平均置信度
 	 */
-	public record Result(String[] texts, float[] scores) {}
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class Result {
+		private final String[] texts;
+		private final float[] scores;
+	}
 }

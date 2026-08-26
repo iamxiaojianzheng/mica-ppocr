@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.engine;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 import org.junit.jupiter.api.Assumptions;
@@ -37,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PPOcrV6EngineResourceTest {
-	private static final Path PROC_FD_DIR = Path.of("/proc/self/fd");
+	private static final Path PROC_FD_DIR = CollUtil.pathOf("/proc/self/fd");
 	private static final long MAX_FD_DELTA = 2L; // allow tiny /proc fd stream jitter during counting
 
 	@BeforeAll
@@ -132,13 +134,13 @@ class PPOcrV6EngineResourceTest {
 	}
 
 	private static List<String> texts(List<PPOcrV6Result> results) {
-		return results.stream().map(PPOcrV6Result::text).toList();
+		return CollUtil.toList(results.stream().map(PPOcrV6Result::text));
 	}
 
 	private static List<String> readOcrTexts(PPOcrV6Config config, Path imageFile) {
 		Mat image = Imgcodecs.imread(imageFile.toString());
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-			return engine.runMat(image).stream().map(PPOcrV6Result::text).toList();
+			return CollUtil.toList(engine.runMat(image).stream().map(PPOcrV6Result::text));
 		} finally {
 			image.release();
 		}
@@ -153,9 +155,9 @@ class PPOcrV6EngineResourceTest {
 	private static Path findRepositoryRoot() {
 		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
 		if (multiModuleDir != null) {
-			return Path.of(multiModuleDir);
+			return CollUtil.pathOf(multiModuleDir);
 		}
-		Path current = Path.of("").toAbsolutePath();
+		Path current = CollUtil.pathOf("").toAbsolutePath();
 		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
 			current = current.getParent();
 		}

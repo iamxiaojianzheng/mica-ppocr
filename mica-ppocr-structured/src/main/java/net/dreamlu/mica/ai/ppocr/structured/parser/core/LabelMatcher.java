@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+import lombok.experimental.Accessors;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -73,7 +75,11 @@ public class LabelMatcher {
 	 * @param value   字段值
 	 * @param matches 匹配到的 OCR 结果（含 box 坐标）
 	 */
-	public record LabeledMatch(String value, List<PPOcrV6Result> matches) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class LabeledMatch {
+		private final String value;
+		private final List<PPOcrV6Result> matches;
 		/**
 		 * 仅文本、无匹配框（兜底场景）。
 		 *
@@ -81,7 +87,7 @@ public class LabelMatcher {
 		 * @return 文本 LabeledMatch
 		 */
 		public static LabeledMatch textOnly(String value) {
-			return new LabeledMatch(value, List.of());
+			return new LabeledMatch(value, CollUtil.listOf());
 		}
 
 		/**
@@ -92,7 +98,7 @@ public class LabelMatcher {
 		 * @return 单值框 LabeledMatch
 		 */
 		public static LabeledMatch of(String value, PPOcrV6Result match) {
-			return new LabeledMatch(value, match == null ? List.of() : List.of(match));
+			return new LabeledMatch(value, match == null ? CollUtil.listOf() : CollUtil.listOf(match));
 		}
 
 		/**
@@ -103,7 +109,7 @@ public class LabelMatcher {
 		 * @return 多值框 LabeledMatch
 		 */
 		public static LabeledMatch of(String value, List<PPOcrV6Result> matches) {
-			return new LabeledMatch(value, matches == null ? List.of() : List.copyOf(matches));
+			return new LabeledMatch(value, matches == null ? CollUtil.listOf() : CollUtil.unmodifiableList(matches));
 		}
 
 		/**
@@ -650,7 +656,7 @@ public class LabelMatcher {
 	 * @return 命中的 OCR 框列表（保持原顺序）
 	 */
 	public static List<PPOcrV6Result> findBoxesByKeyword(List<PPOcrV6Result> results, String... keywords) {
-		if (keywords == null || keywords.length == 0) return List.of();
+		if (keywords == null || keywords.length == 0) return CollUtil.listOf();
 		List<PPOcrV6Result> hits = new ArrayList<>();
 		for (PPOcrV6Result r : results) {
 			String text = r.text();
@@ -943,20 +949,35 @@ public class LabelMatcher {
 	 * @param primaryLabel  主标签
 	 * @param altKeywords   OCR 漏识别标签时的备选关键字
 	 */
-	public record LabelDef(String name, String primaryLabel, String... altKeywords) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class LabelDef {
+		private final String name;
+		private final String primaryLabel;
+		private final String[] altKeywords;
+
 		/**
 		 * 参数校验：name 与 primaryLabel 均不可为 null。
 		 */
-		public LabelDef {
+		public LabelDef(String name, String primaryLabel, String... altKeywords) {
 			if (name == null || primaryLabel == null) {
 				throw new IllegalArgumentException("name and primaryLabel are required");
 			}
+			this.name = name;
+			this.primaryLabel = primaryLabel;
+			this.altKeywords = altKeywords;
 		}
 	}
 
 	/**
 	 * 互斥分配的内部数据结构。
 	 */
-	private record ScoredPair(String labelName, PPOcrV6Result valueBox, String value, int score) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	private static class ScoredPair {
+		private final String labelName;
+		private final PPOcrV6Result valueBox;
+		private final String value;
+		private final int score;
 	}
 }

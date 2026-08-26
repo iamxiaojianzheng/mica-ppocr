@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.business;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_returnsNullsForMissingFields() {
 		// 输入完全为空
-		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), List.of());
+		BusinessLicenseResult r = parse(new BusinessLicenseParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertNull(r.getCreditCode());
 		assertNull(r.getName());
@@ -48,7 +49,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	void parse_horizontalLayoutWithMergedLabels() {
 		// 模拟横版营业执照（business2 风格）：标签和值合并识别
 		// 左列 + 右列，信用代码在顶部
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// 顶部独立区
 			box("统一社会信用代码", 100, 100, 230, 120),
 			box("91310116S11653529C", 240, 105, 450, 120),
@@ -90,7 +91,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_verticalLayoutWithSplitLabels() {
 		// 模拟竖版营业执照（business5 风格）：标签被 OCR 拆成单字
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// 顶部
 			box("统一社会信用代码", 100, 100, 230, 120),
 			box("913101210121HLLNU8", 240, 105, 450, 120),
@@ -135,7 +136,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_fallbackForCreditCodeByRegex() {
 		// "统一社会信用代码" 标签缺失，按正则从全文兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("91440300MA5DC9B12X", 100, 100, 280, 120),
 			box("名称", 100, 150, 150, 170),
 			box("某某公司", 160, 150, 280, 170)
@@ -148,7 +149,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_handlesMergedNameBox() {
 		// "名称" 被识别成 "名称XXX有限公司" 合并框
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("统一社会信用代码", 100, 100, 230, 120),
 			box("91440300MA5DC9B12X", 240, 105, 450, 120),
 			box("名称深圳市梦想网络科技有限公司", 100, 200, 360, 220),
@@ -164,7 +165,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_findsOperatingPeriodKeywordFallback() {
 		// 营业期限 "营业期限" 标签缺失，按 "长期" 关键字兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("成立日期", 100, 350, 180, 370),
 			box("2020-01-15", 200, 350, 290, 370),
 			box("长期", 200, 400, 230, 420)
@@ -177,7 +178,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_handlesPartialLabelOcr() {
 		// 标签被 OCR 残缺识别：横版场景下"名称"被识别成单独"名"+"称"两框
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("统一社会信用代码", 100, 100, 230, 120),
 			box("91440300MA5DC9B12X", 240, 105, 450, 120),
 			box("名", 80, 200, 110, 220),
@@ -196,7 +197,7 @@ class BusinessLicenseParserTest extends ParserTestSupport {
 		// 真实业务样本（business1.png OCR 输出）：
 		// - "统一社会信用代码" 标签右侧 y 不重叠，"编号:XXX" 合并框兜底
 		// - "住所" 标签缺失，fragment 合并框 "所广州市" 剥前缀
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("编号：921MA190538210301", 242, 215, 445, 237),
 			box("统一社会信用代码", 241, 258, 470, 283),
 			box("10440119MA06M85", 240, 299, 397, 317),

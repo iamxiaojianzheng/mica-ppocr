@@ -16,6 +16,14 @@
 
 package net.dreamlu.mica.ai.ppocr.engine;
 
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
+import lombok.experimental.Accessors;
+
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -30,7 +38,17 @@ import java.util.List;
  *                        非 0 时 box 坐标系相对于 doc_ori 旋转后的图。
  *                        调用方用 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 可获得原始图坐标系下的 box。
  */
-public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDegrees) {
+@Getter
+@ToString
+@EqualsAndHashCode
+@Accessors(fluent = true)
+@AllArgsConstructor
+public class PPOcrV6Result {
+
+	private final String text;
+	private final float score;
+	private final int[][] box;
+	private final int rotatedDegrees;
 
 	/**
 	 * 不旋转的便捷构造器（rotatedDegrees 默认 0）。
@@ -51,12 +69,12 @@ public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDe
 	 * @return [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]
 	 */
 	public List<List<Integer>> boxAsNestedList() {
-		return List.of(
-			List.of(box[0][0], box[0][1]),
-			List.of(box[1][0], box[1][1]),
-			List.of(box[2][0], box[2][1]),
-			List.of(box[3][0], box[3][1])
-		);
+		return Collections.unmodifiableList(Arrays.asList(
+			Collections.unmodifiableList(Arrays.asList(box[0][0], box[0][1])),
+			Collections.unmodifiableList(Arrays.asList(box[1][0], box[1][1])),
+			Collections.unmodifiableList(Arrays.asList(box[2][0], box[2][1])),
+			Collections.unmodifiableList(Arrays.asList(box[3][0], box[3][1]))
+		));
 	}
 
 	/**
@@ -88,23 +106,19 @@ public record PPOcrV6Result(String text, float score, int[][] box, int rotatedDe
 			int x = box[i][0];
 			int y = box[i][1];
 			int mx, my;
-			switch (rotatedDegrees) {
-				case 90 -> {          // 原图被顺时针 90° 后得到 rot 图；逆向 = 逆时针 90°
-					mx = rotH - y;
-					my = x;
-				}
-				case 180 -> {         // 逆向 = 再旋转 180°
-					mx = rotW - x;
-					my = rotH - y;
-				}
-				case 270 -> {         // 逆向 = 顺时针 90°
-					mx = y;
-					my = rotW - x;
-				}
-				default -> {
-					mx = x;
-					my = y;
-				}
+			// 替代 Java 14+ switch 表达式，保留原始注释说明
+			if (rotatedDegrees == 90) {          // 原图被顺时针 90° 后得到 rot 图；逆向 = 逆时针 90°
+				mx = rotH - y;
+				my = x;
+			} else if (rotatedDegrees == 180) {  // 逆向 = 再旋转 180°
+				mx = rotW - x;
+				my = rotH - y;
+			} else if (rotatedDegrees == 270) {  // 逆向 = 顺时针 90°
+				mx = y;
+				my = rotW - x;
+			} else {                              // rotatedDegrees == 0 已短路兜底
+				mx = x;
+				my = y;
 			}
 			mapped[i][0] = mx;
 			mapped[i][1] = my;

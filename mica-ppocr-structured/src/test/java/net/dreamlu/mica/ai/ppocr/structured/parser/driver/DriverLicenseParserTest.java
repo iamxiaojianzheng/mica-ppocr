@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class DriverLicenseParserTest extends ParserTestSupport {
 		String authorityLine3,
 		String validPeriod
 	) {
-		return List.of(
+		return CollUtil.listOf(
 			box("中华人民共和国机动车驾驶证", 200, 30, 600, 60),
 			box("Driving License of the People's Republic of China", 180, 65, 620, 85),
 			box("证号", 280, 100, 340, 125),
@@ -147,7 +148,7 @@ class DriverLicenseParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_emptyResults() {
-		DriverLicenseResult r = parse(new DriverLicenseParser(null), List.of());
+		DriverLicenseResult r = parse(new DriverLicenseParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		// 所有字段为 null
 		assertEquals(null, r.getLicenseNumber());
@@ -159,7 +160,7 @@ class DriverLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_licenseNumberFallbackByRegex() {
 		// "证号" 标签丢失，但全文中能搜到 18 位数字
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("中华人民共和国机动车驾驶证", 200, 30, 600, 60),
 			box("210282198809294228", 360, 100, 600, 125),
 			box("姓名", 100, 150, 150, 175),

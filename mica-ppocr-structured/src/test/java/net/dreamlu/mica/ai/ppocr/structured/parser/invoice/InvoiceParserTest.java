@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -75,7 +76,7 @@ class InvoiceParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_emptyResults_returnsNulls() {
-		InvoiceResult r = parse(new InvoiceParser(null), List.of());
+		InvoiceResult r = parse(new InvoiceParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertNull(r.getInvoiceCode());
 		assertNull(r.getInvoiceNo());
@@ -90,7 +91,7 @@ class InvoiceParserTest extends ParserTestSupport {
 	@Test
 	void parse_invoiceCodeFallbackWhenLabelMissing() {
 		// "发票代码" / "发票号码" 标签缺失，按顶部数字框 + No 前缀兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("3100153130", 618, 420, 901, 463),
 			box("No14641426", 1554, 415, 1876, 473),
 			box("开票日期：2016年06月02日", 1609, 517, 1980, 552)

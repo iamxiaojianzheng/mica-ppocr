@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -75,7 +76,7 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	/**
 	 * 持卡人：已知英文标签黑名单（会被 HOLDER_NAME_PATTERN 误匹配的标签，大小写敏感）。
 	 */
-	private static final Set<String> HOLDER_NAME_BLACKLIST = Set.of(
+	private static final Set<String> HOLDER_NAME_BLACKLIST = CollUtil.setOf(
 		"VALID", "THRU", "DEBIT", "CREDIT", "GOLD", "ETC", "ATM",
 		"Quick", "Pass", "UnionPay", "BANK", "MONTH", "YEAR",
 		"DEBIT CARD", "CREDIT CARD", "MONTH/YEAR"

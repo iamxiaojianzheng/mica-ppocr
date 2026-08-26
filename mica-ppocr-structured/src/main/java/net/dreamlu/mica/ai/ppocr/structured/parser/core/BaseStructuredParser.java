@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 
@@ -103,7 +105,7 @@ public abstract class BaseStructuredParser<R> {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return parse(Path.of(imagePath));
+		return parse(CollUtil.pathOf(imagePath));
 	}
 
 	/**
@@ -150,7 +152,7 @@ public abstract class BaseStructuredParser<R> {
 	 * 一站式结构化解析：检测 → 排序 → 裁剪 → 识别 → 解析。
 	 *
 	 * <p>内部读取全部流为 byte[] 后调用 {@code engine.run(byte[])}。
-	 * 流由调用方负责关闭（{@code InputStream.readAllBytes()} 会读到 EOF 但不 close）。
+	 * 流由调用方负责关闭（{@code CollUtil.readAllBytes(InputStream)} 会读到 EOF 但不 close）。
 	 *
 	 * @param in 图片输入流
 	 * @return 结构化结果
@@ -160,6 +162,6 @@ public abstract class BaseStructuredParser<R> {
 		if (in == null) {
 			throw new IllegalArgumentException("InputStream must not be null");
 		}
-		return parseResults(engine.run(in.readAllBytes()));
+		return parseResults(engine.run(CollUtil.readAllBytes(in)));
 	}
 }

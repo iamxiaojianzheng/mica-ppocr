@@ -16,6 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
+import lombok.experimental.Accessors;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -309,7 +312,7 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	 * @return 可用档位流，按字母序排序
 	 */
 	protected static Stream<String> tiers() {
-		Path modelsRoot = Path.of("models/ppocr-v6");
+		Path modelsRoot = CollUtil.pathOf("models/ppocr-v6");
 		if (!Files.isDirectory(modelsRoot)) {
 			return Stream.empty();
 		}
@@ -358,7 +361,11 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	 * @param tier    模型档位
 	 * @param results 该档下的 OCR 结果
 	 */
-	public record OcrTierResult(String tier, List<PPOcrV6Result> results) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class OcrTierResult {
+		private final String tier;
+		private final List<PPOcrV6Result> results;
 	}
 
 	/**

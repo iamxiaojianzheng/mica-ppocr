@@ -20,6 +20,11 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.postprocessor.CtcLabelDecoder;
@@ -30,6 +35,7 @@ import net.dreamlu.mica.ai.ppocr.preprocessor.DocOrientationPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.RecognitionPreprocessor;
 import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
 import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
@@ -252,7 +258,7 @@ public final class PPOcrV6Engine implements Closeable {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return run(Path.of(imagePath));
+		return run(CollUtil.pathOf(imagePath));
 	}
 
 	/**
@@ -324,7 +330,7 @@ public final class PPOcrV6Engine implements Closeable {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return detect(Path.of(imagePath));
+		return detect(CollUtil.pathOf(imagePath));
 	}
 
 	/**
@@ -398,7 +404,7 @@ public final class PPOcrV6Engine implements Closeable {
 		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
 		try (
 			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
-			OrtSession.Result result = detSession.run(Map.of(detInputName, input))
+			OrtSession.Result result = detSession.run(CollUtil.mapOf(detInputName, input))
 		) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(detOutputName).get();
 			Mat probMat = readProbToMat(outTensor);
@@ -456,7 +462,7 @@ public final class PPOcrV6Engine implements Closeable {
 			FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
 			try (
 				OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
-				OrtSession.Result result = recSession.run(Map.of(recInputName, input))
+				OrtSession.Result result = recSession.run(CollUtil.mapOf(recInputName, input))
 			) {
 				OnnxTensor outTensor = (OnnxTensor) result.get(recOutputName).get();
 				long[] outShape = outTensor.getInfo().getShape();
@@ -520,7 +526,7 @@ public final class PPOcrV6Engine implements Closeable {
 	private List<PPOcrV6Result> runOnMat(Mat imgBgr) {
 		DetectResult dr = detectMat(imgBgr);
 		if (dr.boxes().length == 0) {
-			return List.of();
+			return CollUtil.listOf();
 		}
 
 		int[][][] sortedBoxes = BoxUtil.sortQuadBoxes(dr.boxes());
@@ -535,7 +541,7 @@ public final class PPOcrV6Engine implements Closeable {
 				}
 			}
 			if (validCrops.isEmpty()) {
-				return List.of();
+				return CollUtil.listOf();
 			}
 
 			RecognizeResult rr = recognizeMat(validCrops);
@@ -582,12 +588,21 @@ public final class PPOcrV6Engine implements Closeable {
 		//   90° (图片已顺时针 90°) → 逆时针 90° = ROTATE_90_COUNTERCLOCKWISE
 		//   180°                       → ROTATE_180
 		//   270° (图片已顺时针 270°)  → 逆时针 270° = 顺时针 90° = ROTATE_90_CLOCKWISE
-		int code = switch (ori.degrees()) {
-			case 90 -> Core.ROTATE_90_COUNTERCLOCKWISE;
-			case 180 -> Core.ROTATE_180;
-			case 270 -> Core.ROTATE_90_CLOCKWISE;
-			default -> -1;
-		};
+		int code;
+		switch (ori.degrees()) {
+			case 90:
+				code = Core.ROTATE_90_COUNTERCLOCKWISE;
+				break;
+			case 180:
+				code = Core.ROTATE_180;
+				break;
+			case 270:
+				code = Core.ROTATE_90_CLOCKWISE;
+				break;
+			default:
+				code = -1;
+				break;
+		}
 		if (code == -1) {
 			return new DocOriRotated(imgBgr, 0);
 		}
@@ -613,7 +628,7 @@ public final class PPOcrV6Engine implements Closeable {
 		FloatBuffer buf = NdArrayUtils.toBuffer(prep.data());
 		try (
 			OnnxTensor input = OnnxTensor.createTensor(env, buf, shape);
-			OrtSession.Result result = docOriSession.run(Map.of(docOriInputName, input))
+			OrtSession.Result result = docOriSession.run(CollUtil.mapOf(docOriInputName, input))
 		) {
 			OnnxTensor outTensor = (OnnxTensor) result.get(docOriOutputName).get();
 			// 输出 shape: [1, 4]，展平为 length=4 的 logits
@@ -730,7 +745,13 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param mat     正向化后的 Mat（不旋转时就是原图）
 	 * @param degrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
 	 */
-	private record DocOriRotated(Mat mat, int degrees) {
+	@Getter
+	@ToString
+	@RequiredArgsConstructor
+	@Accessors(fluent = true)
+	private static class DocOriRotated {
+		private final Mat mat;
+		private final int degrees;
 	}
 
 	/**
@@ -739,7 +760,14 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param boxes  文本框 (N, 4, 2) int
 	 * @param scores 每框分数
 	 */
-	public record DetectResult(int[][][] boxes, float[] scores) {
+	@Getter
+	@ToString
+	@EqualsAndHashCode
+	@RequiredArgsConstructor
+	@Accessors(fluent = true)
+	public static class DetectResult {
+		private final int[][][] boxes;
+		private final float[] scores;
 	}
 
 	/**
@@ -748,6 +776,13 @@ public final class PPOcrV6Engine implements Closeable {
 	 * @param texts  识别文本
 	 * @param scores 每条文本的置信度
 	 */
-	public record RecognizeResult(String[] texts, float[] scores) {
+	@Getter
+	@ToString
+	@EqualsAndHashCode
+	@RequiredArgsConstructor
+	@Accessors(fluent = true)
+	public static class RecognizeResult {
+		private final String[] texts;
+		private final float[] scores;
 	}
 }

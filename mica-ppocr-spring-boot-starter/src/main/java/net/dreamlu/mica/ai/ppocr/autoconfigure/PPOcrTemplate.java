@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.autoconfigure;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
@@ -113,7 +115,7 @@ public final class PPOcrTemplate {
 		if (imagePath == null || imagePath.isEmpty()) {
 			throw new IllegalArgumentException("imagePath must not be empty");
 		}
-		return run(Path.of(imagePath));
+		return run(CollUtil.pathOf(imagePath));
 	}
 
 	/**
@@ -157,7 +159,7 @@ public final class PPOcrTemplate {
 	 * 纯 OCR 识别：检测 → 排序 → 裁剪 → 识别。
 	 *
 	 * <p>内部读取全部流为 byte[] 后调用 {@code engine.run(byte[])}。
-	 * 流由调用方负责关闭（{@code InputStream.readAllBytes()} 会读到 EOF 但不 close）。
+	 * 流由调用方负责关闭（{@code CollUtil.readAllBytes(InputStream)} 会读到 EOF 但不 close）。
 	 *
 	 * @param in 图片输入流
 	 * @return 识别结果列表（按阅读顺序排列）
@@ -167,7 +169,7 @@ public final class PPOcrTemplate {
 		if (in == null) {
 			throw new IllegalArgumentException("InputStream must not be null");
 		}
-		return engine.run(in.readAllBytes());
+		return engine.run(CollUtil.readAllBytes(in));
 	}
 
 	// ==================================================================

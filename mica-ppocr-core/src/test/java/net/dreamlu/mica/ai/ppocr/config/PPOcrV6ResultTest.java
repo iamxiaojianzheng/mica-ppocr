@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.config;
 
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -43,9 +44,9 @@ class PPOcrV6ResultTest {
 		PPOcrV6Result result = new PPOcrV6Result("Test", 0.8f, box);
 		List<List<Integer>> nested = result.boxAsNestedList();
 		assertEquals(4, nested.size());
-		assertEquals(List.of(10, 20), nested.get(0));
-		assertEquals(List.of(30, 20), nested.get(1));
-		assertEquals(List.of(30, 40), nested.get(2));
-		assertEquals(List.of(10, 40), nested.get(3));
+		assertEquals(CollUtil.listOf(10, 20), nested.get(0));
+		assertEquals(CollUtil.listOf(30, 20), nested.get(1));
+		assertEquals(CollUtil.listOf(30, 40), nested.get(2));
+		assertEquals(CollUtil.listOf(10, 40), nested.get(3));
 	}
 }

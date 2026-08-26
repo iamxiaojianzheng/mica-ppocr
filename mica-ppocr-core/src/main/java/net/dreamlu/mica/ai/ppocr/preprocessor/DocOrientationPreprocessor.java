@@ -17,6 +17,7 @@
 package net.dreamlu.mica.ai.ppocr.preprocessor;
 
 import lombok.ToString;
+import lombok.experimental.Accessors;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
@@ -197,5 +198,12 @@ public final class DocOrientationPreprocessor {
 	 * @param srcH  原始图高
 	 * @param srcW  原始图宽
 	 */
-	public record Result(float[] data, int[] shape, int srcH, int srcW) {}
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class Result {
+		private final float[] data;
+		private final int[] shape;
+		private final int srcH;
+		private final int srcW;
+	}
 }

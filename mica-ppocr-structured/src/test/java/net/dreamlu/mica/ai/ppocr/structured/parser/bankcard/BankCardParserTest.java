@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class BankCardParserTest extends ParserTestSupport {
 	void parse_icbcCreditGold() {
 		// 模拟工行金卡 OCR 框（基于 bankcard1.png）
 		// 图片约 800x500
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("ICBC", 50, 60, 130, 90),                    // 顶部英文
 			box("中国工商银行", 160, 60, 350, 90),            // 顶部中文（发卡行）
 			box("GOLD", 360, 60, 420, 90),
@@ -61,7 +62,7 @@ class BankCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_huaxiaDebit() {
 		// 模拟华夏借记卡（bankcard2.png）：VALID THRU / MONTH/YEAR 英文标签 + 中文发卡行
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("华夏银行", 160, 60, 300, 90),                // 发卡行
 			box("HUAXIA BANK", 300, 60, 460, 90),
 			box("京津冀协同卡", 500, 60, 720, 90),
@@ -81,7 +82,7 @@ class BankCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_ningbo19DigitCard() {
 		// 模拟宁波银行借记卡（bankcard4.png）：19 位卡号无空格（首字符 OCR 误识别为 '6' 而非 'b'）
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("宁波银行", 160, 60, 300, 90),
 			box("BANK OF NINGBO", 300, 60, 480, 90),
 			box("汇通卡", 540, 60, 640, 90),
@@ -101,7 +102,7 @@ class BankCardParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_emptyResults() {
-		BankCardResult r = parse(new BankCardParser(null), List.of());
+		BankCardResult r = parse(new BankCardParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		// 所有字段为 null
 		assertEquals(null, r.getCardNumber());

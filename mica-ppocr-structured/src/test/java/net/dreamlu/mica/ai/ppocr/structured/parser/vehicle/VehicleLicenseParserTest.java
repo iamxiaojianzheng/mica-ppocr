@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.vehicle;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_happyPath() {
 		// 模拟一张行驶证的关键 OCR 框
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌号码", 100, 200, 180, 220),
 			box("鲁GH9P12", 200, 205, 280, 220),
 			box("车辆类型", 100, 300, 180, 320),
@@ -55,7 +56,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_distinguishesSameDatesByPosition() {
 		// 同值日期位于两个标签右侧：位置匹配天然能区分
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("注册日期", 100, 500, 180, 520),
 			box("2018-02-24", 200, 505, 300, 520),
 			box("发证日期", 100, 600, 180, 620),
@@ -69,7 +70,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_fallbackForPlateByRegex() {
 		// "号牌号码" 标签缺失，按正则从全文兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("京A12345", 100, 200, 200, 220),
 			box("所有人", 100, 300, 160, 320),
 			box("张三", 180, 300, 220, 320)
@@ -82,7 +83,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_fallbackForVinBySubstring() {
 		// "车辆识别代号" 标签缺失 + 正则兜底也失败 + VIN 带前导点号噪声
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("VIN噪声", 100, 200, 200, 220),
 			box(".LLXXXXXXXXXXXXXXX", 220, 200, 500, 220)
 		);
@@ -93,7 +94,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_returnsNullsForMissingFields() {
 		// 输入完全为空
-		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), List.of());
+		VehicleLicenseResult r = parse(new VehicleLicenseParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertNull(r.getPlateNo());
 		assertNull(r.getOwner());
@@ -105,7 +106,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_fallbackForIssueDateBySubstring() {
 		// small 模型场景：注册日期+发证日期被识别成单一文本框 "2018-03-052018-03-05"
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("注册日期", 100, 500, 180, 520),
 			box("2018-03-052018-03-05", 200, 505, 500, 520),
 			box("发证日期", 100, 600, 180, 620)
@@ -117,7 +118,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_handlesPartialLabelOcr() {
 		// 残缺标签 OCR："所有人" 被识别成 "所"
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("所", 100, 400, 130, 420),
 			box("李四", 150, 400, 200, 420)
 		);
@@ -128,7 +129,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	@Test
 	void parse_handlesSplitLabelOcr() {
 		// "所有人" 被识别成 "所" + "人" 两个框，值在最右侧
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("所", 56, 124, 89, 141),
 			box("人", 90, 127, 103, 138),
 			box("京通租赁集团有限公司北京分公司", 115, 126, 364, 152)
@@ -141,7 +142,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	void parse_ownerFallsBackByLayout() {
 		// medium 模型：中文标签「所有人」完全缺失，英文标签片段 "Ou" 无法被 Owner.contains 匹配
 		// 触发版面布局兜底：利用「车辆类型」下沿 +「住址」上沿之间的 y 带找最宽文本
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("车辆类型", 209, 94, 255, 107),
 			box("小型轿车", 279, 102, 346, 122),
 			box("Ou", 59, 139, 73, 145),
@@ -159,7 +160,7 @@ class VehicleLicenseParserTest extends ParserTestSupport {
 	void parse_realImageOcrTinyVehicle4() {
 		// 真实样本回归（值字段已脱敏，box 坐标与真实样本一致）：
 		// 关键回归点 —— 「label + 值」被 OCR 合并识别成单框时，解析器应能剥出值。
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("中华人民共和国机动车行驶证", 699, 313, 2255, 465),
 			box("VehicleLicenseofthePeople''sRepublicofChina", 710, 431, 2251, 520),
 			box("号牌号码", 353, 538, 655, 629),

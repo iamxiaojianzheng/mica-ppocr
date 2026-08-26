@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +41,7 @@ class LabelMatcherTest {
 	@Test
 	void matchValue_findsRightOfLabel() {
 		// 标签在左、值在右、同 y 范围
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌号码", 100, 200, 180, 220),
 			box("鲁GH9P12", 200, 205, 280, 220)
 		);
@@ -50,7 +51,7 @@ class LabelMatcherTest {
 	@Test
 	void matchValue_picksLeftmostWhenMultipleCandidates() {
 		// 两个值框都在标签右侧、同 y，取最靠左
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("车辆类型", 100, 300, 180, 320),
 			box("小型轿车", 350, 305, 430, 320), // 更靠右
 			box("小型", 200, 305, 240, 320)        // 更靠左
@@ -61,7 +62,7 @@ class LabelMatcherTest {
 	@Test
 	void matchValue_rejectsDifferentRow() {
 		// 候选值 y 不与标签重叠
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌号码", 100, 200, 180, 220),
 			box("2018-02-24", 200, 400, 320, 420)
 		);
@@ -70,14 +71,14 @@ class LabelMatcherTest {
 
 	@Test
 	void matchValue_returnsNullWhenLabelMissing() {
-		List<PPOcrV6Result> results = List.of(box("无关文本", 0, 0, 100, 20));
+		List<PPOcrV6Result> results = CollUtil.listOf(box("无关文本", 0, 0, 100, 20));
 		assertNull(LabelMatcher.matchValue(results, "不存在的标签"));
 	}
 
 	@Test
 	void matchValue_handlesPartialLabelOcr() {
 		// 标签被 OCR 截断成残缺片段，应能匹配到
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("所", 100, 200, 130, 220),
 			box("盛瑞传动股份有限公司", 150, 200, 380, 220)
 		);
@@ -87,7 +88,7 @@ class LabelMatcherTest {
 	@Test
 	void matchValue_toleranceHandles1pxBorderSharing() {
 		// 值框 x0 == 标签右边缘（共用边界），默认容差 5 应允许匹配
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("发证日期", 2000, 400, 2063, 420),
 			box("2018-02-24", 2063, 400, 2200, 420)
 		);
@@ -96,13 +97,13 @@ class LabelMatcherTest {
 
 	@Test
 	void findLabelBox_returnsNullWhenAbsent() {
-		List<PPOcrV6Result> results = List.of(box("无关", 0, 0, 100, 20));
+		List<PPOcrV6Result> results = CollUtil.listOf(box("无关", 0, 0, 100, 20));
 		assertNull(LabelMatcher.findLabelBox(results, "号牌号码"));
 	}
 
 	@Test
 	void findLabelBox_picksLongestMatch() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("号牌", 0, 0, 50, 20),       // 残缺
 			box("号牌号码", 60, 0, 120, 20)   // 完整
 		);
@@ -112,7 +113,7 @@ class LabelMatcherTest {
 
 	@Test
 	void matchPattern_picksFirstByDefault() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("AAA123", 0, 0, 50, 20),
 			box("BBB456", 60, 0, 110, 20),
 			box("CCC789", 120, 0, 170, 20)
@@ -123,7 +124,7 @@ class LabelMatcherTest {
 
 	@Test
 	void matchPattern_picksLastWhenFlagged() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("AAA123", 0, 0, 50, 20),
 			box("BBB456", 60, 0, 110, 20),
 			box("CCC789", 120, 0, 170, 20)
@@ -134,14 +135,14 @@ class LabelMatcherTest {
 
 	@Test
 	void matchPattern_returnsNullWhenNoneMatches() {
-		List<PPOcrV6Result> results = List.of(box("hello", 0, 0, 50, 20));
+		List<PPOcrV6Result> results = CollUtil.listOf(box("hello", 0, 0, 50, 20));
 		assertNull(LabelMatcher.matchPattern(results, Pattern.compile("\\d+"), false));
 	}
 
 	@Test
 	void matchSubstring_extractsFromNoisyText() {
 		// OCR 噪声：VIN 文本带前导点号
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box(".LL4WG44B8JL339900", 0, 0, 200, 20)
 		);
 		Pattern vin = Pattern.compile("[A-Z0-9]{17}");
@@ -154,7 +155,7 @@ class LabelMatcherTest {
 
 	@Test
 	void matchSubstring_returnsNullWhenAbsent() {
-		List<PPOcrV6Result> results = List.of(box("no vin here", 0, 0, 100, 20));
+		List<PPOcrV6Result> results = CollUtil.listOf(box("no vin here", 0, 0, 100, 20));
 		Pattern vin = Pattern.compile("[A-Z0-9]{17}");
 		String hit = LabelMatcher.matchSubstring(results, text -> {
 			java.util.regex.Matcher m = vin.matcher(text);
@@ -165,7 +166,7 @@ class LabelMatcherTest {
 
 	@Test
 	void labelOrFallback_keepsLabelValueWhenFormatValid() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("鲁GH9P12", 0, 0, 100, 20),
 			box("京A12345", 110, 0, 210, 20)
 		);
@@ -177,7 +178,7 @@ class LabelMatcherTest {
 	@Test
 	void labelOrFallback_fallsBackWhenLabelInvalid() {
 		// 标签定位结果格式异常（OCR 噪声），改走正则兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("鲁GH9P12?", 0, 0, 100, 20),   // 标签定位但格式异常
 			box("京A12345", 110, 0, 210, 20)   // 正则兜底命中
 		);
@@ -188,7 +189,7 @@ class LabelMatcherTest {
 
 	@Test
 	void labelOrFallback_returnsNullWhenLabelNullAndNoMatch() {
-		List<PPOcrV6Result> results = List.of(box("hello", 0, 0, 50, 20));
+		List<PPOcrV6Result> results = CollUtil.listOf(box("hello", 0, 0, 50, 20));
 		Pattern p = Pattern.compile("\\d+");
 		assertNull(LabelMatcher.labelOrFallback(null, results, p, "数字", false));
 	}
@@ -203,7 +204,7 @@ class LabelMatcherTest {
 	 */
 	@Test
 	void assignExclusiveValues_basic() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// 3 个 label（同一 y 范围）
 			box("金额", 0, 0, 60, 20),
 			box("附加费", 0, 30, 60, 50),
@@ -214,7 +215,7 @@ class LabelMatcherTest {
 			box("42.00", 80, 60, 160, 80)
 		);
 		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
-			List.of(
+			CollUtil.listOf(
 				new LabelMatcher.LabelDef("amount", "金额", "Fare"),
 				new LabelMatcher.LabelDef("fuelSurcharge", "附加费"),
 				new LabelMatcher.LabelDef("totalAmount", "总金额")
@@ -232,7 +233,7 @@ class LabelMatcherTest {
 	 */
 	@Test
 	void assignExclusiveValues_conflictResolution() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// "金额" 在左，"总金额" 也在左（y 重叠）
 			box("金额", 0, 0, 60, 20),
 			box("总金额", 0, 0, 80, 20),  // 稍宽一点
@@ -243,7 +244,7 @@ class LabelMatcherTest {
 		// "总金额" 距 value 较远（x=80 → 100 = dx=20）
 		// 总金额的 dx 反而更小！所以"总金额"应优先拿到
 		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
-			List.of(
+			CollUtil.listOf(
 				new LabelMatcher.LabelDef("amount", "金额"),
 				new LabelMatcher.LabelDef("totalAmount", "总金额")
 			),
@@ -260,7 +261,7 @@ class LabelMatcherTest {
 	 */
 	@Test
 	void assignExclusiveValues_rejectsInvalidValues() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 0, 0, 60, 20),
 			box("年龄", 0, 30, 60, 50),
 			box("张三", 80, 0, 140, 20),
@@ -268,7 +269,7 @@ class LabelMatcherTest {
 		);
 		// 只接受纯数字
 		java.util.Map<String, String> result = LabelMatcher.assignExclusiveValues(results,
-			List.of(
+			CollUtil.listOf(
 				new LabelMatcher.LabelDef("name", "姓名"),
 				new LabelMatcher.LabelDef("age", "年龄")
 			),

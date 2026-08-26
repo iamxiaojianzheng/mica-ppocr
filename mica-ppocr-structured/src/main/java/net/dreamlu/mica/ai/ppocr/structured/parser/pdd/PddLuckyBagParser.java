@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.pdd;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -62,7 +63,7 @@ public class PddLuckyBagParser extends BaseStructuredParser<PddLuckyBagResult> {
 	/**
 	 * 标签候选：按优先级排序。
 	 */
-	private static final List<String> LABEL_CANDIDATES = List.of(
+	private static final List<String> LABEL_CANDIDATES = CollUtil.listOf(
 		"数字邀请码",
 		"搜索以下数字邀请码",
 		"搜索以下邀请码",

@@ -17,6 +17,8 @@
 package net.dreamlu.mica.ai.ppocr.preprocessor;
 
 import lombok.ToString;
+import lombok.experimental.Accessors;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
@@ -44,7 +46,7 @@ import java.util.Set;
 @ToString
 public final class DetectionPreprocessor {
 	/** 支持的 limitType 取值。 */
-	public static final Set<String> VALID_LIMIT_TYPES = Set.of("min", "max");
+	public static final Set<String> VALID_LIMIT_TYPES = CollUtil.setOf("min", "max");
 	private static final float SCALE = 1.0f / 255.0f;
 	private static final Scalar MEAN = new Scalar(0.485, 0.456, 0.406);
 	private static final Scalar STD = new Scalar(0.229, 0.224, 0.225);
@@ -206,7 +208,19 @@ public final class DetectionPreprocessor {
 	 * @param shape    [N, C, H, W]
 	 * @param imgShape [srcH, srcW, ratioH, ratioW]
 	 */
-	public record Result(float[] data, int[] shape, float[] imgShape) {}
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class Result {
+		private final float[] data;
+		private final int[] shape;
+		private final float[] imgShape;
+	}
 
-	private record ResizeOutcome(Mat image, double ratioH, double ratioW) {}
+	@lombok.Value
+	@Accessors(fluent = true)
+	private static class ResizeOutcome {
+		private final Mat image;
+		private final double ratioH;
+		private final double ratioW;
+	}
 }

@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.autoconfigure;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import org.junit.jupiter.api.Assumptions;
@@ -165,9 +167,9 @@ class PPOCRAutoConfigurationTest {
 	private static Path findRepositoryRoot() {
 		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
 		if (multiModuleDir != null) {
-			return Path.of(multiModuleDir);
+			return CollUtil.pathOf(multiModuleDir);
 		}
-		Path current = Path.of("").toAbsolutePath();
+		Path current = CollUtil.pathOf("").toAbsolutePath();
 		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
 			current = current.getParent();
 		}

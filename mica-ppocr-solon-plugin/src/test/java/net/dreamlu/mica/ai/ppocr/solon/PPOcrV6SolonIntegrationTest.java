@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.solon;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -173,10 +175,10 @@ class PPOcrV6SolonIntegrationTest {
 	 */
 	private static Path repositoryRoot() {
 		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
-		if (multiModuleDir != null && Files.isDirectory(Path.of(multiModuleDir).resolve("models"))) {
-			return Path.of(multiModuleDir);
+		if (multiModuleDir != null && Files.isDirectory(CollUtil.pathOf(multiModuleDir).resolve("models"))) {
+			return CollUtil.pathOf(multiModuleDir);
 		}
-		Path current = Path.of("").toAbsolutePath();
+		Path current = CollUtil.pathOf("").toAbsolutePath();
 		while (current != null && !Files.isDirectory(current.resolve("models"))) {
 			current = current.getParent();
 		}

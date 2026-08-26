@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.household;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -107,53 +108,53 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	/**
 	 * 婚姻状况关键字。
 	 */
-	private static final Set<String> MARITAL_STATUS_KEYWORDS = Set.of(
+	private static final Set<String> MARITAL_STATUS_KEYWORDS = CollUtil.setOf(
 		"未婚", "已婚", "离异", "丧偶", "初婚", "再婚");
 
 	/**
 	 * 与户主关系关键字。
 	 */
-	private static final Set<String> RELATIONSHIP_KEYWORDS = Set.of(
+	private static final Set<String> RELATIONSHIP_KEYWORDS = CollUtil.setOf(
 		"户主", "独生子", "独生女", "夫", "妻", "子", "女",
 		"父", "母", "兄", "弟", "姐", "妹", "孙", "外孙", "其他");
 
 	/**
 	 * 户号 label 关键字（容忍"户 号"）。
 	 */
-	private static final List<String> HOUSEHOLD_NO_LABEL_KEYWORDS = List.of("户号", "户 号", "户号：");
+	private static final List<String> HOUSEHOLD_NO_LABEL_KEYWORDS = CollUtil.listOf("户号", "户 号", "户号：");
 
 	/**
 	 * "与户主关系" label fragment 关键字。
 	 */
-	private static final List<String> RELATIONSHIP_LABEL_KEYWORDS = List.of(
+	private static final List<String> RELATIONSHIP_LABEL_KEYWORDS = CollUtil.listOf(
 		"与户主关系", "与 户 主 关 系", "户主或与户主关系", "与户主", "户主关系");
 
 	/**
 	 * "何时由何地迁来本市(县)" label fragment 关键字。
 	 */
-	private static final List<String> MOVE_TO_CITY_LABEL_KEYWORDS = List.of(
+	private static final List<String> MOVE_TO_CITY_LABEL_KEYWORDS = CollUtil.listOf(
 		"迁来本", "迁来本市", "迁来本市(县)", "何时由何地迁来本市", "迁来本市（县）");
 
 	/**
 	 * "何时由何地迁往本址" label fragment 关键字。
 	 */
-	private static final List<String> MOVE_TO_ADDRESS_LABEL_KEYWORDS = List.of(
+	private static final List<String> MOVE_TO_ADDRESS_LABEL_KEYWORDS = CollUtil.listOf(
 		"迁来本址", "何时由何地迁往本址", "何时由何地迁来本址", "迁来本", "迁往本址");
 
 	/**
 	 * "承办人签章" label fragment 关键字。
 	 */
-	private static final List<String> ISSUER_LABEL_KEYWORDS = List.of("承办人签章", "承 办 人 签 章", "签章", "承办人");
+	private static final List<String> ISSUER_LABEL_KEYWORDS = CollUtil.listOf("承办人签章", "承 办 人 签 章", "签章", "承办人");
 
 	/**
 	 * "登记日期" label fragment 关键字。
 	 */
-	private static final List<String> REG_DATE_LABEL_KEYWORDS = List.of("登记日期", "登 记 日 期", "登记");
+	private static final List<String> REG_DATE_LABEL_KEYWORDS = CollUtil.listOf("登记日期", "登 记 日 期", "登记");
 
 	/**
 	 * "公民身份证件编号" label 关键字（兼容"公民身份 证 件 编号"分块）。
 	 */
-	private static final List<String> ID_NUMBER_LABEL_KEYWORDS = List.of(
+	private static final List<String> ID_NUMBER_LABEL_KEYWORDS = CollUtil.listOf(
 		"公民身份号码", "公民身份证件编号", "公 民 身 份 证 件 编 号", "公民身份", "身份证号", "证件编号");
 
 	// ==================================================================
@@ -237,22 +238,55 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 			return;
 		}
 		switch (name) {
-			case "householdNo" -> r.setHouseholdNo(trimmed);
-			case "name" -> r.setName(trimmed);
-			case "relationship" -> r.setRelationship(trimmed);
-			case "gender" -> r.setGender(trimmed);
-			case "birthPlace" -> r.setBirthPlace(trimmed);
-			case "ethnicity" -> r.setEthnicity(trimmed);
-			case "nativePlace" -> r.setNativePlace(trimmed);
-			case "birthDate" -> r.setBirthDate(trimmed);
-			case "idNumber" -> r.setIdNumber(trimmed);
-			case "height" -> r.setHeight(trimmed);
-			case "education" -> r.setEducation(trimmed);
-			case "workplace" -> r.setWorkplace(trimmed);
-			case "moveToCityDate" -> r.setMoveToCityDate(trimmed);
-			case "moveToAddress" -> r.setMoveToAddress(trimmed);
-			case "registrationDate" -> r.setRegistrationDate(trimmed);
-			default -> { /* no-op */ }
+			case "householdNo":
+				r.setHouseholdNo(trimmed);
+				break;
+			case "name":
+				r.setName(trimmed);
+				break;
+			case "relationship":
+				r.setRelationship(trimmed);
+				break;
+			case "gender":
+				r.setGender(trimmed);
+				break;
+			case "birthPlace":
+				r.setBirthPlace(trimmed);
+				break;
+			case "ethnicity":
+				r.setEthnicity(trimmed);
+				break;
+			case "nativePlace":
+				r.setNativePlace(trimmed);
+				break;
+			case "birthDate":
+				r.setBirthDate(trimmed);
+				break;
+			case "idNumber":
+				r.setIdNumber(trimmed);
+				break;
+			case "height":
+				r.setHeight(trimmed);
+				break;
+			case "education":
+				r.setEducation(trimmed);
+				break;
+			case "workplace":
+				r.setWorkplace(trimmed);
+				break;
+			case "moveToCityDate":
+				r.setMoveToCityDate(trimmed);
+				break;
+			case "moveToAddress":
+				r.setMoveToAddress(trimmed);
+				break;
+			case "registrationDate":
+				r.setRegistrationDate(trimmed);
+				break;
+			default: {
+				/* no-op */
+				break;
+			}
 		}
 		LabelMatcher.applyFieldBox(r, name, match);
 	}
@@ -712,18 +746,18 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		List<PPOcrV6Result> mergedBoxes;
 		if (siblingText.equals("族")) {
 			merged = value + "族";
-			mergedBoxes = new ArrayList<>(List.of(main, sibling));
+			mergedBoxes = new ArrayList<>(CollUtil.listOf(main, sibling));
 		} else if (value.equals("族")) {
 			merged = siblingText + "族";
-			mergedBoxes = new ArrayList<>(List.of(sibling, main));
+			mergedBoxes = new ArrayList<>(CollUtil.listOf(sibling, main));
 		} else {
 			// 其他情况按位置拼接
 			if (LabelMatcher.minX(sibling) < mainMinX) {
 				merged = siblingText + value;
-				mergedBoxes = new ArrayList<>(List.of(sibling, main));
+				mergedBoxes = new ArrayList<>(CollUtil.listOf(sibling, main));
 			} else {
 				merged = value + siblingText;
-				mergedBoxes = new ArrayList<>(List.of(main, sibling));
+				mergedBoxes = new ArrayList<>(CollUtil.listOf(main, sibling));
 			}
 		}
 		return LabeledMatch.of(merged, mergedBoxes);
@@ -738,7 +772,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	 */
 	private static LabeledMatch parseBirthDate(List<PPOcrV6Result> results) {
 		// 1) 标签优先
-		for (String label : List.of("出生日期", "出生", "出 生 日 期", "出生年月")) {
+		for (String label : CollUtil.listOf("出生日期", "出生", "出 生 日 期", "出生年月")) {
 			LabeledMatch m = matchValueWithBoxWithSpaces(results, label);
 			if (m.hasValue()) {
 				// 完整日期正则
@@ -913,7 +947,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		String raw = m.value();
 		// OCR 可能识别成"170 厘米 血型"合并框，需切到"血型"前
 		int cut = raw.length();
-		for (String next : List.of("血型", "型", "血")) {
+		for (String next : CollUtil.listOf("血型", "型", "血")) {
 			int j = raw.indexOf(next);
 			if (j >= 0 && j < cut) {
 				cut = j;

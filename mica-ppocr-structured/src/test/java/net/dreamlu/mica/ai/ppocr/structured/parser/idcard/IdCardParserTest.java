@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.idcard;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_front() {
 		// 模拟正面：姓名/性别/民族/出生/住址/身份证号
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试甲", 160, 100, 280, 130),
 			box("性别", 60, 160, 140, 190),
@@ -69,7 +70,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_front_multilineAddress() {
 		// 模拟住址跨两行：第一行"测试省乙市乙区乙街"，第二行"测试镇"
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试乙", 160, 100, 220, 130),
 			box("性别", 60, 160, 140, 190),
@@ -95,7 +96,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_back() {
 		// 模拟反面：签发机关 + 有效期限
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("签发机关", 200, 320, 300, 350),
 			box("测试公安局甲区分局", 320, 320, 580, 350),
 			box("有效期限", 200, 380, 300, 410),
@@ -115,7 +116,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_back_longTerm() {
 		// 模拟新版反面：长期有效
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("签发机关", 200, 320, 300, 350),
 			box("测试公安局乙区分局", 320, 320, 580, 350),
 			box("有效期限", 200, 380, 300, 410),
@@ -130,7 +131,7 @@ class IdCardParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_emptyResults_returnsUnknown() {
-		IdCardResult r = parse(new IdCardParser(null), List.of());
+		IdCardResult r = parse(new IdCardParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertEquals(IdCardSide.UNKNOWN, r.getSide());
 	}
@@ -138,7 +139,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_idNumberFallbackWhenLabelMissing() {
 		// "公民身份号码" 标签残缺/丢失，仅靠正则兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试丙", 160, 100, 220, 130),
 			box("000000199601110001", 260, 380, 600, 410)
@@ -151,7 +152,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_idNumberRegexFindWhenLabelGarbled() {
 		// "公民身份号码" 标签 OCR 残缺（缺"码"字），靠 18 位正则 find() 兜底
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试丙", 160, 100, 220, 130),
 			box("公民身份号000000197402220003", 260, 380, 600, 410)
@@ -164,7 +165,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_front_mergedLabelValueBoxes() {
 		// 模拟真实 OCR：标签与值合并在同一框，"性别男民族汉" 双标签连写
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名测试丁", 745, 556, 873, 586),
 			box("性别男民族汉", 750, 595, 927, 621),
 			box("出生1974年2月22日", 754, 632, 972, 656),
@@ -185,7 +186,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_front_shortLineMultilineAddress() {
 		// 模拟住址跨行且第二行为短文本（如"测试镇1号"），测试中心 x 靠左时不被误杀
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名测试丙", 84, 70, 216, 100),
 			box("性别男民族汉", 82, 113, 276, 145),
 			box("出生1999年12月24日", 80, 154, 319, 185),
@@ -208,7 +209,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_front_15digit() {
 		// 模拟 15 位身份证正面（早期签发，常见于历史档案/老照片）：6位区划 + 6位 YYMMDD + 3位顺序
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试戊", 160, 100, 220, 130),
 			box("性别", 60, 160, 140, 190),
@@ -235,7 +236,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_idNumberFallback_15digit() {
 		// 15 位身份证号正则兜底：标签残缺/丢失，仅 15 位号码本身
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试己", 160, 100, 220, 130),
 			box("000000700315007", 260, 380, 600, 410)
@@ -248,7 +249,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_birthDateFromIdNumber_15digit() {
 		// 15 位身份证：OCR "出生" 标签整体残缺，靠身份证号推算（YY 默认按 19YY 补全）
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试丙", 160, 100, 220, 130),
 			box("公民身份号码", 60, 380, 240, 410),
@@ -264,7 +265,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_birthDateFromIdNumber_18digit() {
 		// 18 位身份证：OCR "出生" 标签整体残缺，靠身份证号推算
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试庚", 160, 100, 220, 130),
 			box("公民身份号码", 60, 380, 240, 410),
@@ -278,7 +279,7 @@ class IdCardParserTest extends ParserTestSupport {
 	@Test
 	void parse_idNumber_18PriorityOver15Substring() {
 		// 18 位号码的前 15 位也是连续数字（合法 15 位子串），需识别为完整 18 位而非前 15 位
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试辛", 160, 100, 220, 130),
 			box("000000198501010010", 260, 380, 600, 410)
@@ -308,7 +309,7 @@ class IdCardParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_front_rotatedCard_addressAndGender() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("公民身份号码000000196102120011", 650, 440, 685, 760),
 			box("住址测试省己市己区己街", 727, 440, 762, 655),
 			box("测试镇63号", 712, 486, 740, 584),
@@ -332,7 +333,7 @@ class IdCardParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_front_genderValueDirectlyBelowLabel() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试甲", 160, 100, 280, 130),
 			box("性别", 60, 160, 140, 190),
@@ -357,7 +358,7 @@ class IdCardParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_front_partialGenderLabel_xxMissing() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("姓名", 60, 100, 140, 130),
 			box("测试甲", 160, 100, 280, 130),
 			box("别男民族汉", 60, 160, 280, 190),
@@ -388,7 +389,7 @@ class IdCardParserTest extends ParserTestSupport {
 		PPOcrV6Result noise2 = new PPOcrV6Result("乙", 0.10f, new int[][]{
 			{767, 464}, {788, 464}, {788, 483}, {767, 483}
 		});
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("公民身份号码000000196102120011", 656, 438, 685, 760),
 			box("姓名测试壬", 822, 441, 855, 550),
 			noise1,

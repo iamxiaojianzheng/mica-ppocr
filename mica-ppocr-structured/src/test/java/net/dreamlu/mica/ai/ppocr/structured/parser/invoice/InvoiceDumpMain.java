@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -71,9 +73,9 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
 			for (String imgPath : IMAGES) {
 				String name = nameOf(imgPath);
-				System.out.println("\n" + "=".repeat(60));
+				System.out.println("\n" + CollUtil.repeat("=", 60));
 				System.out.println(">>> " + name + " <<<");
-				System.out.println("=".repeat(60));
+				System.out.println(CollUtil.repeat("=", 60));
 				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
 				if (img == null || img.empty()) {
 					System.err.println("无法读取图片: " + imgPath);
@@ -83,7 +85,7 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 
 				// 1) 保存 JSON
 				Path jsonPath = outDir.resolve(name + ".json");
-				Files.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
+				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
 				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
 
 				// 2) 输出结构化结果
@@ -173,18 +175,28 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 		for (int i = 0; i < s.length(); i++) {
 			char c = s.charAt(i);
 			switch (c) {
-				case '\"' -> sb.append("\\\"");
-				case '\\' -> sb.append("\\\\");
-				case '\n' -> sb.append("\\n");
-				case '\r' -> sb.append("\\r");
-				case '\t' -> sb.append("\\t");
-				default -> {
+				case '\"':
+					sb.append("\\\"");
+					break;
+				case '\\':
+					sb.append("\\\\");
+					break;
+				case '\n':
+					sb.append("\\n");
+					break;
+				case '\r':
+					sb.append("\\r");
+					break;
+				case '\t':
+					sb.append("\\t");
+					break;
+				default:
 					if (c < 0x20) {
 						sb.append(String.format("\\u%04x", (int) c));
 					} else {
 						sb.append(c);
 					}
-				}
+					break;
 			}
 		}
 		sb.append('"');

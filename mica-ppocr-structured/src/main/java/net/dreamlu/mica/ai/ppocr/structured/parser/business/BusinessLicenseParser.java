@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.business;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -142,7 +143,7 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 	 * 当 fragment 文本含其中任一标签视为污染。
 	 * <p>"名 称" / "类 型" 等带空格的变体是 OCR 常见错字，一并覆盖。
 	 */
-	private static final Set<String> ALL_LABELS = Set.of(
+	private static final Set<String> ALL_LABELS = CollUtil.setOf(
 		"名称", "名 称", "类型", "类 型",
 		"法定代表人", "负责人",
 		"注册资本",
@@ -154,33 +155,33 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 	/**
 	 * 字段 fragment 单字集合：用于找独立 fragment 标签（"名"/"称"/"类"/"型"/"住"/"所"）。
 	 */
-	private static final Set<String> SINGLE_CHAR_FRAGMENTS = Set.of(
+	private static final Set<String> SINGLE_CHAR_FRAGMENTS = CollUtil.setOf(
 		"名", "称", "类", "型", "住", "所");
 
 	/**
 	 * 法定代表人（含"负责人"）字段标签候选，按优先级列出。
 	 */
-	private static final List<String> LEGAL_PERSON_LABELS = List.of(
+	private static final List<String> LEGAL_PERSON_LABELS = CollUtil.listOf(
 		LABEL_LEGAL_PERSON, LABEL_LEGAL_ALIAS);
 
 	/**
 	 * 住址字段标签候选（含"营业场所"别名）。
 	 */
-	private static final List<String> ADDRESS_LABELS = List.of(
+	private static final List<String> ADDRESS_LABELS = CollUtil.listOf(
 		LABEL_ADDRESS, LABEL_ADDRESS_ALIAS);
 
 	/**
 	 * 其它字段 label 关键词：用于 legalPerson 等值框校验，
 	 * 避免"营业期限" / "成立日期" 这种跨栏 label 被误选成值。
 	 */
-	private static final Set<String> OTHER_FIELD_LABELS = Set.of(
+	private static final Set<String> OTHER_FIELD_LABELS = CollUtil.setOf(
 		"营业期限", "成立日期", "注册资本", "经营范围", "统一社会信用代码",
 		"注册号", "法定代表人", "负责人", "登记机关", "证照编号", "编号", "营业执照");
 
 	/**
 	 * 经营范围专属装配：需要跳过的其它字段 fragment（单字 + 合并前缀）。
 	 */
-	private static final Set<String> SCOPE_SKIP_FRAGMENTS = Set.of(
+	private static final Set<String> SCOPE_SKIP_FRAGMENTS = CollUtil.setOf(
 		"住", "所", "名", "称", "名类", "型", "类", "法定代表人", "负责人");
 
 	// ========================================================================

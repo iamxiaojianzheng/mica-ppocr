@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.pdd;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ class PddLuckyBagParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_typicalLayout() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("百亿补贴", 280, 30, 460, 80),
 			box("抽福袋", 510, 30, 660, 80),
 			box("搜索邀请码", 250, 160, 740, 230),
@@ -63,7 +64,7 @@ class PddLuckyBagParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_mergedLabel() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("2 搜索以下数字邀请码 92463725", 230, 660, 880, 1020),
 			box("1 打开拼多多APP", 230, 540, 750, 600)
 		);
@@ -78,7 +79,7 @@ class PddLuckyBagParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_fallbackByShape() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("百亿补贴", 280, 30, 460, 80),
 			box("抽福袋", 510, 30, 660, 80),
 			box("92463725", 270, 880, 830, 1020),
@@ -94,7 +95,7 @@ class PddLuckyBagParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_sevenDigits() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("搜索以下数字邀请码", 230, 660, 760, 720),
 			box("9246372", 270, 880, 830, 1020)    // OCR 漏 1 位
 		);
@@ -108,7 +109,7 @@ class PddLuckyBagParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_emptyResults() {
-		PddLuckyBagResult r = parse(new PddLuckyBagParser(null), List.of());
+		PddLuckyBagResult r = parse(new PddLuckyBagParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertEquals(null, r.getLuckyBagCode());
 	}

@@ -16,7 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.postprocessor;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
+import lombok.experimental.Accessors;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
 
 import java.util.Arrays;
@@ -124,11 +128,15 @@ public final class DocOrientationPostprocessor {
 	 * @param score    置信度（softmax 后的概率）
 	 * @param probs    4 类完整 softmax 概率
 	 */
-	public record Result(int label, int degrees, float score, float[] probs) {
-		@Override
-		public String toString() {
-			return "DocOrientationResult{label=" + label + ", degrees=" + degrees + ", score=" + score
-				+ ", probs=" + Arrays.toString(probs) + "}";
-		}
+	@Getter
+	@ToString
+	@RequiredArgsConstructor
+	@EqualsAndHashCode
+	@Accessors(fluent = true)
+	public static class Result {
+		private final int label;
+		private final int degrees;
+		private final float score;
+		private final float[] probs;
 	}
 }

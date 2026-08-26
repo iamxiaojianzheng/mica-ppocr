@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.utils;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import lombok.experimental.UtilityClass;
 
 import java.io.IOException;
@@ -98,7 +100,7 @@ public class ModelResourceLoader {
 			if (in == null) {
 				throw new IllegalArgumentException("classpath resource not found: " + path);
 			}
-			return in.readAllBytes();
+			return CollUtil.readAllBytes(in);
 		} catch (IOException e) {
 			throw new RuntimeException("failed to read classpath resource: " + path, e);
 		}
@@ -113,7 +115,7 @@ public class ModelResourceLoader {
 	 * @throws RuntimeException 读取失败
 	 */
 	private static byte[] loadFromFileSystem(String path) {
-		Path p = Path.of(path);
+		Path p = CollUtil.pathOf(path);
 		if (!Files.isRegularFile(p)) {
 			throw new IllegalArgumentException("file not found: " + path);
 		}

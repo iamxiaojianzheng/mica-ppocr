@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Assumptions;
@@ -93,7 +94,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_standardReceipt() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			// 票号
 			box("发票代码", 50, 40, 130, 70),
 			box("111001981002", 140, 40, 320, 70),
@@ -145,7 +146,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_mergedLabels() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("发票代码 111001981002", 50, 40, 350, 70),
 			box("发票号码 50262344", 380, 40, 620, 70),
 			box("车牌号 京B67890", 50, 120, 280, 150),
@@ -176,7 +177,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_amountWithCurrencySuffix() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("金额", 50, 40, 90, 70),
 			box("¥25.50元", 100, 40, 220, 70),
 			box("总金额", 50, 100, 110, 130),
@@ -193,7 +194,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_shanghaiPlate() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("车牌号", 50, 40, 110, 70),
 			box("沪A98765", 120, 40, 240, 70)
 		);
@@ -208,7 +209,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	@Test
 	void parse_dateFormats() {
 		// yyyy年MM月dd日 → yyyy-MM-dd
-		TaxiReceiptResult r1 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r1 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("日期", 50, 40, 90, 70),
 			box("2024年12月08日", 100, 40, 290, 70)
 		));
@@ -216,7 +217,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		assertEquals("2024-12-08", r1.getDate());
 
 		// yyyy/MM/dd → yyyy-MM-dd
-		TaxiReceiptResult r2 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r2 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("日期", 50, 40, 90, 70),
 			box("2024/12/08", 100, 40, 290, 70)
 		));
@@ -224,7 +225,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		assertEquals("2024-12-08", r2.getDate());
 
 		// yyyy.MM.dd → yyyy-MM-dd
-		TaxiReceiptResult r3 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r3 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("日期", 50, 40, 90, 70),
 			box("2024.12.08", 100, 40, 290, 70)
 		));
@@ -237,7 +238,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_timeFormats() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("上车时间", 50, 40, 130, 70),
 			box("9:05", 140, 40, 200, 70),
 			box("下车时间", 50, 100, 130, 130),
@@ -254,7 +255,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_emptyResults() {
-		TaxiReceiptResult r = parse(new TaxiReceiptParser(null), List.of());
+		TaxiReceiptResult r = parse(new TaxiReceiptParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertEquals(null, r.getInvoiceCode());
 		assertEquals(null, r.getPlateNumber());
@@ -265,7 +266,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	 */
 	@Test
 	void parse_plateNumberFallbackByRegex() {
-		List<PPOcrV6Result> results = List.of(
+		List<PPOcrV6Result> results = CollUtil.listOf(
 			box("京B67890", 100, 100, 250, 130),
 			box("张三", 300, 100, 360, 130),
 			box("111001981002", 100, 200, 300, 230)
@@ -282,7 +283,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 	@Test
 	void parse_mileageUnits() {
 		// 公里
-		TaxiReceiptResult r1 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r1 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("里程", 50, 40, 90, 70),
 			box("12.5公里", 100, 40, 220, 70)
 		));
@@ -290,7 +291,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		assertEquals("12.5", r1.getMileage());
 
 		// km
-		TaxiReceiptResult r2 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r2 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("里程", 50, 40, 90, 70),
 			box("8.0km", 100, 40, 200, 70)
 		));
@@ -298,7 +299,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		assertEquals("8.0", r2.getMileage());
 
 		// 纯数字
-		TaxiReceiptResult r3 = parse(new TaxiReceiptParser(null), List.of(
+		TaxiReceiptResult r3 = parse(new TaxiReceiptParser(null), CollUtil.listOf(
 			box("里程", 50, 40, 90, 70),
 			box("15", 100, 40, 140, 70)
 		));

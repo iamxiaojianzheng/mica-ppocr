@@ -91,10 +91,12 @@ public class Offset {
 		// 选择面积最大的多边形
 		Polygon best = null;
 		double bestArea = -1.0;
-		if (result instanceof Polygon p) {
+		if (result instanceof Polygon) {
+			Polygon p = (Polygon) result;
 			best = p;
 			bestArea = p.getArea();
-		} else if (result instanceof org.locationtech.jts.geom.MultiPolygon mp) {
+		} else if (result instanceof org.locationtech.jts.geom.MultiPolygon) {
+			org.locationtech.jts.geom.MultiPolygon mp = (org.locationtech.jts.geom.MultiPolygon) result;
 			for (int i = 0; i < mp.getNumGeometries(); i++) {
 				Polygon g = (Polygon) mp.getGeometryN(i);
 				double a = g.getArea();
@@ -106,7 +108,8 @@ public class Offset {
 		} else {
 			// 兜底：取凸包
 			Geometry convex = result.convexHull();
-			if (convex instanceof Polygon cp) {
+			if (convex instanceof Polygon) {
+				Polygon cp = (Polygon) convex;
 				best = cp;
 				bestArea = cp.getArea();
 			} else {

@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -169,21 +171,21 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	 * 常见噪声词（不可能是城市的）：含其一即排除。
 	 * 覆盖：发票、税务、附加、票价、车费、单价、公里、金额、号码 等。
 	 */
-	private static final Set<String> CITY_NOISE_KEYWORDS = Set.of(
+	private static final Set<String> CITY_NOISE_KEYWORDS = CollUtil.setOf(
 		"发票", "税务", "附加", "票价", "车费", "单价", "公里", "金额",
 		"号码", "城市", "开票", "国家", "总局", "总局监制", "印务",
 		"卡号", "原额", "余额", "密码", "合计", "总计"
 	);
 
 	/** 中国汽车牌照省份简称（避免误识别）。 */
-	private static final Set<String> PLATE_PROVINCES = Set.of(
+	private static final Set<String> PLATE_PROVINCES = CollUtil.setOf(
 		"京", "津", "沪", "渝", "冀", "豫", "云", "辽", "黑", "湘",
 		"皖", "鲁", "新", "苏", "浙", "赣", "鄂", "桂", "甘", "晋",
 		"蒙", "陕", "吉", "闽", "贵", "粤", "川", "青藏", "宁", "琼"
 	);
 
 	/** 短 label 兜底：找"上"/"下"/"上客"/"下客"/"车" 短 label 框。 */
-	private static final Set<String> SHORT_LABELS = Set.of("上", "下", "上客", "下客", "车");
+	private static final Set<String> SHORT_LABELS = CollUtil.setOf("上", "下", "上客", "下客", "车");
 
 	// ========================================================================
 	// 入口
@@ -246,19 +248,46 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		if (match == null) return;
 		if (match.value() != null) {
 			switch (name) {
-				case "invoiceCode" -> r.setInvoiceCode(match.value());
-				case "invoiceNo" -> r.setInvoiceNo(match.value());
-				case "plateNumber" -> r.setPlateNumber(match.value());
-				case "date" -> r.setDate(match.value());
-				case "boardingTime" -> r.setBoardingTime(match.value());
-				case "alightingTime" -> r.setAlightingTime(match.value());
-				case "mileage" -> r.setMileage(match.value());
-				case "amount" -> r.setAmount(match.value());
-				case "fuelSurcharge" -> r.setFuelSurcharge(match.value());
-				case "bookingFee" -> r.setBookingFee(match.value());
-				case "totalAmount" -> r.setTotalAmount(match.value());
-				case "city" -> r.setCity(match.value());
-				default -> { /* no-op */ }
+				case "invoiceCode":
+					r.setInvoiceCode(match.value());
+					break;
+				case "invoiceNo":
+					r.setInvoiceNo(match.value());
+					break;
+				case "plateNumber":
+					r.setPlateNumber(match.value());
+					break;
+				case "date":
+					r.setDate(match.value());
+					break;
+				case "boardingTime":
+					r.setBoardingTime(match.value());
+					break;
+				case "alightingTime":
+					r.setAlightingTime(match.value());
+					break;
+				case "mileage":
+					r.setMileage(match.value());
+					break;
+				case "amount":
+					r.setAmount(match.value());
+					break;
+				case "fuelSurcharge":
+					r.setFuelSurcharge(match.value());
+					break;
+				case "bookingFee":
+					r.setBookingFee(match.value());
+					break;
+				case "totalAmount":
+					r.setTotalAmount(match.value());
+					break;
+				case "city":
+					r.setCity(match.value());
+					break;
+				default: {
+					/* no-op */
+					break;
+				}
 			}
 		}
 		LabelMatcher.applyFieldBox(r, name, match);
@@ -304,7 +333,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 
 	private static LabeledMatch parsePlateNumber(List<PPOcrV6Result> results) {
 		// 1) 标签定位（"车牌号"/"车号"）
-		for (String label : List.of("车牌号", "车号")) {
+		for (String label : CollUtil.listOf("车牌号", "车号")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				Matcher regex = PLATE_NUMBER_PATTERN.matcher(m.value());
@@ -350,7 +379,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 
 	private static LabeledMatch parseDate(List<PPOcrV6Result> results) {
 		// 1) 标签 "日期" / "开票日期"（先尝试"开票日期"，再尝试"日期"）
-		for (String label : List.of("开票日期", "日期")) {
+		for (String label : CollUtil.listOf("开票日期", "日期")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				String normalized = normalizeDate(m.value());
@@ -358,7 +387,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 			}
 		}
 		// 2) 标签 fragment 兜底（"日" / "期：" 单独成框，如 taxi4）
-		LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(results, List.of("期", "日"));
+		LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(results, CollUtil.listOf("期", "日"));
 		if (frag.hasValue()) {
 			String normalized = normalizeDate(frag.value());
 			if (normalized != null) return LabeledMatch.of(normalized, frag.matches());
@@ -413,7 +442,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		TimeRange result = TimeRange.empty();
 		LabeledMatch[] matches = new LabeledMatch[2];
 		if (boardingHint != null) {
-			LabeledMatch m = LabelMatcher.matchValueByKeywordWithBox(results, List.of(boardingHint),
+			LabeledMatch m = LabelMatcher.matchValueByKeywordWithBox(results, CollUtil.listOf(boardingHint),
 				TaxiReceiptParser::extractTimeFromText);
 			if (m.hasValue()) {
 				result = result.withBoarding(m.value());
@@ -421,7 +450,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 			}
 		}
 		if (alightingHint != null) {
-			LabeledMatch m = LabelMatcher.matchValueByKeywordWithBox(results, List.of(alightingHint),
+			LabeledMatch m = LabelMatcher.matchValueByKeywordWithBox(results, CollUtil.listOf(alightingHint),
 				TaxiReceiptParser::extractTimeFromText);
 			if (m.hasValue()) {
 				result = result.withAlighting(m.value());
@@ -624,7 +653,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		}
 		// 2) 关键字兜底（label 完全漏识别，但"附加费"/"叫车"等关键字还在）
 		if (altKeywords != null && altKeywords.length > 0) {
-			LabeledMatch kw = LabelMatcher.matchValueByKeywordWithBox(results, List.of(altKeywords),
+			LabeledMatch kw = LabelMatcher.matchValueByKeywordWithBox(results, CollUtil.listOf(altKeywords),
 				TaxiReceiptParser::cleanAmount);
 			if (kw.hasValue()) return kw;
 		}
@@ -666,8 +695,8 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		List<PPOcrV6Result> fragResults = amountLabel == null
 			? results
 			: filterOut(results, amountLabel);
-		for (String keyword : List.of("合计", "总计", "额")) {
-			LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(fragResults, List.of(keyword));
+		for (String keyword : CollUtil.listOf("合计", "总计", "额")) {
+			LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(fragResults, CollUtil.listOf(keyword));
 			if (!frag.hasValue()) continue;
 			String amt = cleanAmount(frag.value());
 			if (amt == null) continue;
@@ -800,11 +829,11 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 			if (city != null) return LabeledMatch.of(city, m.matches());
 		}
 		// 2) 关键字兜底（"城市" 单独成框 + 右侧值）
-		LabeledMatch byKw = LabelMatcher.matchValueByKeywordWithBox(results, List.of("开票城市", "城市"),
+		LabeledMatch byKw = LabelMatcher.matchValueByKeywordWithBox(results, CollUtil.listOf("开票城市", "城市"),
 			TaxiReceiptParser::cleanCity);
 		if (byKw.hasValue()) return byKw;
 		// 3) 标签 fragment 兜底（"开票" / "城市" fragment 右侧 y 重叠值）
-		LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(results, List.of("开票", "城市"));
+		LabeledMatch frag = LabelMatcher.matchValueByLabelKeywordWithBox(results, CollUtil.listOf("开票", "城市"));
 		if (frag.hasValue()) {
 			String city = cleanCity(frag.value());
 			if (city != null) return LabeledMatch.of(city, frag.matches());
@@ -1145,10 +1174,17 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	/**
 	 * 时间范围记录：分别保存上车、下车、单独命中时间。
 	 */
-	private record TimeRange(String boarding, String alighting, String single, List<PPOcrV6Result> matches) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	private static class TimeRange {
+		private final String boarding;
+		private final String alighting;
+		private final String single;
+		private final List<PPOcrV6Result> matches;
+
 		/** 空记录。 */
 		static TimeRange empty() {
-			return new TimeRange(null, null, null, List.of());
+			return new TimeRange(null, null, null, CollUtil.listOf());
 		}
 		/** 时间范围命中（"HH:mm-HH:mm"）。 */
 		static TimeRange range(String boarding, String alighting, List<PPOcrV6Result> matches) {
@@ -1160,7 +1196,7 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		}
 		/** 短 label 兜底命中。 */
 		static TimeRange times(String boarding, String alighting) {
-			return new TimeRange(boarding, alighting, null, List.of());
+			return new TimeRange(boarding, alighting, null, CollUtil.listOf());
 		}
 		/** 更新上车时间。 */
 		TimeRange withBoarding(String v) {

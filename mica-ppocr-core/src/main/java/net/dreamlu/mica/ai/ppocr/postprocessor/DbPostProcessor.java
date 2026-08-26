@@ -18,6 +18,7 @@ package net.dreamlu.mica.ai.ppocr.postprocessor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
 import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
@@ -231,5 +232,10 @@ public final class DbPostProcessor {
 	 * @param boxes  文本框 (N, 4, 2)
 	 * @param scores 每框分数，长度 N
 	 */
-	public record Result(int[][][] boxes, float[] scores) {}
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class Result {
+		private final int[][][] boxes;
+		private final float[] scores;
+	}
 }

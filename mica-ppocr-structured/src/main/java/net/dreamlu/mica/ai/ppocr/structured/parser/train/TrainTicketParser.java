@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -146,21 +148,21 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * 机构名特征字：包含其一即视为非人名。
 	 * 覆盖常见票面/官方机构关键词（国家税务总局、铁路局、汽车运管所、客运段等）。
 	 */
-	private static final Set<Character> INSTITUTION_KEY_CHARS = Set.of(
+	private static final Set<Character> INSTITUTION_KEY_CHARS = CollUtil.setOf(
 		'局', '司', '所', '院', '处', '部', '厅', '署',
 		'税', '运', '铁', '邮', '公', '证', '发', '联',
 		'会', '学', '校', '厂', '店', '馆', '场',
 		'总', '队', '股', '行', '团', '组', '社');
 
 	/** 席别关键字（按长到短排序，避免"商务座"误匹配"座"）。 */
-	private static final List<String> SEAT_CLASS_KEYWORDS = List.of(
+	private static final List<String> SEAT_CLASS_KEYWORDS = CollUtil.listOf(
 		"高级软卧", "商务座", "特等座", "二等座", "一等座",
 		"软卧", "硬卧", "二等卧", "一等卧",
 		"软座", "硬座"
 	);
 
 	/** 改签标识关键字。 */
-	private static final List<String> CHANGED_FLAG_KEYWORDS = List.of(
+	private static final List<String> CHANGED_FLAG_KEYWORDS = CollUtil.listOf(
 		"始发改签", "退票", "改签"
 	);
 
@@ -181,7 +183,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * 噪声上下文词：含其一即跳过（避免误识别为车次）。
 	 * 典型：原票、原票号、补票（火车票"原票：L0956"格式不应作为车次）。
 	 */
-	private static final Set<String> TRAIN_NUMBER_NOISE_KEYWORDS = Set.of(
+	private static final Set<String> TRAIN_NUMBER_NOISE_KEYWORDS = CollUtil.setOf(
 		"原票", "补", "越站", "事由", "加收");
 
 	// ========================================================================
@@ -243,23 +245,58 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		if (match == null) return;
 		if (match.value() != null) {
 			switch (name) {
-				case "departure" -> r.setDeparture(match.value());
-				case "arrival" -> r.setArrival(match.value());
-				case "trainNumber" -> r.setTrainNumber(match.value());
-				case "seatNumber" -> r.setSeatNumber(match.value());
-				case "seatClass" -> r.setSeatClass(match.value());
-				case "passengerName" -> r.setPassengerName(match.value());
-				case "idNumber" -> r.setIdNumber(match.value());
-				case "amount" -> r.setAmount(match.value());
-				case "amountExcludingTax" -> r.setAmountExcludingTax(match.value());
-				case "ticketNo" -> r.setTicketNo(match.value());
-				case "invoiceNo" -> r.setInvoiceNo(match.value());
-				case "eTicketNo" -> r.setETicketNo(match.value());
-				case "invoiceDate" -> r.setInvoiceDate(match.value());
-				case "sellStation" -> r.setSellStation(match.value());
-				case "serialNumber" -> r.setSerialNumber(match.value());
-				case "changedFlag" -> r.setChangedFlag(match.value());
-				default -> { /* no-op */ }
+				case "departure":
+					r.setDeparture(match.value());
+					break;
+				case "arrival":
+					r.setArrival(match.value());
+					break;
+				case "trainNumber":
+					r.setTrainNumber(match.value());
+					break;
+				case "seatNumber":
+					r.setSeatNumber(match.value());
+					break;
+				case "seatClass":
+					r.setSeatClass(match.value());
+					break;
+				case "passengerName":
+					r.setPassengerName(match.value());
+					break;
+				case "idNumber":
+					r.setIdNumber(match.value());
+					break;
+				case "amount":
+					r.setAmount(match.value());
+					break;
+				case "amountExcludingTax":
+					r.setAmountExcludingTax(match.value());
+					break;
+				case "ticketNo":
+					r.setTicketNo(match.value());
+					break;
+				case "invoiceNo":
+					r.setInvoiceNo(match.value());
+					break;
+				case "eTicketNo":
+					r.setETicketNo(match.value());
+					break;
+				case "invoiceDate":
+					r.setInvoiceDate(match.value());
+					break;
+				case "sellStation":
+					r.setSellStation(match.value());
+					break;
+				case "serialNumber":
+					r.setSerialNumber(match.value());
+					break;
+				case "changedFlag":
+					r.setChangedFlag(match.value());
+					break;
+				default: {
+					/* no-op */
+					break;
+				}
 			}
 		}
 		LabelMatcher.applyFieldBox(r, name, match);
@@ -318,7 +355,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parseTrainNumber(List<PPOcrV6Result> results) {
 		// 1) 标签
-		for (String label : List.of("车次", "车次号")) {
+		for (String label : CollUtil.listOf("车次", "车次号")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				Matcher regex = TRAIN_NUMBER_PATTERN.matcher(m.value());
@@ -511,7 +548,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parseSeatClass(List<PPOcrV6Result> results) {
 		// 1) 标签 "席别" / "座位类型"
-		for (String label : List.of("席别", "座位类型")) {
+		for (String label : CollUtil.listOf("席别", "座位类型")) {
 			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
 			if (m.hasValue()) {
 				String keyword = findFirstKeyword(m.value(), SEAT_CLASS_KEYWORDS);
@@ -552,7 +589,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parsePassengerName(List<PPOcrV6Result> results) {
 		// 1) 标签定位（兼容独立框 + 合并框"姓名 张三"）
-		for (String label : List.of("姓名", "乘客姓名")) {
+		for (String label : CollUtil.listOf("姓名", "乘客姓名")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				Matcher regex = NAME_PATTERN.matcher(m.value());
@@ -590,7 +627,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	}
 
 	/** 乘客姓名兜底中需要排除的车票常见字。 */
-	private static final Set<Character> TRAIN_NOISE_TICKET_CHARS = Set.of(
+	private static final Set<Character> TRAIN_NOISE_TICKET_CHARS = CollUtil.setOf(
 		'站', '座', '车', '票', '卧', '元', '￥', '¥');
 
 	/**
@@ -633,7 +670,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parseIdNumber(List<PPOcrV6Result> results) {
 		// 1) 标签定位
-		for (String label : List.of("身份证号", "证件号码", "公民身份号码")) {
+		for (String label : CollUtil.listOf("身份证号", "证件号码", "公民身份号码")) {
 			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
 			if (m.hasValue()) {
 				String extracted = extractIdNumber(m.value());
@@ -709,7 +746,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parseAmount(List<PPOcrV6Result> results, String primaryLabel) {
 		// 1) 主标签 + 合并框剥值
-		for (String label : List.of(primaryLabel, "票价", "金额")) {
+		for (String label : CollUtil.listOf(primaryLabel, "票价", "金额")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				Matcher regex = AMOUNT_PATTERN.matcher(m.value());
@@ -729,7 +766,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 * 不含税金额：标签 "不含税金额" / "税前金额"。
 	 */
 	private static LabeledMatch parseAmountExcludingTax(List<PPOcrV6Result> results) {
-		for (String label : List.of("不含税金额", "税前金额")) {
+		for (String label : CollUtil.listOf("不含税金额", "税前金额")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				Matcher regex = AMOUNT_PATTERN.matcher(m.value());
@@ -754,7 +791,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static LabeledMatch parseTicketNo(List<PPOcrV6Result> results) {
 		// 1) 标签 "车票号"
-		for (String label : List.of("车票号", "票号")) {
+		for (String label : CollUtil.listOf("车票号", "票号")) {
 			LabeledMatch m = LabelMatcher.matchValueWithBox(results, label);
 			if (m.hasValue()) {
 				// 优先字母前缀（E/R/U 开头）
@@ -802,7 +839,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	}
 
 	/** 票号兜底中需要排除的字符（含金额符、身份证 *、小数点）。 */
-	private static final Set<String> TICKET_NOISE_CHARS = Set.of("￥", "¥", "元", "*", ".");
+	private static final Set<String> TICKET_NOISE_CHARS = CollUtil.setOf("￥", "¥", "元", "*", ".");
 
 	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results) {
 		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
@@ -903,7 +940,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 
 	private static LabeledMatch parseChangedFlag(List<PPOcrV6Result> results) {
 		// 标签 "标识" / "改签标识"
-		for (String label : List.of("标识", "改签标识")) {
+		for (String label : CollUtil.listOf("标识", "改签标识")) {
 			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, label);
 			if (m.hasValue()) {
 				String keyword = findFirstKeyword(m.value(), CHANGED_FLAG_KEYWORDS);
@@ -1012,7 +1049,7 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	}
 
 	/** 站名兜底中需要排除的机构关键字（单字粒度）。 */
-	private static final Set<Character> STATION_NOISE_CHARS = Set.of(
+	private static final Set<Character> STATION_NOISE_CHARS = CollUtil.setOf(
 		'局', '司', '所', '院', '处', '部', '厅', '署', '税',
 		'运', '铁', '国');
 
@@ -1052,6 +1089,10 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	/**
 	 * 日期时间切分结果。
 	 */
-	private record DateTimeSplit(String date, String time) {
+	@lombok.Value
+	@Accessors(fluent = true)
+	private static class DateTimeSplit {
+		private final String date;
+		private final String time;
 	}
 }

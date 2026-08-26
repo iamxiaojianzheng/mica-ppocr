@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.preprocessor;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,7 +53,7 @@ class RecognitionPreprocessorTest {
 	@Test
 	void call_emptyList() {
 		RecognitionPreprocessor pre = new RecognitionPreprocessor();
-		RecognitionPreprocessor.Result result = pre.call(java.util.List.of());
+		RecognitionPreprocessor.Result result = pre.call(CollUtil.listOf());
 		assertEquals(0, result.data().length);
 		assertArrayEquals(new int[]{0, 3, 48, 0}, result.shape());
 	}

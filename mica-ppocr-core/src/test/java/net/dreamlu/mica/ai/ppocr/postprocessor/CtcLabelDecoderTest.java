@@ -16,6 +16,8 @@
 
 package net.dreamlu.mica.ai.ppocr.postprocessor;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,7 +39,7 @@ class CtcLabelDecoderTest {
 	private Path createDict() throws IOException {
 		Path dict = tempDir.resolve("dict.txt");
 		// blank=0(内置), idx1=你, idx2=好, idx3=A, idx4=B, idx5=C
-		Files.writeString(dict, "你\n好\nA\nB\nC\n", StandardCharsets.UTF_8);
+		CollUtil.writeString(dict, "你\n好\nA\nB\nC\n", StandardCharsets.UTF_8);
 		return dict;
 	}
 

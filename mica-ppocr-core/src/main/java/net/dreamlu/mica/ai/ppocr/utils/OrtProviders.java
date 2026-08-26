@@ -59,7 +59,7 @@ public class OrtProviders {
 		for (OrtProvider p : available) {
 			availableNames.add(p.getName());
 		}
-		for (String preferred : List.of("CoreMLExecutionProvider", "CUDAExecutionProvider")) {
+		for (String preferred : CollUtil.listOf("CoreMLExecutionProvider", "CUDAExecutionProvider")) {
 			if (availableNames.contains(preferred)) {
 				log.info("ONNX Runtime provider: {}", preferred);
 				return new String[]{preferred};

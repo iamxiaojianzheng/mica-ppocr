@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.household;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
 import org.junit.jupiter.api.Test;
@@ -76,7 +77,7 @@ class HouseholdRegisterParserTest extends ParserTestSupport {
 
 	@Test
 	void parse_emptyResults_returnsNulls() {
-		HouseholdRegisterResult r = parse(new HouseholdRegisterParser(null), List.of());
+		HouseholdRegisterResult r = parse(new HouseholdRegisterParser(null), CollUtil.listOf());
 		assertNotNull(r);
 		assertNull(r.getHouseholdNo());
 		assertNull(r.getName());

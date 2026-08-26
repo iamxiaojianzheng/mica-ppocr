@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
@@ -94,7 +95,7 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 	// ========================================================================
 
 	/** 合并框剥前缀后允许的标点尾巴（含 "、" 等连接符，视为标签延伸）。 */
-	private static final Set<String> PUNCT_TAIL = Set.of(":", "：", "、", " ", "", "、服务名称", "服务名称");
+	private static final Set<String> PUNCT_TAIL = CollUtil.setOf(":", "：", "、", " ", "", "、服务名称", "服务名称");
 
 	// ========================================================================
 	// 入口
@@ -580,7 +581,7 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 	}
 
 	/** 其它字段标签关键字集合（防止跨字段标签被当作值）。 */
-	private static final Set<String> OTHER_LABEL_KEYWORDS = Set.of(
+	private static final Set<String> OTHER_LABEL_KEYWORDS = CollUtil.setOf(
 		"名称", "纳税人识别号", "地址、电话", "开户行及账号",
 		"货物或应税劳务", "货物或应税服务", "规格型号", "单价", "单位", "数量", "金额",
 		"税率", "税额", "合计", "价税合计", "大写", "小写",
@@ -699,11 +700,19 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		}
 		if (labelBox == null) return LabeledMatch.textOnly(null);
 
-		Pattern pattern = switch (label) {
-			case "金额", "税额" -> AMOUNT_NUM_PATTERN;
-			case "税率" -> TAX_RATE_PATTERN;
-			default -> null;
-		};
+		Pattern pattern;
+		switch (label) {
+			case "金额":
+			case "税额":
+				pattern = AMOUNT_NUM_PATTERN;
+				break;
+			case "税率":
+				pattern = TAX_RATE_PATTERN;
+				break;
+			default:
+				pattern = null;
+				break;
+		}
 		// 货物名称列：pattern == null 时走文字列校验
 		boolean isGoodsCol = "货物或应税劳务".equals(label) || "货物或应税服务".equals(label);
 		if (pattern == null && !isGoodsCol) return LabeledMatch.textOnly(null);
