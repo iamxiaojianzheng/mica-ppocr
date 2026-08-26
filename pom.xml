@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>mica-ppocr</name>
-    <description>PP-OCRv6 纯 ONNXRuntime 推理（Java 17 移植版）- 多模块</description>
+    <description>PP-OCRv6 纯 ONNXRuntime 推理（Java 移植版）- 多模块</description>
     <url>https://www.dreamlu.net</url>
 
     <developers>

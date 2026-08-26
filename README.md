@@ -1,11 +1,11 @@
 # mica-ppocr（Java 图片 OCR 识别）
 
 [![Java CI](https://github.com/lets-mica/mica-ppocr/actions/workflows/test-and-build.yml/badge.svg)](https://github.com/lets-mica/mica-ppocr/actions/workflows/test-and-build.yml)
-![JAVA 17](https://img.shields.io/badge/JDK-17+-brightgreen.svg)
+![JAVA 8](https://img.shields.io/badge/JDK-8+-brightgreen.svg)
 [![Mica Maven release](https://img.shields.io/maven-central/v/net.dreamlu/mica-ppocr-core.svg?style=flat-square)](https://central.sonatype.com/artifact/net.dreamlu/mica-ppocr-core/versions)
 ![Mica Maven SNAPSHOT](https://img.shields.io/maven-metadata/v?metadataUrl=https://central.sonatype.com/repository/maven-snapshots/net/dreamlu/mica-ppocr-core/maven-metadata.xml)
 
-> - PP-OCRv6 文字检测 + 识别的 **Java 17** 实现，纯 ONNX Runtime 推理，
+> - PP-OCRv6 文字检测 + 识别的 **Java** 实现，纯 ONNX Runtime 推理，
 > - **零 PaddlePaddle 依赖**。完整复现预处理 / 后处理（DB 后处理、CTC 解码、
 > - pyclipper 等价的多边形 unclip。
 > - doc_ori 文档方向分类模型，支持（4 类：0°/90°/180°/270°）在检测前对整图做方向校正，避免用户侧倒拍/横拍导致识别失败。
@@ -18,12 +18,12 @@
 
 ## 1. 环境要求
 
-| 组件 | 版本     | 说明                        |
-|------|--------|---------------------------|
-| JDK | 8+     | java 环境                   |
-| ONNX Runtime | 1.18.0 | 此版本内置的原生库可兼容更多操作系统版本      |
-| OpenCV | 4.10.0-0 | 含 Windows/Linux/macOS 原生库 |
-| JTS | 1.20.0 | 多边形偏移（pyclipper 等价物）      |
+| 组件           | 版本    | 说明                       |
+|--------------|-------|--------------------------|
+| JDK          | 8     | java 8 或以上版本             |
+| ONNX Runtime | 1.18.0 | 此版本内置的原生库可兼容更多操作系统版本     |
+| OpenCV       | 4.10.0-0 | 含 Windows/Linux/macOS 原生库 |
+| JTS          | 1.20.0 | 多边形偏移（pyclipper 等价物）     |
 
 ## 2. 模型目录
 
