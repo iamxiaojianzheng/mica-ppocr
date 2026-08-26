@@ -2,6 +2,15 @@
 
 ## 发行版本
 
+### v1.1.7 - 2026-08-26
+- feat(pdd): 新增拼多多福袋 OCR 结构化解析器（PddLuckyBagParser / PddLuckyBagResult），从「百亿补贴 抽福袋」分享图提取 8 位福袋码（邀请码）。
+- feat(idcard): 优化性别解析和住址提取逻辑，增强兼容性。性别解析支持合并框切割（兼容"性别男民族汉"双标签连写合并框及"性""别"字缺失场景）。github #13 感谢 `@iamxiaojianzheng` 贡献。
+- fix(idcard): 优化身份证地址跨行解析逻辑与消除多标签合并框告警 gitee #13 感谢 `@xiaojianzheng` 贡献。
+- fix(idcard): 提升身份证识别的精度 gitee !2 感谢 `@张海阳` 贡献。
+- fix(vehicle): 新增真实 OCR 样本单元测试验证合并框"所有人xxx"正确剥离前缀；测试覆盖车辆类型和所有人的正确解析；保留旧的多语言标签回退逻辑，兼顾更多场景识别。
+- fix(household): 修正户籍信息日期识别和关系字段匹配逻辑。`parseRelationship` 对"与户主关系"标签严格 y 中心匹配避免误匹配上下行内容。
+- fix(core): 修复 PPOcrV6Engine.decodeMat 泄漏 MatOfByte native buffer。github #14 感谢 `@iamxiaojianzheng` 反馈。
+
 ### v1.1.6 - 2026-08-21
 - fix(config): 还原 detLimitSideLen、detLimitType 默认组合为 64 + min，更适合证件类解析。
 
