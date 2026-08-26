@@ -179,6 +179,7 @@ DB 阈值、识别批大小、ORT 线程数、GPU 加速等全部走 [`PPOcrV6Co
 | 火车票 | `TrainTicketParser` | `TrainTicketResult` |
 | 出租车票 | `TaxiReceiptParser` | `TaxiReceiptResult` |
 | 户口本（常住人口登记卡） | `HouseholdRegisterParser` | `HouseholdRegisterResult` |
+| 拼多多福袋（8 位邀请码） | `PddLuckyBagParser` | `PddLuckyBagResult` |
 
 每个解析器都提供**静态 `parse(List<PPOcrV6Result>)`**（拿到 OCR 结果后直接调）和 **SPI `parseResults(...)`**（与 `BaseStructuredParser<R>` 接口对齐，便于自定义）两种调用形式。
 
