@@ -25,6 +25,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.pdd.PddLuckyBagParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
@@ -46,8 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *       {@link #run(InputStream)} —— 纯 OCR 识别，返回散落文字框列表；</li>
  *   <li>{@link #vehicleLicense()} / {@link #idCard()} / {@link #bankCard()} /
  *       {@link #driverLicense()} / {@link #businessLicense()} / {@link #invoice()} /
- *       {@link #trainTicket()} / {@link #taxiReceipt()} / {@link #householdRegister()} ——
- *       获取 9 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载；</li>
+ *       {@link #trainTicket()} / {@link #taxiReceipt()} / {@link #householdRegister()} /
+ *       {@link #pddLuckyBag()} ——
+ *       获取 10 类内置解析器，每个解析器已绑定 engine，自带 5 种入参的 {@code parse(...)} 重载；</li>
  *   <li>{@link #get(Class)} —— 通用查表入口，自定义解析器或不想加 getter 时使用。</li>
  * </ul>
  *
@@ -287,5 +289,14 @@ public final class PPOcrTemplate {
 	 */
 	public HouseholdRegisterParser householdRegister() {
 		return get(HouseholdRegisterParser.class);
+	}
+
+	/**
+	 * 获取拼多多福袋结构化解析器。
+	 *
+	 * @return 拼多多福袋解析器实例（已绑定当前 engine）
+	 */
+	public PddLuckyBagParser pddLuckyBag() {
+		return get(PddLuckyBagParser.class);
 	}
 }

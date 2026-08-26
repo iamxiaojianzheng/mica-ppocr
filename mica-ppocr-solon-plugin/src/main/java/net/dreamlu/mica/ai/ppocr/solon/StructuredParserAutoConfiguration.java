@@ -24,6 +24,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser;
+import net.dreamlu.mica.ai.ppocr.structured.parser.pdd.PddLuckyBagParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
@@ -36,7 +37,7 @@ import org.noear.solon.core.AppContext;
  * 结构化解析器自动配置（Solon 版）。
  *
  * <p>当 classpath 存在 {@link BaseStructuredParser}（即 {@code mica-ppocr-structured} 在依赖链中）时，
- * 自动注册 9 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票 / 户口本）
+ * 自动注册 10 个内置解析器（行驶证 / 身份证 / 银行卡 / 驾照 / 营业执照 / 发票 / 火车票 / 出租车票 / 户口本 / 拼多多福袋）
  * 和 {@link PPOcrTemplate} 模板。
  *
  * <p>每个解析器都是独立 {@code @Bean}，配合 {@code onMissingBean}，
@@ -166,6 +167,18 @@ public class StructuredParserAutoConfiguration {
 	@Condition(onMissingBean = HouseholdRegisterParser.class)
 	public HouseholdRegisterParser householdRegisterParser(PPOcrV6Engine engine) {
 		return new HouseholdRegisterParser(engine);
+	}
+
+	/**
+	 * 注册拼多多福袋解析器。
+	 *
+	 * @param engine PP-OCRv6 推理引擎
+	 * @return 拼多多福袋解析器实例
+	 */
+	@Bean
+	@Condition(onMissingBean = PddLuckyBagParser.class)
+	public PddLuckyBagParser pddLuckyBagParser(PPOcrV6Engine engine) {
+		return new PddLuckyBagParser(engine);
 	}
 
 	/**
