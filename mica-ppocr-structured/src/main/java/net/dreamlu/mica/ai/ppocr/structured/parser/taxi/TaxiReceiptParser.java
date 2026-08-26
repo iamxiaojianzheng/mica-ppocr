@@ -112,13 +112,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		"[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
 
 	/**
-	 * 车牌号兜底：无省份字头 6~7 位字母数字（横线归一化后）。
-	 * 覆盖：BU1346 / B-S4272 / AT3816 / H-W0220 等 OCR 漏识别省份字头的票面。
-	 */
-	private static final Pattern PLATE_NUMBER_FALLBACK_PATTERN = Pattern.compile(
-		"[A-Z0-9][A-Z0-9-]{4,7}");
-
-	/**
 	 * 噪声文本（绝不可能是车牌的框）：上下单、TAXI/TAXIN 等英文残留。
 	 * 严格用词边界，避免误杀"TaXIN"以外的真实车号框。
 	 */
@@ -163,11 +156,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	 */
 	private static final Pattern MILEAGE_PATTERN = Pattern.compile(
 		"\\d+(?:\\.\\d|-\\d)?\\s*(?:km|公里)");
-
-	/**
-	 * 纯数字里程（兜底）。
-	 */
-	private static final Pattern MILEAGE_NUMBER_PATTERN = Pattern.compile("\\d+(?:[.-]\\d)?");
 
 	/**
 	 * 金额：¥/￥ + 数字 + 两位小数（容许 OCR 噪声 "-" 当小数点，"元" 可选后缀）。

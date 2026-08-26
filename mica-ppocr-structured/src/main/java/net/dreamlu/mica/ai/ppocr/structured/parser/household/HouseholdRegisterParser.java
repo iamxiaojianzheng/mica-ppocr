@@ -54,11 +54,6 @@ import java.util.regex.Pattern;
 public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegisterResult> {
 
 	/**
-	 * 户号：7~12 位连续数字。
-	 */
-	private static final Pattern HOUSEHOLD_NO_PATTERN = Pattern.compile("\\d{7,12}");
-
-	/**
 	 * 18 位身份证号（末位 X 支持）。
 	 */
 	private static final Pattern ID_NUMBER_18_PATTERN = Pattern.compile("[0-9]{17}[0-9Xx]");
@@ -68,12 +63,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	 */
 	private static final Pattern DATE_PATTERN = Pattern.compile(
 		"\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日?");
-
-	/**
-	 * 部分日期："yyyy 年 MM 月 dd" 没有"日"字（OCR 漏识别结尾）。
-	 */
-	private static final Pattern DATE_PARTIAL_PATTERN = Pattern.compile(
-		"\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}");
 
 	/**
 	 * 更宽松的日期形式（"yyyy-月-dd" / "yyyy.MM.dd" / "yyyy/MM/dd" / "yyyy MM dd" / "yyyy年MM月dd日"）。
@@ -99,17 +88,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	 * 民族关键字：含"族"或为"汉"。
 	 */
 	private static final Pattern NATION_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{1,4}族|^汉$");
-
-	/**
-	 * 血型：A / B / AB / O + 可选"型"。
-	 */
-	private static final Pattern BLOOD_TYPE_PATTERN = Pattern.compile("^([ABO]|AB)\\s*型?$");
-
-	/**
-	 * 婚姻状况关键字。
-	 */
-	private static final Set<String> MARITAL_STATUS_KEYWORDS = CollUtil.setOf(
-		"未婚", "已婚", "离异", "丧偶", "初婚", "再婚");
 
 	/**
 	 * 与户主关系关键字。
@@ -398,16 +376,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		if (next == null) return m;
 		boxes.add(next);
 		return LabeledMatch.of(value + next.text(), boxes);
-	}
-
-	/**
-	 * 是否为常见 1 字姓名（Huang/Yu 等 OCR 错把右侧 label 当名）。
-	 */
-	private static boolean isNameChar(String text) {
-		if (text == null || text.isEmpty()) return false;
-		char c = text.charAt(0);
-		// 排除明显不是人名的单字
-		return Character.isLetterOrDigit(c) || Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN;
 	}
 
 	/**
@@ -917,44 +885,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.of(heightOnly, m.matches());
 	}
 
-	// ==================================================================
-	// 身高
-	// ==================================================================
-
-	private static LabeledMatch parseBloodType(List<PPOcrV6Result> results) {
-		LabeledMatch m = matchValueWithBoxWithSpaces(results, "血型");
-		if (!m.hasValue()) {
-			return LabeledMatch.textOnly(null);
-		}
-		String cleaned = m.value().replaceAll("\\s+", "");
-		if (BLOOD_TYPE_PATTERN.matcher(cleaned).matches() || "无".equals(cleaned)) {
-			return LabeledMatch.of(cleaned, m.matches());
-		}
-		return m;
-	}
-
-	// ==================================================================
-	// 血型
-	// ==================================================================
-
-	private static LabeledMatch parseMaritalStatus(List<PPOcrV6Result> results) {
-		LabeledMatch m = matchValueWithBoxWithSpaces(results, "婚姻状况");
-		if (!m.hasValue()) {
-			return LabeledMatch.textOnly(null);
-		}
-		String cleaned = m.value().replaceAll("\\s+", "");
-		for (String kw : MARITAL_STATUS_KEYWORDS) {
-			if (cleaned.contains(kw)) {
-				return LabeledMatch.of(kw, m.matches());
-			}
-		}
-		return m;
-	}
-
-	// ==================================================================
-	// 婚姻状况
-	// ==================================================================
-
 	/**
 	 * 服务处所：label 定位 + 合并框"服务处所无"剥前缀 + 拒绝右列其他字段 label fragment。
 	 *
@@ -1291,25 +1221,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	/**
-	 * 按 label 多种变体（含空格）尝试定位。
-	 */
-	private static LabeledMatch matchValueByLabelVariants(List<PPOcrV6Result> results, String label) {
-		LabeledMatch m = matchValueWithBoxWithSpaces(results, label);
-		if (m.hasValue()) return m;
-		// 兜底：扫所有框，对每个框跑"label 包含 text 或 text 包含 label"
-		for (PPOcrV6Result candidate : results) {
-			String text = candidate.text();
-			if (text == null || text.isEmpty()) continue;
-			String textNoSpace = text.replaceAll("\\s+", "");
-			String labelNoSpace = label.replaceAll("\\s+", "");
-			if (textNoSpace.equals(labelNoSpace) || textNoSpace.endsWith(labelNoSpace) || textNoSpace.startsWith(labelNoSpace)) {
-				return matchValueToRightOfLabel(results, candidate, label);
-			}
-		}
-		return LabeledMatch.textOnly(null);
-	}
-
-	/**
 	 * 找到 label 框后，按"右侧 y 重叠 + x 最近"取 value 框。
 	 *
 	 * <p>变体（skipTexts）：可指定要排除的文本（label 碎片不应被当作 value）。
@@ -1399,17 +1310,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	private static boolean isRelationshipWord(String text) {
 		if (text == null || text.isEmpty()) return false;
 		return RELATIONSHIP_KEYWORDS.contains(text);
-	}
-
-	private static PPOcrV6Result findBoxByPattern(List<PPOcrV6Result> results, Pattern pattern) {
-		for (PPOcrV6Result r : results) {
-			String text = r.text();
-			if (text == null || text.isEmpty()) continue;
-			if (pattern.matcher(text).find()) {
-				return r;
-			}
-		}
-		return null;
 	}
 
 	/**

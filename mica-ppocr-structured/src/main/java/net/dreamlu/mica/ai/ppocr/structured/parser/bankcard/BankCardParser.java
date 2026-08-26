@@ -64,14 +64,6 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	 * 发卡行：中文 ≥4 字（"中国工商银行"/"华夏银行"）。
 	 */
 	private static final Pattern BANK_NAME_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{4,}");
-	/**
-	 * 卡片类型：英文 CREDIT / DEBIT。
-	 */
-	private static final Pattern CARD_TYPE_EN_PATTERN = Pattern.compile("CREDIT|DEBIT", Pattern.CASE_INSENSITIVE);
-	/**
-	 * 卡片类型：中文 "信用卡" / "借记卡"。
-	 */
-	private static final Pattern CARD_TYPE_CN_PATTERN = Pattern.compile("(信用卡|借记卡)");
 
 	/**
 	 * 持卡人：已知英文标签黑名单（会被 HOLDER_NAME_PATTERN 误匹配的标签，大小写敏感）。

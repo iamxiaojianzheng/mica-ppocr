@@ -25,7 +25,6 @@ import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -84,17 +83,6 @@ public class LabelMatcher {
 	 */
 	public static String matchValue(List<PPOcrV6Result> results, String label, int rightOverlapTolerance) {
 		return matchValueWithBox(results, label, rightOverlapTolerance).value();
-	}
-
-	/**
-	 * 兼容老代码：按"标签右侧 + y 重叠 + 最左"策略取值。
-	 *
-	 * @param results OCR 识别结果列表
-	 * @param label   字段标签
-	 * @return 字段值；未匹配到时返回 null
-	 */
-	public static String matchValueByCenter(List<PPOcrV6Result> results, String label) {
-		return matchValueByCenterWithBox(results, label).value();
 	}
 
 	/**
@@ -647,46 +635,6 @@ public class LabelMatcher {
 	}
 
 	/**
-	 * 在 {@code minScore} 阈值下，从所有 OCR 框中找"最底部"含正则的框。
-	 *
-	 * <p>典型场景：总金额 / 票价等通常出现在票面下半部，label 经常被吞，
-	 * 可按 y 最大 + 正则匹配兜底。
-	 *
-	 * @param results      OCR 识别结果列表
-	 * @param pattern      匹配正则（{@code find()} 命中即视为候选）
-	 * @param minScore     最小置信度过滤（噪声框排除）
-	 * @param valueCleaner 命中后对正则 group 做二次清洗（如剥货币符号）；
-	 *                     为 null 时直接返回正则 group
-	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
-	 */
-	public static LabeledMatch matchBottomPatternWithBox(List<PPOcrV6Result> results,
-														 Pattern pattern,
-														 float minScore,
-														 Function<String, String> valueCleaner) {
-		PPOcrV6Result best = null;
-		String bestHit = null;
-		int bestY = Integer.MIN_VALUE;
-		for (PPOcrV6Result r : results) {
-			String text = r.text();
-			if (text == null || text.isEmpty()) continue;
-			if (r.score() < minScore) continue;
-			Matcher m = pattern.matcher(text);
-			if (!m.find()) continue;
-			int y = (minY(r) + maxY(r)) / 2;
-			if (y > bestY) {
-				bestY = y;
-				best = r;
-				bestHit = m.group();
-			}
-		}
-		if (best == null) return LabeledMatch.textOnly(null);
-		String value = valueCleaner != null ? valueCleaner.apply(bestHit) : bestHit;
-		if (value == null || value.isEmpty()) return LabeledMatch.textOnly(null);
-		log.debug("结构化解析：底部正则兜底命中 \"{}\"（y={}）", best.text(), bestY);
-		return LabeledMatch.of(value, best);
-	}
-
-	/**
 	 * 在所有 OCR 框中扫"含指定关键字的 fragment 标签"，定位对应右侧 y 重叠的值。
 	 *
 	 * <p>典型场景：OCR 把"日期"label 切碎成单字"期"（如"日上下单里"+ 右侧
@@ -942,19 +890,51 @@ public class LabelMatcher {
 	/**
 	 * 互斥分配的 label 定义。
 	 *
-	 * @param name         字段名（结果 Map 的 key）
-	 * @param primaryLabel 主标签
-	 * @param altKeywords  OCR 漏识别标签时的备选关键字
+	 * <p>用于 {@link LabelMatcher#assignExclusiveValues} 描述一组"同 y 区域、共享右侧
+	 * 值列"的字段（典型如发票"金额 / 燃油附加费 / 总金额"在同一右侧列）。每个 label 含：
+	 * <ul>
+	 *   <li><b>主标签</b> {@link #primaryLabel} —— 通过 {@link LabelMatcher#findLabelBox}
+	 *       精确定位，匹配"完整等于 / 以 label 开头 / label 包含文本"三级回退；</li>
+	 *   <li><b>备选关键字</b> {@link #altKeywords} —— 主标签被 OCR 漏识别或切碎成 fragment
+	 *       时回退定位；按 {@link LabelMatcher#findBoxesByKeyword} 模糊命中，命中后取文本
+	 *       最短的候选框（更接近 fragment 标签）。</li>
+	 * </ul>
+	 *
+	 * <p>典型用法（发票金额行）：
+	 * <pre>{@code
+	 * List<LabelDef> defs = Arrays.asList(
+	 *     new LabelDef("amount",        "金额",   "金"),
+	 *     new LabelDef("fuelSurcharge", "附加费", "附"),
+	 *     new LabelDef("total",         "总金额", "总")
+	 * );
+	 * Map<String, String> fields = LabelMatcher.assignExclusiveValues(
+	 *     results, defs, InvoiceParser::extractMoney, 5);
+	 * }</pre>
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)
 	public static class LabelDef {
-		private final String name;
-		private final String primaryLabel;
-		private final String[] altKeywords;
+		/**
+		 * 字段名（结果 Map 的 key）。不可为 null。
+		 */
+		String name;
+		/**
+		 * 主标签文本。不可为 null。
+		 */
+		String primaryLabel;
+		/**
+		 * OCR 漏识别/切碎标签时的备选关键字（{@link LabelMatcher#findBoxesByKeyword} 模糊定位）。
+		 * 可为 null 或空数组。
+		 */
+		String[] altKeywords;
 
 		/**
-		 * 参数校验：name 与 primaryLabel 均不可为 null。
+		 * 构造 label 定义。
+		 *
+		 * @param name         字段名（结果 Map 的 key，不可为 null）
+		 * @param primaryLabel 主标签（不可为 null）
+		 * @param altKeywords  OCR 漏识别标签时的备选关键字（可为 null 或空）
+		 * @throws IllegalArgumentException name 或 primaryLabel 为 null
 		 */
 		public LabelDef(String name, String primaryLabel, String... altKeywords) {
 			if (name == null || primaryLabel == null) {
@@ -967,14 +947,34 @@ public class LabelMatcher {
 	}
 
 	/**
-	 * 互斥分配的内部数据结构。
+	 * 互斥分配的内部数据结构：单个 (label, value) 配对及其位置分数。
+	 *
+	 * <p>仅在 {@link LabelMatcher#assignExclusiveValues} 内部使用，承载：
+	 * <ul>
+	 *   <li>所属 label 名（对应 {@link LabelDef#name()}）；</li>
+	 *   <li>候选 value 框（{@link PPOcrV6Result}）及其提取值；</li>
+	 *   <li>位置分数 {@code |x0 - labelMaxX| * 10 + |rCenterY - labelCenterY|}，越低越好；
+	 *       合并框场景（label 与 value 同一 OCR 框）取 0，强制最优先匹配。</li>
+	 * </ul>
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)
 	private static class ScoredPair {
-		private final String labelName;
-		private final PPOcrV6Result valueBox;
-		private final String value;
-		private final int score;
+		/**
+		 * 所属 label 名（对应 {@link LabelDef#name()}）。
+		 */
+		String labelName;
+		/**
+		 * 候选 value 框（OCR 识别结果）。
+		 */
+		PPOcrV6Result valueBox;
+		/**
+		 * 从 {@link #valueBox} 文本提取出的字段值（已通过 {@code valueExtractor} 校验）。
+		 */
+		String value;
+		/**
+		 * 位置分数，越低越好；合并框场景为 0（强制最优先匹配）。
+		 */
+		int score;
 	}
 }
