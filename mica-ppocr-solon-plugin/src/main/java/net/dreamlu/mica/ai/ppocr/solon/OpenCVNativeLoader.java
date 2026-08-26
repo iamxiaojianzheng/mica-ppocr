@@ -39,7 +39,7 @@ import org.opencv.core.Core;
  */
 @Slf4j
 @Configuration
-@Condition(onClass=OpenCV.class)
+@Condition(onClass = OpenCV.class)
 public class OpenCVNativeLoader {
 
 	/**

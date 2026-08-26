@@ -16,7 +16,6 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
@@ -24,6 +23,7 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher.LabeledMatch;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,32 +62,52 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	// 几何兜底阈值
 	// ========================================================================
 
-	/** 几何兜底 y 重叠容差（像素），用于容忍边界 1px 相接。 */
+	/**
+	 * 几何兜底 y 重叠容差（像素），用于容忍边界 1px 相接。
+	 */
 	private static final int Y_OVERLAP_DELTA = 5;
-	/** 短 label 兜底 y 距离权重（vs x 距离权重 1）。 */
+	/**
+	 * 短 label 兜底 y 距离权重（vs x 距离权重 1）。
+	 */
 	private static final int Y_DISTANCE_WEIGHT = 20;
-	/** y 方向偏好（below/above）减分值。 */
+	/**
+	 * y 方向偏好（below/above）减分值。
+	 */
 	private static final int Y_HINT_SCORE = 5000;
-	/** hint 正则命中减分值（极强优先）。 */
+	/**
+	 * hint 正则命中减分值（极强优先）。
+	 */
 	private static final int HINT_REGEX_SCORE = 100_000;
-	/** 总金额 y 必须低于"金额"label y 至少此像素。 */
+	/**
+	 * 总金额 y 必须低于"金额"label y 至少此像素。
+	 */
 	private static final int TOTAL_AMOUNT_Y_GAP = 30;
-	/** 兜底最小 OCR 置信度。 */
+	/**
+	 * 兜底最小 OCR 置信度。
+	 */
 	private static final float MIN_SCORE = 0.5f;
-	/** 总金额最小置信度（更严格，过滤噪声）。 */
+	/**
+	 * 总金额最小置信度（更严格，过滤噪声）。
+	 */
 	private static final float TOTAL_MIN_SCORE = 0.5f;
 
 	// ========================================================================
 	// 正则常量
 	// ========================================================================
 
-	/** 发票代码：12 位纯数字。 */
+	/**
+	 * 发票代码：12 位纯数字。
+	 */
 	private static final Pattern INVOICE_CODE_PATTERN = Pattern.compile("\\d{12}");
 
-	/** 发票号码：8 位纯数字。 */
+	/**
+	 * 发票号码：8 位纯数字。
+	 */
 	private static final Pattern INVOICE_NO_PATTERN = Pattern.compile("\\d{8}");
 
-	/** 车牌号：省份简称 + 字母 + 5~6 位字母数字。 */
+	/**
+	 * 车牌号：省份简称 + 字母 + 5~6 位字母数字。
+	 */
 	private static final Pattern PLATE_NUMBER_PATTERN = Pattern.compile(
 		"[\\u4e00-\\u9fa5][A-Z][A-Z0-9]{5,6}");
 
@@ -119,7 +139,9 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	private static final Pattern DATE_LOOSE_PATTERN = Pattern.compile(
 		"\\d{2,4}[-./年:：]\\d{1,2}[-./月:：]\\d{1,2}");
 
-	/** 时间：HH:mm（24 小时制）。 */
+	/**
+	 * 时间：HH:mm（24 小时制）。
+	 */
 	private static final Pattern TIME_PATTERN = Pattern.compile(
 		"([01]?\\d|2[0-3]):[0-5]\\d");
 
@@ -136,11 +158,15 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	private static final Pattern TIME_RANGE_PATTERN = Pattern.compile(
 		"(" + HHMM + ")\\s*[-~]\\s*(" + HHMM + ")");
 
-	/** 里程：纯数字 + 小数点 + 公里（兼容 "12.5km"、"14.2公里"）。 */
+	/**
+	 * 里程：纯数字 + 小数点 + 公里（兼容 "12.5km"、"14.2公里"）。
+	 */
 	private static final Pattern MILEAGE_PATTERN = Pattern.compile(
 		"\\d+(?:\\.\\d|-\\d)?\\s*(?:km|公里)");
 
-	/** 纯数字里程（兜底）。 */
+	/**
+	 * 纯数字里程（兜底）。
+	 */
 	private static final Pattern MILEAGE_NUMBER_PATTERN = Pattern.compile("\\d+(?:[.-]\\d)?");
 
 	/**
@@ -156,7 +182,9 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	private static final Pattern AMOUNT_STRICT_PATTERN = Pattern.compile(
 		"[¥￥]\\s*\\d{2,}(?:[.-]\\d{1,2})?\\s*元?");
 
-	/** 中文城市名：2~6 字（避免长字符串误命中）。 */
+	/**
+	 * 中文城市名：2~6 字（避免长字符串误命中）。
+	 */
 	private static final Pattern CITY_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{2,6}");
 
 	/**
@@ -177,14 +205,18 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		"卡号", "原额", "余额", "密码", "合计", "总计"
 	);
 
-	/** 中国汽车牌照省份简称（避免误识别）。 */
+	/**
+	 * 中国汽车牌照省份简称（避免误识别）。
+	 */
 	private static final Set<String> PLATE_PROVINCES = CollUtil.setOf(
 		"京", "津", "沪", "渝", "冀", "豫", "云", "辽", "黑", "湘",
 		"皖", "鲁", "新", "苏", "浙", "赣", "鄂", "桂", "甘", "晋",
 		"蒙", "陕", "吉", "闽", "贵", "粤", "川", "青藏", "宁", "琼"
 	);
 
-	/** 短 label 兜底：找"上"/"下"/"上客"/"下客"/"车" 短 label 框。 */
+	/**
+	 * 短 label 兜底：找"上"/"下"/"上客"/"下客"/"车" 短 label 框。
+	 */
 	private static final Set<String> SHORT_LABELS = CollUtil.setOf("上", "下", "上客", "下客", "车");
 
 	// ========================================================================
@@ -198,43 +230,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	 */
 	public TaxiReceiptParser(PPOcrV6Engine engine) {
 		super(engine);
-	}
-
-	@Override
-	public TaxiReceiptResult parseResults(List<PPOcrV6Result> results) {
-		TaxiReceiptResult r = new TaxiReceiptResult();
-		r.setRawResults(new ArrayList<>(results));
-
-		// 票号
-		applyField(r, "invoiceCode", parseInvoiceCode(results));
-		applyField(r, "invoiceNo", parseInvoiceNo(results));
-
-		// 行程
-		applyField(r, "plateNumber", parsePlateNumber(results));
-		applyField(r, "date", parseDate(results));
-		TimeRange times = parseTimeRange(results, "上车时间", "上客时间", "上车");
-		TimeRange alighting = parseTimeRange(results, "下车时间", "下客时间", "下车");
-		// 下车时间优先取 alighting 范围的后半；如 alighting 只有单时间，
-		// 用 boarding 范围的后半（OCR 把"15:01-15:24"识别为合并框被两个标签都命中的场景）；
-		// 最后退到 alighting 单时间。
-		String boardingTime = firstNonNull(times.boarding(), times.single());
-		String alightingTime = firstNonNull(alighting.alighting(), times.alighting(), alighting.single());
-		applyField(r, "boardingTime", LabeledMatch.of(boardingTime, times.matches()));
-		applyField(r, "alightingTime", LabeledMatch.of(alightingTime, alighting.matches()));
-		applyField(r, "mileage", parseMileage(results));
-
-		// 金额（保持 P1 实现：preferYDir hint + 关键字兜底）
-		// P2 互斥分配实验表明对出租车金额行场景副作用大于收益（短 label 共享 box 误判），
-		// 暂时只在 LabelMatcher 中保留算法，不在出租车/火车票解析器里启用。
-		applyField(r, "amount", parseAmountWithYHint(results, "金额", null, "Fare"));
-		applyField(r, "fuelSurcharge", parseAmountWithYHint(results, "燃油附加费", "below", "Fuel", "附加费"));
-		applyField(r, "bookingFee", parseAmountWithYHint(results, "预约叫车服务费", "below", "叫车服务费", "叫车"));
-		applyField(r, "totalAmount", parseTotalAmount(results));
-
-		// 其他
-		applyField(r, "city", parseCity(results));
-
-		return r;
 	}
 
 	/**
@@ -293,10 +288,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		LabelMatcher.applyFieldBox(r, name, match);
 	}
 
-	// ========================================================================
-	// 票号
-	// ========================================================================
-
 	private static LabeledMatch parseInvoiceCode(List<PPOcrV6Result> results) {
 		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票代码");
 		if (m.hasValue()) {
@@ -312,6 +303,10 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		});
 	}
 
+	// ========================================================================
+	// 票号
+	// ========================================================================
+
 	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results) {
 		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
 		if (m.hasValue()) {
@@ -326,10 +321,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 			return regex.find() ? regex.group() : null;
 		});
 	}
-
-	// ========================================================================
-	// 行程
-	// ========================================================================
 
 	private static LabeledMatch parsePlateNumber(List<PPOcrV6Result> results) {
 		// 1) 标签定位（"车牌号"/"车号"）
@@ -376,6 +367,10 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		}
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ========================================================================
+	// 行程
+	// ========================================================================
 
 	private static LabeledMatch parseDate(List<PPOcrV6Result> results) {
 		// 1) 标签 "日期" / "开票日期"（先尝试"开票日期"，再尝试"日期"）
@@ -632,10 +627,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		return normalized;
 	}
 
-	// ========================================================================
-	// 金额
-	// ========================================================================
-
 	/**
 	 * 通用金额标签匹配：标签定位 + 关键字兜底。
 	 *
@@ -667,6 +658,10 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		}
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ========================================================================
+	// 金额
+	// ========================================================================
 
 	private static LabeledMatch parseTotalAmount(List<PPOcrV6Result> results) {
 		// 1) 标签"总金额"（独立或合并框）。
@@ -817,10 +812,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		return digits;
 	}
 
-	// ========================================================================
-	// 其他
-	// ========================================================================
-
 	private static LabeledMatch parseCity(List<PPOcrV6Result> results) {
 		// 1) 标签定位（"开票城市"）
 		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "开票城市");
@@ -870,6 +861,10 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ========================================================================
+	// 其他
+	// ========================================================================
+
 	/**
 	 * 清洗候选城市文本：必须纯中文、长度合理、且不含噪声词。
 	 */
@@ -882,10 +877,6 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		return city;
 	}
 
-	// ========================================================================
-	// 共享工具
-	// ========================================================================
-
 	/**
 	 * 几何兜底：找 label 框（支持多关键字模糊匹配） + 右侧 y 中心最近的
 	 * 含有效内容的值框，按 y 中心距离 + x 距离综合打分。
@@ -896,22 +887,26 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	 *
 	 * <p>任一关键字命中即视为 label 框候选。值框必须能被 valueExtractor 切出非空结果。
 	 *
-	 * @param hintRegex     可选的"提示正则"，值框文本若匹配则减 {@value #HINT_REGEX_SCORE} 分（极强优先）。
-	 *                       用于强制偏好带单位/关键字的候选（如里程的"km"）。
-	 * @param preferYDir    可选 y 方向偏好："below" 偏好 y 中心大于 label 中心的候选，
-	 *                       "above" 偏好 y 中心小于 label 中心的候选。null = 中性。
-	 * @param altKeywords   OCR 漏识别标签时的备选关键字
+	 * @param hintRegex   可选的"提示正则"，值框文本若匹配则减 {@value #HINT_REGEX_SCORE} 分（极强优先）。
+	 *                    用于强制偏好带单位/关键字的候选（如里程的"km"）。
+	 * @param preferYDir  可选 y 方向偏好："below" 偏好 y 中心大于 label 中心的候选，
+	 *                    "above" 偏好 y 中心小于 label 中心的候选。null = 中性。
+	 * @param altKeywords OCR 漏识别标签时的备选关键字
 	 */
 	private static String pickValueByYProximity(List<PPOcrV6Result> results,
-												 String primaryLabel,
-												 Function<String, String> valueExtractor,
-												 Pattern hintRegex,
-												 String preferYDir,
-												 String... altKeywords) {
+												String primaryLabel,
+												Function<String, String> valueExtractor,
+												Pattern hintRegex,
+												String preferYDir,
+												String... altKeywords) {
 		PPOcrV6Result box = pickValueBoxByYProximity(results, primaryLabel, valueExtractor, hintRegex, preferYDir, altKeywords);
 		if (box == null) return null;
 		return valueExtractor.apply(box.text());
 	}
+
+	// ========================================================================
+	// 共享工具
+	// ========================================================================
 
 	/**
 	 * 几何兜底（同 {@link #pickValueByYProximity}），返回命中的值框而非文本。
@@ -990,9 +985,9 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 	 * 不带 hint 的简化版（向后兼容）。
 	 */
 	private static String pickValueByYProximity(List<PPOcrV6Result> results,
-												 String primaryLabel,
-												 Function<String, String> valueExtractor,
-												 String... altKeywords) {
+												String primaryLabel,
+												Function<String, String> valueExtractor,
+												String... altKeywords) {
 		return pickValueByYProximity(results, primaryLabel, valueExtractor, null, null, altKeywords);
 	}
 
@@ -1171,6 +1166,43 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		return out;
 	}
 
+	@Override
+	public TaxiReceiptResult parseResults(List<PPOcrV6Result> results) {
+		TaxiReceiptResult r = new TaxiReceiptResult();
+		r.setRawResults(new ArrayList<>(results));
+
+		// 票号
+		applyField(r, "invoiceCode", parseInvoiceCode(results));
+		applyField(r, "invoiceNo", parseInvoiceNo(results));
+
+		// 行程
+		applyField(r, "plateNumber", parsePlateNumber(results));
+		applyField(r, "date", parseDate(results));
+		TimeRange times = parseTimeRange(results, "上车时间", "上客时间", "上车");
+		TimeRange alighting = parseTimeRange(results, "下车时间", "下客时间", "下车");
+		// 下车时间优先取 alighting 范围的后半；如 alighting 只有单时间，
+		// 用 boarding 范围的后半（OCR 把"15:01-15:24"识别为合并框被两个标签都命中的场景）；
+		// 最后退到 alighting 单时间。
+		String boardingTime = firstNonNull(times.boarding(), times.single());
+		String alightingTime = firstNonNull(alighting.alighting(), times.alighting(), alighting.single());
+		applyField(r, "boardingTime", LabeledMatch.of(boardingTime, times.matches()));
+		applyField(r, "alightingTime", LabeledMatch.of(alightingTime, alighting.matches()));
+		applyField(r, "mileage", parseMileage(results));
+
+		// 金额（保持 P1 实现：preferYDir hint + 关键字兜底）
+		// P2 互斥分配实验表明对出租车金额行场景副作用大于收益（短 label 共享 box 误判），
+		// 暂时只在 LabelMatcher 中保留算法，不在出租车/火车票解析器里启用。
+		applyField(r, "amount", parseAmountWithYHint(results, "金额", null, "Fare"));
+		applyField(r, "fuelSurcharge", parseAmountWithYHint(results, "燃油附加费", "below", "Fuel", "附加费"));
+		applyField(r, "bookingFee", parseAmountWithYHint(results, "预约叫车服务费", "below", "叫车服务费", "叫车"));
+		applyField(r, "totalAmount", parseTotalAmount(results));
+
+		// 其他
+		applyField(r, "city", parseCity(results));
+
+		return r;
+	}
+
 	/**
 	 * 时间范围记录：分别保存上车、下车、单独命中时间。
 	 */
@@ -1182,31 +1214,51 @@ public class TaxiReceiptParser extends BaseStructuredParser<TaxiReceiptResult> {
 		private final String single;
 		private final List<PPOcrV6Result> matches;
 
-		/** 空记录。 */
+		/**
+		 * 空记录。
+		 */
 		static TimeRange empty() {
 			return new TimeRange(null, null, null, CollUtil.listOf());
 		}
-		/** 时间范围命中（"HH:mm-HH:mm"）。 */
+
+		/**
+		 * 时间范围命中（"HH:mm-HH:mm"）。
+		 */
 		static TimeRange range(String boarding, String alighting, List<PPOcrV6Result> matches) {
 			return new TimeRange(boarding, alighting, null, matches);
 		}
-		/** 单时间命中。 */
+
+		/**
+		 * 单时间命中。
+		 */
 		static TimeRange single(String time, List<PPOcrV6Result> matches) {
 			return new TimeRange(null, null, time, matches);
 		}
-		/** 短 label 兜底命中。 */
+
+		/**
+		 * 短 label 兜底命中。
+		 */
 		static TimeRange times(String boarding, String alighting) {
 			return new TimeRange(boarding, alighting, null, CollUtil.listOf());
 		}
-		/** 更新上车时间。 */
+
+		/**
+		 * 更新上车时间。
+		 */
 		TimeRange withBoarding(String v) {
 			return new TimeRange(v, alighting, single, matches);
 		}
-		/** 更新下车时间。 */
+
+		/**
+		 * 更新下车时间。
+		 */
 		TimeRange withAlighting(String v) {
 			return new TimeRange(boarding, v, single, matches);
 		}
-		/** 更新匹配框。 */
+
+		/**
+		 * 更新匹配框。
+		 */
 		TimeRange withMatches(List<PPOcrV6Result> newMatches) {
 			return new TimeRange(boarding, alighting, single, newMatches);
 		}

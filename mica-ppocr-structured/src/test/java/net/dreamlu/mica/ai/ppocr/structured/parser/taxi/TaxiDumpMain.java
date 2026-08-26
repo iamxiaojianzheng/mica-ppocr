@@ -16,12 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.opencv.core.Mat;
 
 import java.io.IOException;
@@ -56,85 +55,11 @@ public class TaxiDumpMain extends BaseTest<TaxiReceiptParser, TaxiReceiptResult>
 		new TaxiDumpMain().run(outDir);
 	}
 
-	private void run(Path outDir) throws IOException {
-		nu.pattern.OpenCV.loadLocally();
-
-		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
-		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
-		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
-		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
-
-		PPOcrV6Config config = PPOcrV6Config.builder()
-			.detModelPath(detModel)
-			.recModelPath(recModel)
-			.recCharDictPath(dict)
-			.useDocOrientationClassify(USE_DOC_ORIENTATION)
-			.docOrientationModelPath(docOriModel)
-			.build();
-
-		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-			for (String imgPath : IMAGES) {
-				String name = nameOf(imgPath);
-				System.out.println("\n" + CollUtil.repeat("=", 60));
-				System.out.println(">>> " + name + " <<<");
-				System.out.println(CollUtil.repeat("=", 60));
-				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
-				if (img == null || img.empty()) {
-					System.err.println("无法读取图片: " + imgPath);
-					continue;
-				}
-				List<PPOcrV6Result> results = engine.runMat(img);
-
-				// 1) 保存 JSON
-				Path jsonPath = outDir.resolve(name + ".json");
-				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
-				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
-
-				// 2) 输出结构化结果
-				System.out.println("\n--- 结构化解析 [" + name + "] ---");
-				printResults(engine, results);
-				img.release();
-			}
-		}
-	}
-
 	private static String nameOf(String imgPath) {
 		String f = Paths.get(imgPath).getFileName().toString();
 		int dot = f.lastIndexOf('.');
 		return dot > 0 ? f.substring(0, dot) : f;
 	}
-
-	@Override
-	protected TaxiReceiptParser newParser(PPOcrV6Engine engine) {
-		return new TaxiReceiptParser(engine);
-	}
-
-	@Override
-	protected void printResult(TaxiReceiptResult r) {
-		System.out.println("--- 票号 ---");
-		System.out.println("发票代码         " + r.getInvoiceCode());
-		System.out.println("发票号码         " + r.getInvoiceNo());
-		System.out.println();
-		System.out.println("--- 行程 ---");
-		System.out.println("车牌号           " + r.getPlateNumber());
-		System.out.println("日期             " + r.getDate());
-		System.out.println("上车时间         " + r.getBoardingTime());
-		System.out.println("下车时间         " + r.getAlightingTime());
-		System.out.println("里程(km)         " + r.getMileage());
-		System.out.println();
-		System.out.println("--- 金额 ---");
-		System.out.println("金额             " + r.getAmount());
-		System.out.println("燃油附加费       " + r.getFuelSurcharge());
-		System.out.println("叫车服务费       " + r.getBookingFee());
-		System.out.println("总金额           " + r.getTotalAmount());
-		System.out.println();
-		System.out.println("--- 其他 ---");
-		System.out.println("开票城市         " + r.getCity());
-	}
-
-	// ====================================================================
-	// 手写 JSON 序列化（无第三方依赖）
-	// ====================================================================
 
 	private static String toJson(List<PPOcrV6Result> results) {
 		StringBuilder sb = new StringBuilder();
@@ -192,5 +117,79 @@ public class TaxiDumpMain extends BaseTest<TaxiReceiptParser, TaxiReceiptResult>
 		}
 		sb.append('"');
 		return sb.toString();
+	}
+
+	private void run(Path outDir) throws IOException {
+		nu.pattern.OpenCV.loadLocally();
+
+		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
+		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
+		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
+		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
+
+		PPOcrV6Config config = PPOcrV6Config.builder()
+			.detModelPath(detModel)
+			.recModelPath(recModel)
+			.recCharDictPath(dict)
+			.useDocOrientationClassify(USE_DOC_ORIENTATION)
+			.docOrientationModelPath(docOriModel)
+			.build();
+
+		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+			for (String imgPath : IMAGES) {
+				String name = nameOf(imgPath);
+				System.out.println("\n" + CollUtil.repeat("=", 60));
+				System.out.println(">>> " + name + " <<<");
+				System.out.println(CollUtil.repeat("=", 60));
+				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
+				if (img == null || img.empty()) {
+					System.err.println("无法读取图片: " + imgPath);
+					continue;
+				}
+				List<PPOcrV6Result> results = engine.runMat(img);
+
+				// 1) 保存 JSON
+				Path jsonPath = outDir.resolve(name + ".json");
+				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
+				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
+
+				// 2) 输出结构化结果
+				System.out.println("\n--- 结构化解析 [" + name + "] ---");
+				printResults(engine, results);
+				img.release();
+			}
+		}
+	}
+
+	// ====================================================================
+	// 手写 JSON 序列化（无第三方依赖）
+	// ====================================================================
+
+	@Override
+	protected TaxiReceiptParser newParser(PPOcrV6Engine engine) {
+		return new TaxiReceiptParser(engine);
+	}
+
+	@Override
+	protected void printResult(TaxiReceiptResult r) {
+		System.out.println("--- 票号 ---");
+		System.out.println("发票代码         " + r.getInvoiceCode());
+		System.out.println("发票号码         " + r.getInvoiceNo());
+		System.out.println();
+		System.out.println("--- 行程 ---");
+		System.out.println("车牌号           " + r.getPlateNumber());
+		System.out.println("日期             " + r.getDate());
+		System.out.println("上车时间         " + r.getBoardingTime());
+		System.out.println("下车时间         " + r.getAlightingTime());
+		System.out.println("里程(km)         " + r.getMileage());
+		System.out.println();
+		System.out.println("--- 金额 ---");
+		System.out.println("金额             " + r.getAmount());
+		System.out.println("燃油附加费       " + r.getFuelSurcharge());
+		System.out.println("叫车服务费       " + r.getBookingFee());
+		System.out.println("总金额           " + r.getTotalAmount());
+		System.out.println();
+		System.out.println("--- 其他 ---");
+		System.out.println("开票城市         " + r.getCity());
 	}
 }

@@ -16,9 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.household;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -31,9 +31,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 户口本解析器单元测试。
@@ -55,7 +53,7 @@ class HouseholdRegisterParserTest extends ParserTestSupport {
 		String path = "/ocr-json/household_register/" + name + ".json";
 		List<PPOcrV6Result> list = new ArrayList<>();
 		try (InputStream is = HouseholdRegisterParserTest.class.getResourceAsStream(path);
-		     BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+			 BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				Matcher m = JSON_LINE.matcher(line);

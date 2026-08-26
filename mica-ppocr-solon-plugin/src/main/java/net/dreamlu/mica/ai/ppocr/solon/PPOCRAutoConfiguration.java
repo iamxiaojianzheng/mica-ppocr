@@ -35,19 +35,26 @@ import java.util.List;
  * 供业务方在 yml 之外做旁路覆盖（环境变量 / 配置中心 / 路径解析等）。
  */
 @Configuration
-@Condition(onClass=PPOcrV6Engine.class, onExpression = "${mica.ai.ppocr.enabled:true} == true")
+@Condition(onClass = PPOcrV6Engine.class, onExpression = "${mica.ai.ppocr.enabled:true} == true")
 public class PPOCRAutoConfiguration {
+
+	private static void requireNonBlank(String value, String name) {
+		if (Assert.isEmpty(value)) {
+			throw new IllegalArgumentException(
+				"mica-ppocr 启用失败：[" + name + "] 必须配置（可在 app.yml 中设置 mica.ai.ppocr.enabled=false 关闭该 Starter）");
+		}
+	}
 
 	/**
 	 * 组装 PPOcrV6Config。
 	 *
-	 * @param properties   yml 配置属性
-	 * @param customizers  PPOCRPropertiesCustomizer 集合
+	 * @param properties  yml 配置属性
+	 * @param customizers PPOCRPropertiesCustomizer 集合
 	 * @return PPOcrV6Config 实例
 	 */
 	@Bean
 	public PPOcrV6Config ppocrV6Config(PPOCRProperties properties,
-	                                   List<PPOCRPropertiesCustomizer> customizers) {
+									   List<PPOCRPropertiesCustomizer> customizers) {
 		requireNonBlank(properties.getDetModelPath(), "mica.ai.ppocr.det-model-path");
 		requireNonBlank(properties.getRecModelPath(), "mica.ai.ppocr.rec-model-path");
 		requireNonBlank(properties.getRecCharDictPath(), "mica.ai.ppocr.rec-char-dict-path");
@@ -84,12 +91,5 @@ public class PPOCRAutoConfiguration {
 	@Condition(onMissingBean = PPOcrV6Engine.class)
 	public PPOcrV6Engine ppocrV6Engine(PPOcrV6Config ppOcrV6Config) {
 		return new PPOcrV6Engine(ppOcrV6Config);
-	}
-
-	private static void requireNonBlank(String value, String name) {
-		if (Assert.isEmpty(value)) {
-			throw new IllegalArgumentException(
-				"mica-ppocr 启用失败：[" + name + "] 必须配置（可在 app.yml 中设置 mica.ai.ppocr.enabled=false 关闭该 Starter）");
-		}
 	}
 }

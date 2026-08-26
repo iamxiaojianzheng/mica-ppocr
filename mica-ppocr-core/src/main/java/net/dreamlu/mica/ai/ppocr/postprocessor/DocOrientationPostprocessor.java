@@ -21,9 +21,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.Accessors;
-import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
-
-import java.util.Arrays;
 
 /**
  * 文档方向分类模型后处理：从 4 类 logits 中取出最大概率对应的方向标签。
@@ -42,16 +39,26 @@ import java.util.Arrays;
 @ToString
 public final class DocOrientationPostprocessor {
 
-	/** label 0 = 0°。 */
+	/**
+	 * label 0 = 0°。
+	 */
 	public static final int ROT_0 = 0;
-	/** label 1 = 90° 顺时针。 */
+	/**
+	 * label 1 = 90° 顺时针。
+	 */
 	public static final int ROT_90 = 1;
-	/** label 2 = 180°。 */
+	/**
+	 * label 2 = 180°。
+	 */
 	public static final int ROT_180 = 2;
-	/** label 3 = 270° 顺时针。 */
+	/**
+	 * label 3 = 270° 顺时针。
+	 */
 	public static final int ROT_270 = 3;
 
-	/** 方向标签到角度的映射（顺时针），与 PaddleX 官方 TAG_LIST 一致。 */
+	/**
+	 * 方向标签到角度的映射（顺时针），与 PaddleX 官方 TAG_LIST 一致。
+	 */
 	public static final int[] DEGREES = {0, 90, 180, 270};
 
 	private final float confidenceThreshold;
@@ -60,7 +67,7 @@ public final class DocOrientationPostprocessor {
 	 * 创建后处理器。
 	 *
 	 * @param confidenceThreshold 置信度阈值，低于该值视为方向不确定，返回 0°（不旋转）。
-	 *                          PP-OCRv6 默认 0.5，可按需调高到 0.9 减少误判。
+	 *                            PP-OCRv6 默认 0.5，可按需调高到 0.9 减少误判。
 	 */
 	public DocOrientationPostprocessor(float confidenceThreshold) {
 		if (confidenceThreshold < 0.0f || confidenceThreshold > 1.0f) {
@@ -122,11 +129,6 @@ public final class DocOrientationPostprocessor {
 
 	/**
 	 * 文档方向分类结果。
-	 *
-	 * @param label    类别索引 (0=0° / 1=90° / 2=180° / 3=270°)
-	 * @param degrees  顺时针角度
-	 * @param score    置信度（softmax 后的概率）
-	 * @param probs    4 类完整 softmax 概率
 	 */
 	@Getter
 	@ToString
@@ -134,9 +136,21 @@ public final class DocOrientationPostprocessor {
 	@EqualsAndHashCode
 	@Accessors(fluent = true)
 	public static class Result {
+		/**
+		 * 类别索引 (0=0° / 1=90° / 2=180° / 3=270°)
+		 */
 		private final int label;
+		/**
+		 * 顺时针角度
+		 */
 		private final int degrees;
+		/**
+		 * 置信度（softmax 后的概率）
+		 */
 		private final float score;
+		/**
+		 * 4 类完整 softmax 概率
+		 */
 		private final float[] probs;
 	}
 }

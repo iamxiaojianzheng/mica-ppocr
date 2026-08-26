@@ -228,14 +228,17 @@ public final class DbPostProcessor {
 
 	/**
 	 * DB 后处理结果。
-	 *
-	 * @param boxes  文本框 (N, 4, 2)
-	 * @param scores 每框分数，长度 N
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)
 	public static class Result {
-		private final int[][][] boxes;
+		/**
+		 * 文本框 (N, 4, 2)
+		 */
+		int[][][] boxes;
+		/**
+		 * 每框分数，长度 N
+		 */
 		private final float[] scores;
 	}
 }

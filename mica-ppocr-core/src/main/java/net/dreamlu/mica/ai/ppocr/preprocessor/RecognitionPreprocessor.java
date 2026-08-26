@@ -37,13 +37,21 @@ import java.util.List;
  */
 @ToString
 public final class RecognitionPreprocessor {
-	/** 通道数（RGB/BGR）。 */
+	/**
+	 * 通道数（RGB/BGR）。
+	 */
 	public static final int CHANNELS = 3;
-	/** 默认目标高度。 */
+	/**
+	 * 默认目标高度。
+	 */
 	public static final int HEIGHT = 48;
-	/** 默认最小宽度。 */
+	/**
+	 * 默认最小宽度。
+	 */
 	public static final int W_MIN = 320;
-	/** 默认最大宽度。 */
+	/**
+	 * 默认最大宽度。
+	 */
 	public static final int W_MAX = 3200;
 
 	private final int h;

@@ -28,15 +28,6 @@ import java.util.List;
 
 /**
  * 单条 OCR 识别结果。
- *
- * @param text           识别文本
- * @param score          置信度，范围 [0, 1]
- * @param box            文本框四顶点，顺序：左上、右上、右下、左下
- * @param rotatedDegrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270），
- *                        仅当 {@code PPOcrV6Config.useDocOrientationClassify=true}
- *                        且方向分类结果非 0° 时为非 0。值为 0 时 box 坐标系与原图一致；
- *                        非 0 时 box 坐标系相对于 doc_ori 旋转后的图。
- *                        调用方用 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 可获得原始图坐标系下的 box。
  */
 @Getter
 @ToString
@@ -45,9 +36,25 @@ import java.util.List;
 @AllArgsConstructor
 public class PPOcrV6Result {
 
+	/**
+	 * 识别文本
+	 */
 	private final String text;
+	/**
+	 * 置信度，范围 [0, 1]
+	 */
 	private final float score;
+	/**
+	 * 文本框四顶点，顺序：左上、右上、右下、左下
+	 */
 	private final int[][] box;
+	/**
+	 * doc_ori 应用到原图的顺时针旋转角度（0/90/180/270），
+	 * 仅当 {@code PPOcrV6Config.useDocOrientationClassify=true}
+	 * 且方向分类结果非 0° 时为非 0。值为 0 时 box 坐标系与原图一致；
+	 * 非 0 时 box 坐标系相对于 doc_ori 旋转后的图。
+	 * 调用方用 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 可获得原始图坐标系下的 box。
+	 */
 	private final int rotatedDegrees;
 
 	/**

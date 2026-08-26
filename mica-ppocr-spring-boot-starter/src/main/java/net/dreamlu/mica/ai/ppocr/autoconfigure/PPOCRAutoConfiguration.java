@@ -42,11 +42,18 @@ import org.springframework.util.StringUtils;
 @ConditionalOnProperty(prefix = "mica.ai.ppocr", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PPOCRAutoConfiguration {
 
+	private static void requireNonBlank(String value, String name) {
+		if (!StringUtils.hasText(value)) {
+			throw new IllegalArgumentException(
+				"mica-ppocr 启用失败：[" + name + "] 必须配置（可在 application.yml 中设置 mica.ai.ppocr.enabled=false 关闭该 Starter）");
+		}
+	}
+
 	/**
 	 * 组装 PPOcrV6Config。
 	 *
-	 * @param properties   yml 配置属性
-	 * @param customizers  PPOCRPropertiesCustomizer 集合
+	 * @param properties  yml 配置属性
+	 * @param customizers PPOCRPropertiesCustomizer 集合
 	 * @return PPOcrV6Config 实例
 	 */
 	@Bean
@@ -88,12 +95,5 @@ public class PPOCRAutoConfiguration {
 	@ConditionalOnMissingBean
 	public PPOcrV6Engine ppocrV6Engine(PPOcrV6Config ppOcrV6Config) {
 		return new PPOcrV6Engine(ppOcrV6Config);
-	}
-
-	private static void requireNonBlank(String value, String name) {
-		if (!StringUtils.hasText(value)) {
-			throw new IllegalArgumentException(
-				"mica-ppocr 启用失败：[" + name + "] 必须配置（可在 application.yml 中设置 mica.ai.ppocr.enabled=false 关闭该 Starter）");
-		}
 	}
 }

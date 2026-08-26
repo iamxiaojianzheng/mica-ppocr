@@ -34,13 +34,19 @@ public class PPOCRProperties {
 	 */
 	private boolean enabled = true;
 
-	/** 检测模型路径（必填） */
+	/**
+	 * 检测模型路径（必填）
+	 */
 	private String detModelPath;
 
-	/** 识别模型路径（必填） */
+	/**
+	 * 识别模型路径（必填）
+	 */
 	private String recModelPath;
 
-	/** 识别字符字典路径（必填） */
+	/**
+	 * 识别字符字典路径（必填）
+	 */
 	private String recCharDictPath;
 
 	/**
@@ -57,31 +63,49 @@ public class PPOCRProperties {
 	 */
 	private String detLimitType = "min";
 
-	/** 检测最大边长限制 */
+	/**
+	 * 检测最大边长限制
+	 */
 	private int detMaxSideLimit = 4000;
 
-	/** 检测阈值 */
+	/**
+	 * 检测阈值
+	 */
 	private float detThresh = 0.3f;
 
-	/** 检测框阈值 */
+	/**
+	 * 检测框阈值
+	 */
 	private float detBoxThresh = 0.6f;
 
-	/** 检测 unclip 比例 */
+	/**
+	 * 检测 unclip 比例
+	 */
 	private float detUnclipRatio = 1.5f;
 
-	/** 识别输入 shape [C, H, W] */
+	/**
+	 * 识别输入 shape [C, H, W]
+	 */
 	private int[] recImageShape = {3, 48, 320};
 
-	/** 识别批处理大小 */
+	/**
+	 * 识别批处理大小
+	 */
 	private int recBatchSize = 6;
 
-	/** 是否优先使用 GPU 加速（默认 false，强制 CPU 保证跨平台 bit-exact） */
+	/**
+	 * 是否优先使用 GPU 加速（默认 false，强制 CPU 保证跨平台 bit-exact）
+	 */
 	private boolean preferAccelerator = false;
 
-	/** 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori） */
+	/**
+	 * 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori）
+	 */
 	private boolean useDocOrientationClassify = false;
 
-	/** 文档方向分类模型路径（useDocOrientationClassify=true 时必填） */
+	/**
+	 * 文档方向分类模型路径（useDocOrientationClassify=true 时必填）
+	 */
 	private String docOrientationModelPath;
 
 	/**
@@ -100,9 +124,13 @@ public class PPOCRProperties {
 	 */
 	private float docOrientationThresh = 0.4f;
 
-	/** ONNX 内部线程数 */
+	/**
+	 * ONNX 内部线程数
+	 */
 	private int intraOpNumThreads = 1;
 
-	/** ONNX 交互线程数 */
+	/**
+	 * ONNX 交互线程数
+	 */
 	private int interOpNumThreads = 1;
 }

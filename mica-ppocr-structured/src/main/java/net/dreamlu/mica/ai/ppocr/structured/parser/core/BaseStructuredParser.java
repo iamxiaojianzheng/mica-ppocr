@@ -16,10 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.io.File;
 import java.io.IOException;

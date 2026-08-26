@@ -55,6 +55,75 @@ public class VehicleLicenseParser extends BaseStructuredParser<VehicleLicenseRes
 		super(engine);
 	}
 
+	private static LabeledMatch matchVINFallbackWithBox(List<PPOcrV6Result> results) {
+		return LabelMatcher.matchSubstringWithBox(results, text -> {
+			Matcher m = VIN_PATTERN.matcher(text);
+			return m.find() ? m.group() : null;
+		});
+	}
+
+	private static LabeledMatch matchDateFallbackWithBox(List<PPOcrV6Result> results) {
+		return LabelMatcher.matchSubstringWithBox(results, text -> {
+			Matcher m = DATE_PATTERN.matcher(text);
+			return m.find() ? m.group() : null;
+		});
+	}
+
+	// 所有人版面布局兜底：返回纯文本（无法精准定位 box，所以 fieldBoxes 不填）
+	private static String matchOwnerByLayoutFallback(List<PPOcrV6Result> results) {
+		int vehicleTypeBottom = Integer.MIN_VALUE;
+		String[] vtCandidates = {"车辆类型", "VehicleType"};
+		for (String lbl : vtCandidates) {
+			PPOcrV6Result b = LabelMatcher.findLabelBox(results, lbl);
+			if (b != null) {
+				vehicleTypeBottom = Math.max(vehicleTypeBottom, LabelMatcher.maxY(b));
+			}
+		}
+		if (vehicleTypeBottom == Integer.MIN_VALUE) {
+			for (PPOcrV6Result r : results) {
+				String t = r.text();
+				if (!t.matches("[A-Za-z\\s]+") && (t.contains("轿车") || t.contains("客车") || t.contains("货车") || t.contains("车"))) {
+					vehicleTypeBottom = Math.max(vehicleTypeBottom, LabelMatcher.maxY(r));
+				}
+			}
+		}
+		if (vehicleTypeBottom == Integer.MIN_VALUE) return null;
+
+		int addressTop = Integer.MAX_VALUE;
+		String[] addrCandidates = {"住址", "住", "址", "Address", "Adder"};
+		for (String lbl : addrCandidates) {
+			PPOcrV6Result b = LabelMatcher.findLabelBox(results, lbl);
+			if (b != null) {
+				addressTop = Math.min(addressTop, LabelMatcher.minY(b));
+			}
+		}
+		if (addressTop == Integer.MAX_VALUE) {
+			for (PPOcrV6Result r : results) {
+				String t = r.text();
+				if (t.matches(".*[省市区县路街道号镇村].*")) {
+					addressTop = Math.min(addressTop, LabelMatcher.minY(r));
+				}
+			}
+		}
+		if (addressTop == Integer.MAX_VALUE || addressTop <= vehicleTypeBottom) return null;
+
+		String best = null;
+		int bestWidth = -1;
+		for (PPOcrV6Result r : results) {
+			String text = r.text();
+			if (text.isEmpty()) continue;
+			if (text.matches("[A-Za-z\\s.]+")) continue;
+			if ("所有人".contains(text) || "Owner".contains(text) || "owner".contains(text)) continue;
+			if (LabelMatcher.maxY(r) < vehicleTypeBottom || LabelMatcher.minY(r) > addressTop) continue;
+			int width = LabelMatcher.maxX(r) - LabelMatcher.minX(r);
+			if (width > bestWidth) {
+				bestWidth = width;
+				best = text;
+			}
+		}
+		return best;
+	}
+
 	@Override
 	public VehicleLicenseResult parseResults(List<PPOcrV6Result> results) {
 		return doParse(results);
@@ -126,74 +195,5 @@ public class VehicleLicenseParser extends BaseStructuredParser<VehicleLicenseRes
 		LabelMatcher.applyFieldBox(license, "issueDate", dateMatch);
 
 		return license;
-	}
-
-	private static LabeledMatch matchVINFallbackWithBox(List<PPOcrV6Result> results) {
-		return LabelMatcher.matchSubstringWithBox(results, text -> {
-			Matcher m = VIN_PATTERN.matcher(text);
-			return m.find() ? m.group() : null;
-		});
-	}
-
-	private static LabeledMatch matchDateFallbackWithBox(List<PPOcrV6Result> results) {
-		return LabelMatcher.matchSubstringWithBox(results, text -> {
-			Matcher m = DATE_PATTERN.matcher(text);
-			return m.find() ? m.group() : null;
-		});
-	}
-
-	// 所有人版面布局兜底：返回纯文本（无法精准定位 box，所以 fieldBoxes 不填）
-	private static String matchOwnerByLayoutFallback(List<PPOcrV6Result> results) {
-		int vehicleTypeBottom = Integer.MIN_VALUE;
-		String[] vtCandidates = {"车辆类型", "VehicleType"};
-		for (String lbl : vtCandidates) {
-			PPOcrV6Result b = LabelMatcher.findLabelBox(results, lbl);
-			if (b != null) {
-				vehicleTypeBottom = Math.max(vehicleTypeBottom, LabelMatcher.maxY(b));
-			}
-		}
-		if (vehicleTypeBottom == Integer.MIN_VALUE) {
-			for (PPOcrV6Result r : results) {
-				String t = r.text();
-				if (!t.matches("[A-Za-z\\s]+") && (t.contains("轿车") || t.contains("客车") || t.contains("货车") || t.contains("车"))) {
-					vehicleTypeBottom = Math.max(vehicleTypeBottom, LabelMatcher.maxY(r));
-				}
-			}
-		}
-		if (vehicleTypeBottom == Integer.MIN_VALUE) return null;
-
-		int addressTop = Integer.MAX_VALUE;
-		String[] addrCandidates = {"住址", "住", "址", "Address", "Adder"};
-		for (String lbl : addrCandidates) {
-			PPOcrV6Result b = LabelMatcher.findLabelBox(results, lbl);
-			if (b != null) {
-				addressTop = Math.min(addressTop, LabelMatcher.minY(b));
-			}
-		}
-		if (addressTop == Integer.MAX_VALUE) {
-			for (PPOcrV6Result r : results) {
-				String t = r.text();
-				if (t.matches(".*[省市区县路街道号镇村].*")) {
-					addressTop = Math.min(addressTop, LabelMatcher.minY(r));
-				}
-			}
-		}
-		if (addressTop == Integer.MAX_VALUE || addressTop <= vehicleTypeBottom) return null;
-
-		String best = null;
-		int bestWidth = -1;
-		for (PPOcrV6Result r : results) {
-			String text = r.text();
-			if (text.isEmpty()) continue;
-			if (text.matches("[A-Za-z\\s.]+")) continue;
-			if ("所有人".contains(text) || "Owner".contains(text) || "owner".contains(text)) continue;
-			if (LabelMatcher.maxY(r) < vehicleTypeBottom || LabelMatcher.minY(r) > addressTop) continue;
-			int width = LabelMatcher.maxX(r) - LabelMatcher.minX(r);
-			if (width > bestWidth) {
-				bestWidth = width;
-				best = text;
-			}
-		}
-		return best;
 	}
 }

@@ -16,10 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.postprocessor;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import lombok.ToString;
 import lombok.experimental.Accessors;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
 
 import java.io.IOException;
@@ -37,7 +36,9 @@ import java.util.List;
 @ToString
 public final class CtcLabelDecoder {
 
-	/** CTC blank 标签索引。 */
+	/**
+	 * CTC blank 标签索引。
+	 */
 	public static final int BLANK = 0;
 
 	private final String[] chars;
@@ -316,14 +317,17 @@ public final class CtcLabelDecoder {
 
 	/**
 	 * CTC 解码结果。
-	 *
-	 * @param texts  解码后的字符串数组
-	 * @param scores 每条字符串的平均置信度
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)
 	public static class Result {
-		private final String[] texts;
-		private final float[] scores;
+		/**
+		 * 解码后的字符串数组
+		 */
+		String[] texts;
+		/**
+		 * 每条字符串的平均置信度
+		 */
+		float[] scores;
 	}
 }

@@ -33,15 +33,10 @@ import net.dreamlu.mica.ai.ppocr.postprocessor.DocOrientationPostprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.DetectionPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.DocOrientationPreprocessor;
 import net.dreamlu.mica.ai.ppocr.preprocessor.RecognitionPreprocessor;
-import net.dreamlu.mica.ai.ppocr.utils.BoxUtil;
-import net.dreamlu.mica.ai.ppocr.utils.CropUtil;
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-import net.dreamlu.mica.ai.ppocr.utils.ModelResourceLoader;
-import net.dreamlu.mica.ai.ppocr.utils.NdArrayUtils;
-import net.dreamlu.mica.ai.ppocr.utils.OrtProviders;
+import net.dreamlu.mica.ai.ppocr.utils.*;
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
-import org.opencv.core.Core;
 import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.Closeable;
@@ -51,7 +46,10 @@ import java.io.UncheckedIOException;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -202,6 +200,65 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
+	/**
+	 * 将图片字节解码为 BGR Mat。
+	 *
+	 * <p>{@link MatOfByte} 构造时会分配 native 内存并把 byte[] 拷贝过去，
+	 * imdecode 用完后即丢——必须显式 release，否则每次调用泄漏一个 mob 的 native buffer。
+	 *
+	 * @param imgBytes 图片字节
+	 * @return BGR 格式的 Mat（非空）
+	 * @throws IllegalArgumentException 字节为空或解码失败
+	 */
+	private static Mat decodeMat(byte[] imgBytes) {
+		if (imgBytes == null || imgBytes.length == 0) {
+			throw new IllegalArgumentException("imgBytes must not be empty");
+		}
+		MatOfByte mob = new MatOfByte(imgBytes);
+		Mat mat;
+		try {
+			mat = Imgcodecs.imdecode(mob, Imgcodecs.IMREAD_COLOR);
+		} finally {
+			mob.release();
+		}
+		if (mat.empty()) {
+			mat.release();
+			throw new IllegalArgumentException("Failed to decode image from byte[] (unsupported format or corrupted data)");
+		}
+		return mat;
+	}
+
+	/**
+	 * 从 Path 加载 BGR Mat。
+	 *
+	 * <p>默认 FileSystem 走 native OpenCV 读取（省内存，不经过 JVM heap 中转）；
+	 * 非默认 FileSystem（ZIP / JIMFS / 内存 FS 等）自动退回 {@code Files.readAllBytes}。
+	 *
+	 * @param imagePath 图片路径
+	 * @return BGR Mat（由调用方负责 release）
+	 * @throws IllegalArgumentException 路径加载失败或解码失败
+	 */
+	private static Mat loadMat(Path imagePath) {
+		try {
+			// 默认 FileSystem → native 读取 OpenCV
+			Mat mat = Imgcodecs.imread(imagePath.toFile().getAbsolutePath());
+			if (mat.empty()) {
+				mat.release();
+				throw new IllegalArgumentException("Failed to load image: " + imagePath);
+			}
+			return mat;
+		} catch (UnsupportedOperationException ignore) {
+			// 非默认 FileSystem：退回字节流
+			byte[] bytes;
+			try {
+				bytes = Files.readAllBytes(imagePath);
+			} catch (IOException e) {
+				throw new UncheckedIOException(e);
+			}
+			return decodeMat(bytes);
+		}
+	}
+
 	private void closeOnInitFailure(Exception cause) {
 		closeSessions(cause::addSuppressed);
 		closed = true;
@@ -229,6 +286,10 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
+	// ==================================================================
+	// 推荐公开 API：byte[] / File / String，内部自动管理 Mat 生命周期
+	// ==================================================================
+
 	private void requireOpen() {
 		if (closed) {
 			throw new IllegalStateException("PPOcrV6Engine has been closed and can no longer be used.");
@@ -240,10 +301,6 @@ public final class PPOcrV6Engine implements Closeable {
 		return "PPOcrV6Engine(det=" + detPre + ", rec=" + recPre
 			+ ", vocab=" + recPost.vocabSize() + ", closed=" + closed + ")";
 	}
-
-	// ==================================================================
-	// 推荐公开 API：byte[] / File / String，内部自动管理 Mat 生命周期
-	// ==================================================================
 
 	/**
 	 * 完整 OCR 流程：检测 → 排序 → 裁剪 → 识别。
@@ -346,6 +403,10 @@ public final class PPOcrV6Engine implements Closeable {
 		return detect(imageFile.toPath());
 	}
 
+	// ==================================================================
+	// 内部/高级用法：Mat 入参，调用方负责 release
+	// ==================================================================
+
 	/**
 	 * 文本检测（仅检测，不识别）。
 	 *
@@ -383,10 +444,6 @@ public final class PPOcrV6Engine implements Closeable {
 			mat.release();
 		}
 	}
-
-	// ==================================================================
-	// 内部/高级用法：Mat 入参，调用方负责 release
-	// ==================================================================
 
 	/**
 	 * 文本检测（Mat 版）。
@@ -492,8 +549,8 @@ public final class PPOcrV6Engine implements Closeable {
 	 *
 	 * @param imgBgr BGR 格式图像 (H, W, 3) uint8
 	 * @return 识别结果列表（按阅读顺序排列）；
-	 *         启用 doc_ori 时每个 {@link PPOcrV6Result#rotatedDegrees()} 记录
-	 *         doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
+	 * 启用 doc_ori 时每个 {@link PPOcrV6Result#rotatedDegrees()} 记录
+	 * doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
 	 */
 	public List<PPOcrV6Result> runMat(Mat imgBgr) {
 		requireOpen();
@@ -559,6 +616,10 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
+	// ==================================================================
+	// 内部工具
+	// ==================================================================
+
 	/**
 	 * 文档方向分类 + 旋转：返回正向的 Mat 与应用到原图的顺时针旋转角度。
 	 *
@@ -566,7 +627,7 @@ public final class PPOcrV6Engine implements Closeable {
 	 *
 	 * @param imgBgr BGR 图像
 	 * @return (旋转后 Mat, 应用到原图的顺时针旋转角度 0/90/180/270)；
-	 *         Mat 由调用方负责 release（不旋转时返回原图）
+	 * Mat 由调用方负责 release（不旋转时返回原图）
 	 */
 	private DocOriRotated classifyAndRotateDocOrientation(Mat imgBgr) {
 		if (!docOriEnabled) {
@@ -641,69 +702,6 @@ public final class PPOcrV6Engine implements Closeable {
 		}
 	}
 
-	// ==================================================================
-	// 内部工具
-	// ==================================================================
-
-	/**
-	 * 将图片字节解码为 BGR Mat。
-	 *
-	 * <p>{@link MatOfByte} 构造时会分配 native 内存并把 byte[] 拷贝过去，
-	 * imdecode 用完后即丢——必须显式 release，否则每次调用泄漏一个 mob 的 native buffer。
-	 *
-	 * @param imgBytes 图片字节
-	 * @return BGR 格式的 Mat（非空）
-	 * @throws IllegalArgumentException 字节为空或解码失败
-	 */
-	private static Mat decodeMat(byte[] imgBytes) {
-		if (imgBytes == null || imgBytes.length == 0) {
-			throw new IllegalArgumentException("imgBytes must not be empty");
-		}
-		MatOfByte mob = new MatOfByte(imgBytes);
-		Mat mat;
-		try {
-			mat = Imgcodecs.imdecode(mob, Imgcodecs.IMREAD_COLOR);
-		} finally {
-			mob.release();
-		}
-		if (mat.empty()) {
-			mat.release();
-			throw new IllegalArgumentException("Failed to decode image from byte[] (unsupported format or corrupted data)");
-		}
-		return mat;
-	}
-
-	/**
-	 * 从 Path 加载 BGR Mat。
-	 *
-	 * <p>默认 FileSystem 走 native OpenCV 读取（省内存，不经过 JVM heap 中转）；
-	 * 非默认 FileSystem（ZIP / JIMFS / 内存 FS 等）自动退回 {@code Files.readAllBytes}。
-	 *
-	 * @param imagePath 图片路径
-	 * @return BGR Mat（由调用方负责 release）
-	 * @throws IllegalArgumentException 路径加载失败或解码失败
-	 */
-	private static Mat loadMat(Path imagePath) {
-		try {
-			// 默认 FileSystem → native 读取 OpenCV
-			Mat mat = Imgcodecs.imread(imagePath.toFile().getAbsolutePath());
-			if (mat.empty()) {
-				mat.release();
-				throw new IllegalArgumentException("Failed to load image: " + imagePath);
-			}
-			return mat;
-		} catch (UnsupportedOperationException ignore) {
-			// 非默认 FileSystem：退回字节流
-			byte[] bytes;
-			try {
-				bytes = Files.readAllBytes(imagePath);
-			} catch (IOException e) {
-				throw new UncheckedIOException(e);
-			}
-			return decodeMat(bytes);
-		}
-	}
-
 	private long[] toLongArray(int[] arr) {
 		long[] out = new long[arr.length];
 		for (int i = 0; i < arr.length; i++) {
@@ -741,24 +739,24 @@ public final class PPOcrV6Engine implements Closeable {
 
 	/**
 	 * 文档方向分类 + 旋转结果。
-	 *
-	 * @param mat     正向化后的 Mat（不旋转时就是原图）
-	 * @param degrees doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
 	 */
 	@Getter
 	@ToString
 	@RequiredArgsConstructor
 	@Accessors(fluent = true)
 	private static class DocOriRotated {
+		/**
+		 * 正向化后的 Mat（不旋转时就是原图）
+		 */
 		private final Mat mat;
+		/**
+		 * doc_ori 应用到原图的顺时针旋转角度（0/90/180/270）
+		 */
 		private final int degrees;
 	}
 
 	/**
 	 * 检测结果。
-	 *
-	 * @param boxes  文本框 (N, 4, 2) int
-	 * @param scores 每框分数
 	 */
 	@Getter
 	@ToString
@@ -766,15 +764,18 @@ public final class PPOcrV6Engine implements Closeable {
 	@RequiredArgsConstructor
 	@Accessors(fluent = true)
 	public static class DetectResult {
+		/**
+		 * 文本框 (N, 4, 2) int
+		 */
 		private final int[][][] boxes;
+		/**
+		 * 每框分数
+		 */
 		private final float[] scores;
 	}
 
 	/**
 	 * 识别结果。
-	 *
-	 * @param texts  识别文本
-	 * @param scores 每条文本的置信度
 	 */
 	@Getter
 	@ToString
@@ -782,7 +783,13 @@ public final class PPOcrV6Engine implements Closeable {
 	@RequiredArgsConstructor
 	@Accessors(fluent = true)
 	public static class RecognizeResult {
+		/**
+		 * 识别文本
+		 */
 		private final String[] texts;
+		/**
+		 * 每条文本的置信度
+		 */
 		private final float[] scores;
 	}
 }

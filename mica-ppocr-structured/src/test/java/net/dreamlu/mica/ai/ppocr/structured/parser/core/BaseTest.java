@@ -16,12 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import lombok.experimental.Accessors;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
@@ -79,17 +78,6 @@ import java.util.stream.Stream;
 public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 
 	/**
-	 * 模型档位：tiny / small / medium。
-	 *
-	 * <p>保留为实例字段（默认 {@code "tiny"}）是为了：
-	 * <ul>
-	 *   <li>向后兼容：原有 demo 入口和 {@code *Main} 子类仍能直接引用 {@code TIER}；</li>
-	 *   <li>参数化：集成测试可通过 {@code setTier(String)} 或直接调 {@link #runOcr(Mat, String)} 切换档位。</li>
-	 * </ul>
-	 */
-	protected String TIER = "tiny";
-
-	/**
 	 * demo 默认要跑的模型档位列表。
 	 *
 	 * <p>默认 {@code {"tiny", "small"}}——单次跑两档做对比，方便排查
@@ -102,11 +90,79 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	 * }</pre>
 	 */
 	protected static final String[] DEMO_TIERS = {"tiny", "small"};
-
 	/**
 	 * 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify）
 	 */
 	protected static final boolean USE_DOC_ORIENTATION = true;
+	/**
+	 * 模型档位：tiny / small / medium。
+	 *
+	 * <p>保留为实例字段（默认 {@code "tiny"}）是为了：
+	 * <ul>
+	 *   <li>向后兼容：原有 demo 入口和 {@code *Main} 子类仍能直接引用 {@code TIER}；</li>
+	 *   <li>参数化：集成测试可通过 {@code setTier(String)} 或直接调 {@link #runOcr(Mat, String)} 切换档位。</li>
+	 * </ul>
+	 */
+	protected String TIER = "tiny";
+
+	/**
+	 * 给可视化路径插入档位后缀。
+	 *
+	 * <p>多档时把档位名插入到扩展名前：{@code vis.png → vis.tiny.png}；
+	 * 单档时原样返回，保持向后兼容。
+	 *
+	 * @param visPath   原始可视化路径
+	 * @param tier      当前档位
+	 * @param tierCount 总档位数（用于判定是否需要加后缀）
+	 * @return 调整后的可视化路径
+	 */
+	private static String visPathWithTier(String visPath, String tier, int tierCount) {
+		if (tierCount <= 1) {
+			return visPath;
+		}
+		int dot = visPath.lastIndexOf('.');
+		if (dot < 0) {
+			return visPath + "." + tier;
+		}
+		return visPath.substring(0, dot) + "." + tier + visPath.substring(dot);
+	}
+
+	/**
+	 * 扫描 {@code models/ppocr-v6/} 下模型文件齐全的档位，供 JUnit 5 {@code @MethodSource} 使用。
+	 *
+	 * <p>用法示例（在继承本类的集成测试中）：
+	 * <pre>{@code
+	 * @ParameterizedTest
+	 * @MethodSource("tiers") // 直接引用父类的 static 方法
+	 * void parseAllTiers(String tier) throws Exception {
+	 *     setTier(tier);
+	 *     runOcr(loadImage());
+	 *     // 断言 ...
+	 * }
+	 * }</pre>
+	 *
+	 * <p>找不到任何可用档位时返回空流，由调用方通过 {@code Assumptions.assumeTrue(...)} 跳过。
+	 *
+	 * @return 可用档位流，按字母序排序
+	 */
+	protected static Stream<String> tiers() {
+		Path modelsRoot = CollUtil.pathOf("models/ppocr-v6");
+		if (!Files.isDirectory(modelsRoot)) {
+			return Stream.empty();
+		}
+		try (Stream<Path> children = Files.list(modelsRoot)) {
+			return children
+				.filter(Files::isDirectory)
+				.map(p -> p.getFileName().toString())
+				.filter(name -> Files.isRegularFile(modelsRoot.resolve(name).resolve("det.onnx"))
+					&& Files.isRegularFile(modelsRoot.resolve(name).resolve("rec.onnx"))
+					&& Files.isRegularFile(modelsRoot.resolve(name).resolve("dict.txt")))
+				.sorted();
+		} catch (Exception e) {
+			System.err.println("扫描模型档位失败: " + e.getMessage());
+			return Stream.empty();
+		}
+	}
 
 	/**
 	 * 新建一个解析器实例（{@code engine} 传 null 即可，本基类已自行管理 OCR）。
@@ -178,28 +234,6 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 		} finally {
 			img.release();
 		}
-	}
-
-	/**
-	 * 给可视化路径插入档位后缀。
-	 *
-	 * <p>多档时把档位名插入到扩展名前：{@code vis.png → vis.tiny.png}；
-	 * 单档时原样返回，保持向后兼容。
-	 *
-	 * @param visPath   原始可视化路径
-	 * @param tier      当前档位
-	 * @param tierCount 总档位数（用于判定是否需要加后缀）
-	 * @return 调整后的可视化路径
-	 */
-	private static String visPathWithTier(String visPath, String tier, int tierCount) {
-		if (tierCount <= 1) {
-			return visPath;
-		}
-		int dot = visPath.lastIndexOf('.');
-		if (dot < 0) {
-			return visPath + "." + tier;
-		}
-		return visPath.substring(0, dot) + "." + tier + visPath.substring(dot);
 	}
 
 	/**
@@ -278,7 +312,7 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 			}
 
 			// 打印结构化结果
-			printResults(engine,  results);
+			printResults(engine, results);
 		}
 
 		return results;
@@ -291,43 +325,6 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	 */
 	protected void setTier(String tier) {
 		this.TIER = tier;
-	}
-
-	/**
-	 * 扫描 {@code models/ppocr-v6/} 下模型文件齐全的档位，供 JUnit 5 {@code @MethodSource} 使用。
-	 *
-	 * <p>用法示例（在继承本类的集成测试中）：
-	 * <pre>{@code
-	 * @ParameterizedTest
-	 * @MethodSource("tiers")  // 直接引用父类的 static 方法
-	 * void parseAllTiers(String tier) throws Exception {
-	 *     setTier(tier);
-	 *     runOcr(loadImage());
-	 *     // 断言 ...
-	 * }
-	 * }</pre>
-	 *
-	 * <p>找不到任何可用档位时返回空流，由调用方通过 {@code Assumptions.assumeTrue(...)} 跳过。
-	 *
-	 * @return 可用档位流，按字母序排序
-	 */
-	protected static Stream<String> tiers() {
-		Path modelsRoot = CollUtil.pathOf("models/ppocr-v6");
-		if (!Files.isDirectory(modelsRoot)) {
-			return Stream.empty();
-		}
-		try (Stream<Path> children = Files.list(modelsRoot)) {
-			return children
-				.filter(Files::isDirectory)
-				.map(p -> p.getFileName().toString())
-				.filter(name -> Files.isRegularFile(modelsRoot.resolve(name).resolve("det.onnx"))
-					&& Files.isRegularFile(modelsRoot.resolve(name).resolve("rec.onnx"))
-					&& Files.isRegularFile(modelsRoot.resolve(name).resolve("dict.txt")))
-				.sorted();
-		} catch (Exception e) {
-			System.err.println("扫描模型档位失败: " + e.getMessage());
-			return Stream.empty();
-		}
 	}
 
 	/**
@@ -356,28 +353,15 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 	}
 
 	/**
-	 * 一次跑完多档模型的结果包装（{@link #runOcrForTiers} 返回值）。
-	 *
-	 * @param tier    模型档位
-	 * @param results 该档下的 OCR 结果
-	 */
-	@lombok.Value
-	@Accessors(fluent = true)
-	public static class OcrTierResult {
-		private final String tier;
-		private final List<PPOcrV6Result> results;
-	}
-
-	/**
 	 * 在原图上绘制检测框并保存为 PNG。
 	 *
 	 * <p>如果 OCR 启用了 doc_ori（{@link PPOcrV6Result#rotatedDegrees()} 非 0），
 	 * 会先通过 {@link PPOcrV6Result#boxInOriginalImg(int, int)} 把文本框投影回
 	 * 原图坐标系再绘制，避免「原图 vs 旋转后 box」的错位。
 	 *
-	 * @param img    原图
+	 * @param img     原图
 	 * @param results OCR 结果列表
-	 * @param out    输出 PNG 路径
+	 * @param out     输出 PNG 路径
 	 */
 	protected void saveVis(Mat img, List<PPOcrV6Result> results, String out) {
 		Mat canvas = img.clone();
@@ -401,5 +385,18 @@ public abstract class BaseTest<P extends BaseStructuredParser<R>, R> {
 			System.err.println("Warning: failed to save visualization: " + out);
 		}
 		canvas.release();
+	}
+
+	/**
+	 * 一次跑完多档模型的结果包装（{@link #runOcrForTiers} 返回值）。
+	 *
+	 * @param tier    模型档位
+	 * @param results 该档下的 OCR 结果
+	 */
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class OcrTierResult {
+		private final String tier;
+		private final List<PPOcrV6Result> results;
 	}
 }

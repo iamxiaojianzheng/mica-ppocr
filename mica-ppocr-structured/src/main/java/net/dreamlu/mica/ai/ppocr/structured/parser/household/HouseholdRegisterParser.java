@@ -16,13 +16,13 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.household;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher.LabeledMatch;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -174,55 +174,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	// 入口
 	// ==================================================================
 
-	@Override
-	public HouseholdRegisterResult parseResults(List<PPOcrV6Result> results) {
-		HouseholdRegisterResult r = new HouseholdRegisterResult();
-		r.setRawResults(new ArrayList<>(results));
-
-		// 顶部：户号
-		apply(r, "householdNo", parseHouseholdNo(results));
-
-		// 第一行：姓名 + 与户主关系
-		apply(r, "name", parseName(results));
-		apply(r, "relationship", parseRelationship(results));
-
-		// 性别
-		apply(r, "gender", parseGender(results));
-
-		// 第三行：出生地 + 民族
-		apply(r, "birthPlace", parseBirthPlace(results));
-		apply(r, "ethnicity", parseEthnicity(results));
-
-		// 第四行：籍贯 + 出生日期
-		apply(r, "nativePlace", matchValueWithBoxWithSpaces(results, "籍贯"));
-		apply(r, "birthDate", parseBirthDate(results));
-
-		// 第六行：公民身份号码 + 身高
-		apply(r, "idNumber", parseIdNumber(results));
-		apply(r, "height", parseHeight(results));
-
-		// 文化程度
-		apply(r, "education", matchValueWithBoxWithSpaces(results, "文化程度"));
-
-		// 服务处所
-		apply(r, "workplace", parseWorkplace(results));
-
-		// 何时由何地迁来本市(县)
-		apply(r, "moveToCityDate", parseMoveToCityDate(results));
-
-		// 何时由何地迁往本址
-		apply(r, "moveToAddress", parseMoveToAddress(results));
-
-		// 登记日期
-		apply(r, "registrationDate", parseRegistrationDate(results));
-
-		return r;
-	}
-
-	// ==================================================================
-	// apply：通用回填
-	// ==================================================================
-
 	private static void apply(HouseholdRegisterResult r, String name, LabeledMatch match) {
 		if (match == null) {
 			return;
@@ -292,7 +243,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 户号
+	// apply：通用回填
 	// ==================================================================
 
 	/**
@@ -351,6 +302,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ==================================================================
+	// 户号
+	// ==================================================================
+
 	private static String cleanHouseholdNo(String raw) {
 		if (raw == null) return null;
 		// 去掉冒号、空格、中文括号等
@@ -360,10 +315,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return stripped;
 	}
-
-	// ==================================================================
-	// 姓名
-	// ==================================================================
 
 	/**
 	 * 姓名：label 定位 + 跨框合并（OCR 切碎"姓" / "名"）。
@@ -402,6 +353,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ==================================================================
+	// 姓名
+	// ==================================================================
 
 	/**
 	 * 姓名合并：若值框是单字（如"名"），向右紧邻的"未识别名"框合并；否则保留原值。
@@ -455,10 +410,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return Character.isLetterOrDigit(c) || Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN;
 	}
 
-	// ==================================================================
-	// 性别
-	// ==================================================================
-
 	/**
 	 * 性别：label 定位 + 单字"男"/"女" 校验。
 	 *
@@ -495,7 +446,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 与户主关系
+	// 性别
 	// ==================================================================
 
 	/**
@@ -541,6 +492,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ==================================================================
+	// 与户主关系
+	// ==================================================================
+
 	/**
 	 * 定位"与户主关系"标签框。
 	 *
@@ -567,10 +522,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return candidate;
 	}
-
-	// ==================================================================
-	// 出生地
-	// ==================================================================
 
 	/**
 	 * 出生地：label 定位 + label 缺失时按民族行兜底。
@@ -619,7 +570,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 民族
+	// 出生地
 	// ==================================================================
 
 	/**
@@ -659,6 +610,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ==================================================================
+	// 民族
+	// ==================================================================
 
 	/**
 	 * 定位"民族"标签框。
@@ -763,10 +718,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.of(merged, mergedBoxes);
 	}
 
-	// ==================================================================
-	// 出生日期
-	// ==================================================================
-
 	/**
 	 * 出生日期：label 定位 + 跨框合并（"1961" + "10月21"）。
 	 */
@@ -815,6 +766,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		log.warn("户口本解析：未匹配到出生日期");
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ==================================================================
+	// 出生日期
+	// ==================================================================
 
 	/**
 	 * 日期合并：值框"1961" + 右侧相邻"10月21" → "1961年10月21日"。
@@ -893,10 +848,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.of(finalVal, boxes);
 	}
 
-	// ==================================================================
-	// 公民身份号码
-	// ==================================================================
-
 	/**
 	 * 公民身份号码：label 定位 + 18 位正则 find() 兜底。
 	 */
@@ -923,6 +874,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ==================================================================
+	// 公民身份号码
+	// ==================================================================
+
 	private static String cleanIdNumber(String raw) {
 		if (raw == null) return null;
 		String stripped = raw.replaceAll("\\s+", "");
@@ -931,10 +886,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return null;
 	}
-
-	// ==================================================================
-	// 身高
-	// ==================================================================
 
 	/**
 	 * 身高：label 定位 + 正则清洗（兼容"170厘米"/"160"）。
@@ -967,7 +918,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 血型
+	// 身高
 	// ==================================================================
 
 	private static LabeledMatch parseBloodType(List<PPOcrV6Result> results) {
@@ -983,7 +934,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 婚姻状况
+	// 血型
 	// ==================================================================
 
 	private static LabeledMatch parseMaritalStatus(List<PPOcrV6Result> results) {
@@ -1001,7 +952,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 服务处所（工作单位）
+	// 婚姻状况
 	// ==================================================================
 
 	/**
@@ -1026,7 +977,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 何时由何地迁来本市(县)
+	// 服务处所（工作单位）
 	// ==================================================================
 
 	/**
@@ -1077,6 +1028,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ==================================================================
+	// 何时由何地迁来本市(县)
+	// ==================================================================
+
 	/**
 	 * 定位「何时由何地迁来本市(县)」label 框。
 	 *
@@ -1122,10 +1077,6 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return best;
 	}
 
-	// ==================================================================
-	// 何时由何地迁往本址
-	// ==================================================================
-
 	/**
 	 * 何时由何地迁往本址：label 框定位 + 因/迁来模式兜底。
 	 */
@@ -1154,7 +1105,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 登记日期
+	// 何时由何地迁往本址
 	// ==================================================================
 
 	/**
@@ -1254,7 +1205,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	}
 
 	// ==================================================================
-	// 扩展版 findLabelBox / matchValueWithBox（兼容"姓 名" 中间空格）
+	// 登记日期
 	// ==================================================================
 
 	/**
@@ -1269,6 +1220,10 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		}
 		return sb.toString();
 	}
+
+	// ==================================================================
+	// 扩展版 findLabelBox / matchValueWithBox（兼容"姓 名" 中间空格）
+	// ==================================================================
 
 	/**
 	 * 扩展版 findLabelBox：先按原 label 找，找不到再用"每字之间带空格"的变体找。
@@ -1428,13 +1383,13 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 		return LabeledMatch.of(best.text(), best);
 	}
 
-	// ==================================================================
-	// 公共工具
-	// ==================================================================
-
 	private static LabeledMatch matchByKeywords(List<PPOcrV6Result> results, List<String> keywords) {
 		return LabelMatcher.matchValueByLabelKeywordWithBox(results, keywords);
 	}
+
+	// ==================================================================
+	// 公共工具
+	// ==================================================================
 
 	private static LabeledMatch cleanRelationship(LabeledMatch m) {
 		String cleaned = trimAll(m.value());
@@ -1491,7 +1446,7 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	/**
 	 * 判定是否为户口本字段名 / label fragment，可选是否对多字 label 启用 {@code contains} 子串匹配。
 	 *
-	 * @param text           待判定的文本
+	 * @param text             待判定的文本
 	 * @param useContainsMulti 多字 label 是否启用 contains 子串匹配；false 时仅完全等于才视为 label
 	 * @return true 表示该文本是 label fragment，不应作为 value
 	 */
@@ -1547,5 +1502,50 @@ public class HouseholdRegisterParser extends BaseStructuredParser<HouseholdRegis
 	private static String trimAll(String text) {
 		if (text == null) return null;
 		return text.replaceAll("[\\s\u3000]+", "");
+	}
+
+	@Override
+	public HouseholdRegisterResult parseResults(List<PPOcrV6Result> results) {
+		HouseholdRegisterResult r = new HouseholdRegisterResult();
+		r.setRawResults(new ArrayList<>(results));
+
+		// 顶部：户号
+		apply(r, "householdNo", parseHouseholdNo(results));
+
+		// 第一行：姓名 + 与户主关系
+		apply(r, "name", parseName(results));
+		apply(r, "relationship", parseRelationship(results));
+
+		// 性别
+		apply(r, "gender", parseGender(results));
+
+		// 第三行：出生地 + 民族
+		apply(r, "birthPlace", parseBirthPlace(results));
+		apply(r, "ethnicity", parseEthnicity(results));
+
+		// 第四行：籍贯 + 出生日期
+		apply(r, "nativePlace", matchValueWithBoxWithSpaces(results, "籍贯"));
+		apply(r, "birthDate", parseBirthDate(results));
+
+		// 第六行：公民身份号码 + 身高
+		apply(r, "idNumber", parseIdNumber(results));
+		apply(r, "height", parseHeight(results));
+
+		// 文化程度
+		apply(r, "education", matchValueWithBoxWithSpaces(results, "文化程度"));
+
+		// 服务处所
+		apply(r, "workplace", parseWorkplace(results));
+
+		// 何时由何地迁来本市(县)
+		apply(r, "moveToCityDate", parseMoveToCityDate(results));
+
+		// 何时由何地迁往本址
+		apply(r, "moveToAddress", parseMoveToAddress(results));
+
+		// 登记日期
+		apply(r, "registrationDate", parseRegistrationDate(results));
+
+		return r;
 	}
 }

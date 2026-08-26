@@ -16,8 +16,6 @@
 
 package net.dreamlu.mica.ai.ppocr.utils;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import lombok.experimental.UtilityClass;
 
 import java.io.IOException;
@@ -43,7 +41,9 @@ import java.nio.file.Path;
 @UtilityClass
 public class ModelResourceLoader {
 
-	/** classpath 前缀。 */
+	/**
+	 * classpath 前缀。
+	 */
 	public static final String CLASSPATH_PREFIX = "classpath:";
 
 	/**
@@ -65,7 +65,7 @@ public class ModelResourceLoader {
 	 * @param path 资源路径（classpath: 前缀或文件系统路径）
 	 * @return 资源字节内容
 	 * @throws IllegalArgumentException 路径为空或资源不存在
-	 * @throws RuntimeException 读取失败
+	 * @throws RuntimeException         读取失败
 	 */
 	public static byte[] load(String path) {
 		if (path == null || path.isEmpty()) {
@@ -88,7 +88,7 @@ public class ModelResourceLoader {
 	 * @param path 带 {@code classpath:} 前缀的资源路径
 	 * @return 资源字节内容
 	 * @throws IllegalArgumentException 资源不存在
-	 * @throws RuntimeException 读取失败
+	 * @throws RuntimeException         读取失败
 	 */
 	private static byte[] loadFromClasspath(String path) {
 		String resourcePath = path.substring(CLASSPATH_PREFIX.length());
@@ -112,7 +112,7 @@ public class ModelResourceLoader {
 	 * @param path 文件系统绝对路径或相对路径
 	 * @return 文件字节内容
 	 * @throws IllegalArgumentException 文件不存在或不是常规文件
-	 * @throws RuntimeException 读取失败
+	 * @throws RuntimeException         读取失败
 	 */
 	private static byte[] loadFromFileSystem(String path) {
 		Path p = CollUtil.pathOf(path);

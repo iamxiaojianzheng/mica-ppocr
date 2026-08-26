@@ -16,9 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.ParserTestSupport;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -68,7 +68,7 @@ class TaxiReceiptParserTest extends ParserTestSupport {
 		List<PPOcrV6Result> list = new ArrayList<>();
 		Pattern p = Pattern.compile(
 			"\"text\":\"((?:[^\"\\\\]|\\\\.)*)\".*\"box\":\\[" +
-			"\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\]\\]");
+				"\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\]\\]");
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
 			String line;
 			while ((line = reader.readLine()) != null) {

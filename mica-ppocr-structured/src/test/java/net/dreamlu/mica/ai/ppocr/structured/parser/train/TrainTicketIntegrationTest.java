@@ -16,10 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +40,36 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class TrainTicketIntegrationTest {
 
 	private static final String DEFAULT_TIER = "tiny";
+
+	private static void print(TrainTicketResult r) {
+		System.out.println("  departure:        " + r.getDeparture());
+		System.out.println("  arrival:          " + r.getArrival());
+		System.out.println("  trainNumber:      " + r.getTrainNumber());
+		System.out.println("  departureDate:    " + r.getDepartureDate());
+		System.out.println("  departureTime:    " + r.getDepartureTime());
+		System.out.println("  seatNumber:       " + r.getSeatNumber());
+		System.out.println("  seatClass:        " + r.getSeatClass());
+		System.out.println("  passengerName:    " + r.getPassengerName());
+		System.out.println("  amount:           " + r.getAmount());
+		System.out.println("  ticketNo:         " + r.getTicketNo());
+		System.out.println("  invoiceNo:        " + r.getInvoiceNo());
+		System.out.println("  eTicketNo:        " + r.getETicketNo());
+	}
+
+	private static Path findRepositoryRoot() {
+		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
+		if (multiModuleDir != null && Files.isDirectory(CollUtil.pathOf(multiModuleDir).resolve("models"))) {
+			return CollUtil.pathOf(multiModuleDir);
+		}
+		Path current = CollUtil.pathOf("").toAbsolutePath();
+		while (current != null && !Files.isDirectory(current.resolve("models"))) {
+			current = current.getParent();
+		}
+		if (current == null) {
+			throw new IllegalStateException("repository root not found");
+		}
+		return current;
+	}
 
 	@Test
 	void parseRealTrainTicketImages() throws Exception {
@@ -76,35 +105,5 @@ class TrainTicketIntegrationTest {
 				print(r);
 			}
 		}
-	}
-
-	private static void print(TrainTicketResult r) {
-		System.out.println("  departure:        " + r.getDeparture());
-		System.out.println("  arrival:          " + r.getArrival());
-		System.out.println("  trainNumber:      " + r.getTrainNumber());
-		System.out.println("  departureDate:    " + r.getDepartureDate());
-		System.out.println("  departureTime:    " + r.getDepartureTime());
-		System.out.println("  seatNumber:       " + r.getSeatNumber());
-		System.out.println("  seatClass:        " + r.getSeatClass());
-		System.out.println("  passengerName:    " + r.getPassengerName());
-		System.out.println("  amount:           " + r.getAmount());
-		System.out.println("  ticketNo:         " + r.getTicketNo());
-		System.out.println("  invoiceNo:        " + r.getInvoiceNo());
-		System.out.println("  eTicketNo:        " + r.getETicketNo());
-	}
-
-	private static Path findRepositoryRoot() {
-		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
-		if (multiModuleDir != null && Files.isDirectory(CollUtil.pathOf(multiModuleDir).resolve("models"))) {
-			return CollUtil.pathOf(multiModuleDir);
-		}
-		Path current = CollUtil.pathOf("").toAbsolutePath();
-		while (current != null && !Files.isDirectory(current.resolve("models"))) {
-			current = current.getParent();
-		}
-		if (current == null) {
-			throw new IllegalStateException("repository root not found");
-		}
-		return current;
 	}
 }

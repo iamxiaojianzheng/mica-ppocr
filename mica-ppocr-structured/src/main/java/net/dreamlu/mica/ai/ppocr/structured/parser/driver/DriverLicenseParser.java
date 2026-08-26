@@ -16,12 +16,12 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.driver;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -93,27 +93,6 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 	 */
 	public DriverLicenseParser(PPOcrV6Engine engine) {
 		super(engine);
-	}
-
-	@Override
-	public DriverLicenseResult parseResults(List<PPOcrV6Result> results) {
-		DriverLicenseResult r = new DriverLicenseResult();
-		r.setRawResults(new ArrayList<>(results));
-		r.setLicenseNumber(parseLicenseNumber(results));
-		r.setName(parseName(results));
-		r.setGender(parseGender(results));
-		r.setNationality(parseNationality(results));
-		r.setAddress(parseAddress(results));
-		r.setBirthDate(parseBirthDate(results));
-		r.setIssueDate(parseIssueDate(results));
-		r.setVehicleClass(parseVehicleClass(results));
-		r.setIssuingAuthority(parseIssuingAuthority(results));
-		String[] period = parseValidPeriod(results);
-		if (period != null) {
-			r.setValidFrom(period[0]);
-			r.setValidTo(period[1]);
-		}
-		return r;
 	}
 
 	/**
@@ -224,15 +203,15 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 				}
 			}
 			if (best != null) {
-			// 可能是 "Natonality中国" 这样的合并框，剥掉英文前缀保留中文
-			String stripped = best.replaceAll("^[A-Za-z\\s.]+", "");
-			if (!stripped.isEmpty()) {
-				return deduplicateChina(stripped);
+				// 可能是 "Natonality中国" 这样的合并框，剥掉英文前缀保留中文
+				String stripped = best.replaceAll("^[A-Za-z\\s.]+", "");
+				if (!stripped.isEmpty()) {
+					return deduplicateChina(stripped);
+				}
 			}
 		}
-	}
-	// 2) 兜底：扫描所有框，从含"中国"的文本提取
-	for (PPOcrV6Result r : results) {
+		// 2) 兜底：扫描所有框，从含"中国"的文本提取
+		for (PPOcrV6Result r : results) {
 			String text = r.text();
 			if (text.contains("中国")) {
 				String stripped = text.replaceAll("^[A-Za-z\\s.]+", "");
@@ -504,5 +483,26 @@ public class DriverLicenseParser extends BaseStructuredParser<DriverLicenseResul
 		}
 		// 单段日期：两端相同
 		return new String[]{parts[0], parts[0]};
+	}
+
+	@Override
+	public DriverLicenseResult parseResults(List<PPOcrV6Result> results) {
+		DriverLicenseResult r = new DriverLicenseResult();
+		r.setRawResults(new ArrayList<>(results));
+		r.setLicenseNumber(parseLicenseNumber(results));
+		r.setName(parseName(results));
+		r.setGender(parseGender(results));
+		r.setNationality(parseNationality(results));
+		r.setAddress(parseAddress(results));
+		r.setBirthDate(parseBirthDate(results));
+		r.setIssueDate(parseIssueDate(results));
+		r.setVehicleClass(parseVehicleClass(results));
+		r.setIssuingAuthority(parseIssuingAuthority(results));
+		String[] period = parseValidPeriod(results);
+		if (period != null) {
+			r.setValidFrom(period[0]);
+			r.setValidTo(period[1]);
+		}
+		return r;
 	}
 }

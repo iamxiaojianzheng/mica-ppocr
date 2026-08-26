@@ -16,12 +16,11 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.household;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.opencv.core.Mat;
 
 import java.io.IOException;
@@ -54,81 +53,11 @@ public class HouseholdRegisterDumpMain extends BaseTest<HouseholdRegisterParser,
 		new HouseholdRegisterDumpMain().run(outDir);
 	}
 
-	private void run(Path outDir) throws IOException {
-		nu.pattern.OpenCV.loadLocally();
-
-		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
-		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
-		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
-		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
-
-		PPOcrV6Config config = PPOcrV6Config.builder()
-			.detModelPath(detModel)
-			.recModelPath(recModel)
-			.recCharDictPath(dict)
-			.useDocOrientationClassify(USE_DOC_ORIENTATION)
-			.docOrientationModelPath(docOriModel)
-			.build();
-
-		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-			for (String imgPath : IMAGES) {
-				String name = nameOf(imgPath);
-				System.out.println("\n" + CollUtil.repeat("=", 60));
-				System.out.println(">>> " + name + " <<<");
-				System.out.println(CollUtil.repeat("=", 60));
-				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
-				if (img == null || img.empty()) {
-					System.err.println("无法读取图片: " + imgPath);
-					continue;
-				}
-				List<PPOcrV6Result> results = engine.runMat(img);
-
-				// 1) 保存 JSON
-				Path jsonPath = outDir.resolve(name + ".json");
-				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
-				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
-
-				// 2) 输出结构化结果
-				System.out.println("\n--- 结构化解析 [" + name + "] ---");
-				printResults(engine, results);
-				img.release();
-			}
-		}
-	}
-
 	private static String nameOf(String imgPath) {
 		String f = Paths.get(imgPath).getFileName().toString();
 		int dot = f.lastIndexOf('.');
 		return dot > 0 ? f.substring(0, dot) : f;
 	}
-
-	@Override
-	protected HouseholdRegisterParser newParser(PPOcrV6Engine engine) {
-		return new HouseholdRegisterParser(engine);
-	}
-
-	@Override
-	protected void printResult(HouseholdRegisterResult r) {
-		System.out.println("户号                       " + r.getHouseholdNo());
-		System.out.println("姓名                       " + r.getName());
-		System.out.println("与户主关系                 " + r.getRelationship());
-		System.out.println("性别                       " + r.getGender());
-		System.out.println("出生地                     " + r.getBirthPlace());
-		System.out.println("民族                       " + r.getEthnicity());
-		System.out.println("籍贯                       " + r.getNativePlace());
-		System.out.println("出生日期                   " + r.getBirthDate());
-		System.out.println("公民身份号码               " + r.getIdNumber());
-		System.out.println("身高                       " + r.getHeight());
-		System.out.println("文化程度                   " + r.getEducation());
-		System.out.println("服务处所                   " + r.getWorkplace());
-		System.out.println("何时由何地迁来本市(县)     " + r.getMoveToCityDate());
-		System.out.println("何时由何地迁往本址         " + r.getMoveToAddress());
-		System.out.println("登记日期                   " + r.getRegistrationDate());
-	}
-
-	// ====================================================================
-	// 手写 JSON 序列化（无第三方依赖）
-	// ====================================================================
 
 	private static String toJson(List<PPOcrV6Result> results) {
 		StringBuilder sb = new StringBuilder();
@@ -186,5 +115,75 @@ public class HouseholdRegisterDumpMain extends BaseTest<HouseholdRegisterParser,
 		}
 		sb.append('"');
 		return sb.toString();
+	}
+
+	private void run(Path outDir) throws IOException {
+		nu.pattern.OpenCV.loadLocally();
+
+		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
+		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
+		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
+		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
+
+		PPOcrV6Config config = PPOcrV6Config.builder()
+			.detModelPath(detModel)
+			.recModelPath(recModel)
+			.recCharDictPath(dict)
+			.useDocOrientationClassify(USE_DOC_ORIENTATION)
+			.docOrientationModelPath(docOriModel)
+			.build();
+
+		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+			for (String imgPath : IMAGES) {
+				String name = nameOf(imgPath);
+				System.out.println("\n" + CollUtil.repeat("=", 60));
+				System.out.println(">>> " + name + " <<<");
+				System.out.println(CollUtil.repeat("=", 60));
+				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
+				if (img == null || img.empty()) {
+					System.err.println("无法读取图片: " + imgPath);
+					continue;
+				}
+				List<PPOcrV6Result> results = engine.runMat(img);
+
+				// 1) 保存 JSON
+				Path jsonPath = outDir.resolve(name + ".json");
+				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
+				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
+
+				// 2) 输出结构化结果
+				System.out.println("\n--- 结构化解析 [" + name + "] ---");
+				printResults(engine, results);
+				img.release();
+			}
+		}
+	}
+
+	// ====================================================================
+	// 手写 JSON 序列化（无第三方依赖）
+	// ====================================================================
+
+	@Override
+	protected HouseholdRegisterParser newParser(PPOcrV6Engine engine) {
+		return new HouseholdRegisterParser(engine);
+	}
+
+	@Override
+	protected void printResult(HouseholdRegisterResult r) {
+		System.out.println("户号                       " + r.getHouseholdNo());
+		System.out.println("姓名                       " + r.getName());
+		System.out.println("与户主关系                 " + r.getRelationship());
+		System.out.println("性别                       " + r.getGender());
+		System.out.println("出生地                     " + r.getBirthPlace());
+		System.out.println("民族                       " + r.getEthnicity());
+		System.out.println("籍贯                       " + r.getNativePlace());
+		System.out.println("出生日期                   " + r.getBirthDate());
+		System.out.println("公民身份号码               " + r.getIdNumber());
+		System.out.println("身高                       " + r.getHeight());
+		System.out.println("文化程度                   " + r.getEducation());
+		System.out.println("服务处所                   " + r.getWorkplace());
+		System.out.println("何时由何地迁来本市(县)     " + r.getMoveToCityDate());
+		System.out.println("何时由何地迁往本址         " + r.getMoveToAddress());
+		System.out.println("登记日期                   " + r.getRegistrationDate());
 	}
 }

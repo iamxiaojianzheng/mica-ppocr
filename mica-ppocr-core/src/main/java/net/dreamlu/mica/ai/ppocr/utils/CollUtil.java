@@ -26,17 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -266,57 +256,6 @@ public class CollUtil {
 		return new HashMap<>();
 	}
 
-	private static final class AbstractEntry<K, V> implements Map.Entry<K, V> {
-		private final K key;
-		private V value;
-
-		AbstractEntry(K key, V value) {
-			this.key = key;
-			this.value = value;
-		}
-
-		@Override
-		public K getKey() {
-			return key;
-		}
-
-		@Override
-		public V getValue() {
-			return value;
-		}
-
-		@Override
-		public V setValue(V value) {
-			V old = this.value;
-			this.value = value;
-			return old;
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (!(o instanceof Map.Entry)) return false;
-			Map.Entry<?, ?> that = (Map.Entry<?, ?>) o;
-			return java.util.Objects.equals(key, that.getKey())
-				&& java.util.Objects.equals(value, that.getValue());
-		}
-
-		@Override
-		public int hashCode() {
-			return (key == null ? 0 : key.hashCode())
-				^ (value == null ? 0 : value.hashCode());
-		}
-
-		@Override
-		public String toString() {
-			return key + "=" + value;
-		}
-	}
-
-	// ====================================================================
-	// Java 9/11+ 标准库 API 的 Java 8 回退实现
-	// ====================================================================
-
 	/**
 	 * Java 11+ {@code String.stripTrailing} 的 Java 8 实现。
 	 *
@@ -333,6 +272,10 @@ public class CollUtil {
 		}
 		return end == s.length() ? s : s.substring(0, end);
 	}
+
+	// ====================================================================
+	// Java 9/11+ 标准库 API 的 Java 8 回退实现
+	// ====================================================================
 
 	/**
 	 * Java 11+ {@code String.repeat(int)} 的 Java 8 实现。
@@ -409,5 +352,52 @@ public class CollUtil {
 	 */
 	public static <T> List<T> toList(Stream<T> stream) {
 		return stream.collect(Collectors.toList());
+	}
+
+	private static final class AbstractEntry<K, V> implements Map.Entry<K, V> {
+		private final K key;
+		private V value;
+
+		AbstractEntry(K key, V value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		@Override
+		public K getKey() {
+			return key;
+		}
+
+		@Override
+		public V getValue() {
+			return value;
+		}
+
+		@Override
+		public V setValue(V value) {
+			V old = this.value;
+			this.value = value;
+			return old;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof Map.Entry)) return false;
+			Map.Entry<?, ?> that = (Map.Entry<?, ?>) o;
+			return java.util.Objects.equals(key, that.getKey())
+				&& java.util.Objects.equals(value, that.getValue());
+		}
+
+		@Override
+		public int hashCode() {
+			return (key == null ? 0 : key.hashCode())
+				^ (value == null ? 0 : value.hashCode());
+		}
+
+		@Override
+		public String toString() {
+			return key + "=" + value;
+		}
 	}
 }

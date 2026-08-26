@@ -45,7 +45,9 @@ import java.util.Set;
  */
 @ToString
 public final class DetectionPreprocessor {
-	/** 支持的 limitType 取值。 */
+	/**
+	 * 支持的 limitType 取值。
+	 */
 	public static final Set<String> VALID_LIMIT_TYPES = CollUtil.setOf("min", "max");
 	private static final float SCALE = 1.0f / 255.0f;
 	private static final Scalar MEAN = new Scalar(0.485, 0.456, 0.406);
@@ -76,6 +78,32 @@ public final class DetectionPreprocessor {
 		this.limitSideLen = limitSideLen;
 		this.limitType = limitType;
 		this.maxSideLimit = maxSideLimit;
+	}
+
+	/**
+	 * 静态工具：根据给定 (h, w) 计算 resize 后的实际 (rh, rw)。
+	 *
+	 * @param h       原始高
+	 * @param w       原始宽
+	 * @param limit   限制边长
+	 * @param type    限制类型：min 或 max
+	 * @param maxSide 最大边长
+	 * @return [rh, rw]
+	 */
+	public static int[] computeResizedHW(int h, int w, int limit, String type, int maxSide) {
+		double ratio = "max".equals(type)
+			? (Math.max(h, w) > limit ? (double) limit / Math.max(h, w) : 1.0)
+			: (Math.min(h, w) < limit ? (double) limit / Math.min(h, w) : 1.0);
+		int rh = (int) (h * ratio);
+		int rw = (int) (w * ratio);
+		if (Math.max(rh, rw) > maxSide) {
+			ratio = (double) maxSide / Math.max(rh, rw);
+			rh = (int) (rh * ratio);
+			rw = (int) (rw * ratio);
+		}
+		rh = Math.max(Math.round((float) rh / STRIDE) * STRIDE, STRIDE);
+		rw = Math.max(Math.round((float) rw / STRIDE) * STRIDE, STRIDE);
+		return new int[]{rh, rw};
 	}
 
 	/**
@@ -173,32 +201,6 @@ public final class DetectionPreprocessor {
 			hwc[b + 2] = (hwc[b + 2] * scale - meanR) / stdR;
 		}
 		return hwc;
-	}
-
-	/**
-	 * 静态工具：根据给定 (h, w) 计算 resize 后的实际 (rh, rw)。
-	 *
-	 * @param h       原始高
-	 * @param w       原始宽
-	 * @param limit   限制边长
-	 * @param type    限制类型：min 或 max
-	 * @param maxSide 最大边长
-	 * @return [rh, rw]
-	 */
-	public static int[] computeResizedHW(int h, int w, int limit, String type, int maxSide) {
-		double ratio = "max".equals(type)
-			? (Math.max(h, w) > limit ? (double) limit / Math.max(h, w) : 1.0)
-			: (Math.min(h, w) < limit ? (double) limit / Math.min(h, w) : 1.0);
-		int rh = (int) (h * ratio);
-		int rw = (int) (w * ratio);
-		if (Math.max(rh, rw) > maxSide) {
-			ratio = (double) maxSide / Math.max(rh, rw);
-			rh = (int) (rh * ratio);
-			rw = (int) (rw * ratio);
-		}
-		rh = Math.max(Math.round((float) rh / STRIDE) * STRIDE, STRIDE);
-		rw = Math.max(Math.round((float) rw / STRIDE) * STRIDE, STRIDE);
-		return new int[]{rh, rw};
 	}
 
 	/**

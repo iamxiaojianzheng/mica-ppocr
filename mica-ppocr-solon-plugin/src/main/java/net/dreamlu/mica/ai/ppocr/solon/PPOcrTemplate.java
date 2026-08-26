@@ -16,8 +16,6 @@
 
 package net.dreamlu.mica.ai.ppocr.solon;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.bankcard.BankCardParser;
@@ -31,13 +29,17 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.pdd.PddLuckyBagParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.noear.solon.core.AppContext;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**

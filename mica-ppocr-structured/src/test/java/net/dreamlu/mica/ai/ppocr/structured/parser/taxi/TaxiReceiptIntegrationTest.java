@@ -16,10 +16,9 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.taxi;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
-
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +40,36 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class TaxiReceiptIntegrationTest {
 
 	private static final String DEFAULT_TIER = "tiny";
+
+	private static void print(TaxiReceiptResult r) {
+		System.out.println("  invoiceCode:       " + r.getInvoiceCode());
+		System.out.println("  invoiceNo:         " + r.getInvoiceNo());
+		System.out.println("  plateNumber:       " + r.getPlateNumber());
+		System.out.println("  date:              " + r.getDate());
+		System.out.println("  boardingTime:      " + r.getBoardingTime());
+		System.out.println("  alightingTime:     " + r.getAlightingTime());
+		System.out.println("  mileage:           " + r.getMileage());
+		System.out.println("  amount:            " + r.getAmount());
+		System.out.println("  fuelSurcharge:     " + r.getFuelSurcharge());
+		System.out.println("  bookingFee:        " + r.getBookingFee());
+		System.out.println("  totalAmount:       " + r.getTotalAmount());
+		System.out.println("  city:              " + r.getCity());
+	}
+
+	private static Path findRepositoryRoot() {
+		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
+		if (multiModuleDir != null && Files.isDirectory(CollUtil.pathOf(multiModuleDir).resolve("models"))) {
+			return CollUtil.pathOf(multiModuleDir);
+		}
+		Path current = CollUtil.pathOf("").toAbsolutePath();
+		while (current != null && !Files.isDirectory(current.resolve("models"))) {
+			current = current.getParent();
+		}
+		if (current == null) {
+			throw new IllegalStateException("repository root not found");
+		}
+		return current;
+	}
 
 	@Test
 	void parseRealTaxiReceiptImages() throws Exception {
@@ -76,35 +105,5 @@ class TaxiReceiptIntegrationTest {
 				print(r);
 			}
 		}
-	}
-
-	private static void print(TaxiReceiptResult r) {
-		System.out.println("  invoiceCode:       " + r.getInvoiceCode());
-		System.out.println("  invoiceNo:         " + r.getInvoiceNo());
-		System.out.println("  plateNumber:       " + r.getPlateNumber());
-		System.out.println("  date:              " + r.getDate());
-		System.out.println("  boardingTime:      " + r.getBoardingTime());
-		System.out.println("  alightingTime:     " + r.getAlightingTime());
-		System.out.println("  mileage:           " + r.getMileage());
-		System.out.println("  amount:            " + r.getAmount());
-		System.out.println("  fuelSurcharge:     " + r.getFuelSurcharge());
-		System.out.println("  bookingFee:        " + r.getBookingFee());
-		System.out.println("  totalAmount:       " + r.getTotalAmount());
-		System.out.println("  city:              " + r.getCity());
-	}
-
-	private static Path findRepositoryRoot() {
-		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
-		if (multiModuleDir != null && Files.isDirectory(CollUtil.pathOf(multiModuleDir).resolve("models"))) {
-			return CollUtil.pathOf(multiModuleDir);
-		}
-		Path current = CollUtil.pathOf("").toAbsolutePath();
-		while (current != null && !Files.isDirectory(current.resolve("models"))) {
-			current = current.getParent();
-		}
-		if (current == null) {
-			throw new IllegalStateException("repository root not found");
-		}
-		return current;
 	}
 }

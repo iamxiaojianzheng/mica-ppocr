@@ -16,20 +16,13 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.core;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.experimental.Accessors;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -67,66 +60,6 @@ public class LabelMatcher {
 	public static final int DEFAULT_RIGHT_OVERLAP_TOLERANCE = 5;
 
 	/**
-	 * 字段匹配结果：字段值 + 对应 OCR 结果（含 box 坐标）。
-	 *
-	 * <p>一个字段可能由多个 OCR 框拼接/提取而来（例如长地址跨多行），
-	 * 因此用 {@link #matches()} 承载多个值框（通常只有一个）。
-	 *
-	 * @param value   字段值
-	 * @param matches 匹配到的 OCR 结果（含 box 坐标）
-	 */
-	@lombok.Value
-	@Accessors(fluent = true)
-	public static class LabeledMatch {
-		private final String value;
-		private final List<PPOcrV6Result> matches;
-		/**
-		 * 仅文本、无匹配框（兜底场景）。
-		 *
-		 * @param value 字段值（可为空）
-		 * @return 文本 LabeledMatch
-		 */
-		public static LabeledMatch textOnly(String value) {
-			return new LabeledMatch(value, CollUtil.listOf());
-		}
-
-		/**
-		 * 文本 + 单个值框。
-		 *
-		 * @param value 字段值
-		 * @param match 值框对应的 OCR 结果；null 时回退为空 list
-		 * @return 单值框 LabeledMatch
-		 */
-		public static LabeledMatch of(String value, PPOcrV6Result match) {
-			return new LabeledMatch(value, match == null ? CollUtil.listOf() : CollUtil.listOf(match));
-		}
-
-		/**
-		 * 文本 + 多个值框（跨行字段如长地址）。
-		 *
-		 * @param value   字段值
-		 * @param matches 值框 OCR 结果列表；null 时回退为空 list
-		 * @return 多值框 LabeledMatch
-		 */
-		public static LabeledMatch of(String value, List<PPOcrV6Result> matches) {
-			return new LabeledMatch(value, matches == null ? CollUtil.listOf() : CollUtil.unmodifiableList(matches));
-		}
-
-		/**
-		 * 判断是否存在非空字段值。
-		 *
-		 * @return true 表示 value 非 null 且非空字符串
-		 */
-		public boolean hasValue() {
-			return value != null && !value.isEmpty();
-		}
-	}
-
-	// ==================================================================
-	// 无 box 版（兼容老代码）
-	// ==================================================================
-
-	/**
 	 * 兼容老代码：取字段文本，不返回匹配框。
 	 *
 	 * @param results OCR 识别结果列表
@@ -136,6 +69,10 @@ public class LabelMatcher {
 	public static String matchValue(List<PPOcrV6Result> results, String label) {
 		return matchValueWithBox(results, label).value();
 	}
+
+	// ==================================================================
+	// 无 box 版（兼容老代码）
+	// ==================================================================
 
 	/**
 	 * 兼容老代码：取字段文本，容忍标签与值框横向重叠像素。
@@ -202,10 +139,6 @@ public class LabelMatcher {
 		return lm.value();
 	}
 
-	// ==================================================================
-	// 带 box 版（推荐新代码使用，便于 fieldBoxes 回填）
-	// ==================================================================
-
 	/**
 	 * 取字段值 + 匹配框，使用默认横向重叠容差 {@link #DEFAULT_RIGHT_OVERLAP_TOLERANCE}。
 	 *
@@ -216,6 +149,10 @@ public class LabelMatcher {
 	public static LabeledMatch matchValueWithBox(List<PPOcrV6Result> results, String label) {
 		return matchValueWithBox(results, label, DEFAULT_RIGHT_OVERLAP_TOLERANCE);
 	}
+
+	// ==================================================================
+	// 带 box 版（推荐新代码使用，便于 fieldBoxes 回填）
+	// ==================================================================
 
 	/**
 	 * 取字段值 + 匹配框，自定义横向重叠容差。
@@ -431,10 +368,6 @@ public class LabelMatcher {
 		}
 	}
 
-	// ==================================================================
-	// 其余公开方法（不变）
-	// ==================================================================
-
 	/**
 	 * 在 OCR 结果中定位字段标签框，兼容 OCR 残缺场景。
 	 *
@@ -476,6 +409,10 @@ public class LabelMatcher {
 		return fragmentBest;
 	}
 
+	// ==================================================================
+	// 其余公开方法（不变）
+	// ==================================================================
+
 	/**
 	 * 字段标签框定位的"干净版"：在 {@link #findLabelBox} 基础上拒绝被其他已知字段关键字
 	 * 污染的 fragment（如营业执照 OCR 把"名称"和"类型"合并成"名类"——返回 null 而不是
@@ -489,15 +426,15 @@ public class LabelMatcher {
 	 *   <li>label 包含 text 但 text 长度 ≥ 2 → 拒绝（噪声合并框，应由调用方做合并框剥值）。</li>
 	 * </ol>
 	 *
-	 * @param results      OCR 识别结果列表
-	 * @param label        字段标签（如 "住所"）
-	 * @param noiseLabels  其他已知字段标签集合（如 ["名称","类型","注册资本",...])，
-	 *                     fragment 文本如果包含其中任一标签视为污染并拒绝
+	 * @param results     OCR 识别结果列表
+	 * @param label       字段标签（如 "住所"）
+	 * @param noiseLabels 其他已知字段标签集合（如 ["名称","类型","注册资本",...])，
+	 *                    fragment 文本如果包含其中任一标签视为污染并拒绝
 	 * @return 干净标签框；无匹配时返回 null
 	 */
 	public static PPOcrV6Result findCleanLabelBox(List<PPOcrV6Result> results,
-											  String label,
-											  Set<String> noiseLabels) {
+												  String label,
+												  Set<String> noiseLabels) {
 		PPOcrV6Result exactBest = null;
 		PPOcrV6Result prefixBest = null;
 		PPOcrV6Result fragmentBest = null;
@@ -551,14 +488,14 @@ public class LabelMatcher {
 	 *   <li>拼接前按 y 升序排序，多行用空格分隔。</li>
 	 * </ul>
 	 *
-	 * @param labelBox      标签框
-	 * @param results       OCR 结果列表
-	 * @param skipTexts     需要排除的文本（防止把其他标签 fragment 拼进来）
+	 * @param labelBox  标签框
+	 * @param results   OCR 结果列表
+	 * @param skipTexts 需要排除的文本（防止把其他标签 fragment 拼进来）
 	 * @return 多行拼接值；无候选时返回 null
 	 */
 	public static String collectMultiLineRight(PPOcrV6Result labelBox,
-										   List<PPOcrV6Result> results,
-										   Set<String> skipTexts) {
+											   List<PPOcrV6Result> results,
+											   Set<String> skipTexts) {
 		if (labelBox == null) return null;
 		int labelCenterX = (minX(labelBox) + maxX(labelBox)) / 2;
 		int labelMinY = minY(labelBox);
@@ -639,12 +576,6 @@ public class LabelMatcher {
 		return max;
 	}
 
-	// ==================================================================
-	// 增强方法：合并框剥值 + 关键字定位 + 几何兜底
-	//   针对真实票据 OCR 输出"标签被吞、标签与值合并、值与单价值
-	//   争抢同一右侧位置"等场景。
-	// ==================================================================
-
 	/**
 	 * 找所有文本含任一 keyword 的 OCR 框。
 	 *
@@ -672,6 +603,12 @@ public class LabelMatcher {
 		return hits;
 	}
 
+	// ==================================================================
+	// 增强方法：合并框剥值 + 关键字定位 + 几何兜底
+	//   针对真实票据 OCR 输出"标签被吞、标签与值合并、值与单价值
+	//   争抢同一右侧位置"等场景。
+	// ==================================================================
+
 	/**
 	 * 找含任一 keyword 的 OCR 框，再按 valueExtractor 从框文本里切值。
 	 * 返回首个非空提取结果。
@@ -680,9 +617,9 @@ public class LabelMatcher {
 	 * 但"上车"作为 fragment 命中此框；用 {@code text -> extractTime(text)} 从
 	 * 中切出"21:17"。
 	 *
-	 * @param results         OCR 识别结果列表
-	 * @param keywords        关键字列表（任一命中即视为候选框）
-	 * @param valueExtractor  从候选框文本提取字段值的函数；返回 null 表示未切出
+	 * @param results        OCR 识别结果列表
+	 * @param keywords       关键字列表（任一命中即视为候选框）
+	 * @param valueExtractor 从候选框文本提取字段值的函数；返回 null 表示未切出
 	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
 	 */
 	public static LabeledMatch matchValueByKeywordWithBox(List<PPOcrV6Result> results,
@@ -715,17 +652,17 @@ public class LabelMatcher {
 	 * <p>典型场景：总金额 / 票价等通常出现在票面下半部，label 经常被吞，
 	 * 可按 y 最大 + 正则匹配兜底。
 	 *
-	 * @param results       OCR 识别结果列表
-	 * @param pattern       匹配正则（{@code find()} 命中即视为候选）
-	 * @param minScore      最小置信度过滤（噪声框排除）
-	 * @param valueCleaner  命中后对正则 group 做二次清洗（如剥货币符号）；
-	 *                      为 null 时直接返回正则 group
+	 * @param results      OCR 识别结果列表
+	 * @param pattern      匹配正则（{@code find()} 命中即视为候选）
+	 * @param minScore     最小置信度过滤（噪声框排除）
+	 * @param valueCleaner 命中后对正则 group 做二次清洗（如剥货币符号）；
+	 *                     为 null 时直接返回正则 group
 	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
 	 */
 	public static LabeledMatch matchBottomPatternWithBox(List<PPOcrV6Result> results,
-														Pattern pattern,
-														float minScore,
-														Function<String, String> valueCleaner) {
+														 Pattern pattern,
+														 float minScore,
+														 Function<String, String> valueCleaner) {
 		PPOcrV6Result best = null;
 		String bestHit = null;
 		int bestY = Integer.MIN_VALUE;
@@ -759,8 +696,8 @@ public class LabelMatcher {
 	 * <p>与 {@link #matchValueByCenterWithBox} 的差异：本方法显式接受 fragment
 	 * 关键字列表，而非"label 包含 text"。
 	 *
-	 * @param results        OCR 识别结果列表
-	 * @param labelKeywords  标签 fragment 关键字列表（如 ["日期", "期"]）
+	 * @param results       OCR 识别结果列表
+	 * @param labelKeywords 标签 fragment 关键字列表（如 ["日期", "期"]）
 	 * @return 字段值 + 值框；未匹配到时返回仅含 null value 的 LabeledMatch
 	 */
 	public static LabeledMatch matchValueByLabelKeywordWithBox(List<PPOcrV6Result> results,
@@ -808,13 +745,6 @@ public class LabelMatcher {
 		return LabeledMatch.of(best.text(), best);
 	}
 
-	// ==================================================================
-	// 互斥分配（label-value mutual exclusion）
-	//   解决"金额行"等多 label 抢同一右侧值的问题：
-	//   例如"金额"/"燃油附加费"/"总金额"在同一行右侧时，
-	//   简单最近 x 距离会让 3 个 label 都选到同一值。
-	// ==================================================================
-
 	/**
 	 * 互斥分配 label-value 配对（贪心最佳优先）。
 	 *
@@ -838,10 +768,10 @@ public class LabelMatcher {
 	 * @return labelName → value 的映射
 	 */
 	public static Map<String, String> assignExclusiveValues(
-			List<PPOcrV6Result> results,
-			List<LabelDef> labelDefs,
-			Function<String, String> valueExtractor,
-			int yOverlapDelta) {
+		List<PPOcrV6Result> results,
+		List<LabelDef> labelDefs,
+		Function<String, String> valueExtractor,
+		int yOverlapDelta) {
 		Map<String, String> result = new LinkedHashMap<>();
 		if (labelDefs == null || labelDefs.isEmpty()) return result;
 
@@ -942,12 +872,79 @@ public class LabelMatcher {
 		return result;
 	}
 
+	// ==================================================================
+	// 互斥分配（label-value mutual exclusion）
+	//   解决"金额行"等多 label 抢同一右侧值的问题：
+	//   例如"金额"/"燃油附加费"/"总金额"在同一行右侧时，
+	//   简单最近 x 距离会让 3 个 label 都选到同一值。
+	// ==================================================================
+
+	/**
+	 * 字段匹配结果：字段值 + 对应 OCR 结果（含 box 坐标）。
+	 *
+	 * <p>一个字段可能由多个 OCR 框拼接/提取而来（例如长地址跨多行），
+	 * 因此用 {@link #matches()} 承载多个值框（通常只有一个）。
+	 */
+	@lombok.Value
+	@Accessors(fluent = true)
+	public static class LabeledMatch {
+		/**
+		 * 字段值
+		 */
+		String value;
+		/**
+		 * 匹配到的 OCR 结果（含 box 坐标）
+		 */
+		List<PPOcrV6Result> matches;
+
+		/**
+		 * 仅文本、无匹配框（兜底场景）。
+		 *
+		 * @param value 字段值（可为空）
+		 * @return 文本 LabeledMatch
+		 */
+		public static LabeledMatch textOnly(String value) {
+			return new LabeledMatch(value, CollUtil.listOf());
+		}
+
+		/**
+		 * 文本 + 单个值框。
+		 *
+		 * @param value 字段值
+		 * @param match 值框对应的 OCR 结果；null 时回退为空 list
+		 * @return 单值框 LabeledMatch
+		 */
+		public static LabeledMatch of(String value, PPOcrV6Result match) {
+			return new LabeledMatch(value, match == null ? CollUtil.listOf() : CollUtil.listOf(match));
+		}
+
+		/**
+		 * 文本 + 多个值框（跨行字段如长地址）。
+		 *
+		 * @param value   字段值
+		 * @param matches 值框 OCR 结果列表；null 时回退为空 list
+		 * @return 多值框 LabeledMatch
+		 */
+		public static LabeledMatch of(String value, List<PPOcrV6Result> matches) {
+			return new LabeledMatch(value, matches == null ? CollUtil.listOf() : CollUtil.unmodifiableList(matches));
+		}
+
+		/**
+		 * 判断是否存在非空字段值。
+		 *
+		 * @return true 表示 value 非 null 且非空字符串
+		 */
+		public boolean hasValue() {
+			return value != null && !value.isEmpty();
+		}
+	}
+
 	/**
 	 * 互斥分配的 label 定义。
 	 *
-	 * @param name          字段名（结果 Map 的 key）
-	 * @param primaryLabel  主标签
-	 * @param altKeywords   OCR 漏识别标签时的备选关键字
+	 * @param name         字段名（结果 Map 的 key）
+	 * @param primaryLabel 主标签
+	 * @param altKeywords  OCR 漏识别标签时的备选关键字
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)

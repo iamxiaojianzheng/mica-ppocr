@@ -42,16 +42,26 @@ import org.opencv.imgproc.Imgproc;
  */
 @ToString
 public final class DocOrientationPreprocessor {
-	/** 通道数（RGB）。 */
+	/**
+	 * 通道数（RGB）。
+	 */
 	public static final int CHANNELS = 3;
-	/** 训练时的 crop 尺寸（与 model 严格匹配）。 */
+	/**
+	 * 训练时的 crop 尺寸（与 model 严格匹配）。
+	 */
 	public static final int CROP_SIZE = 224;
-	/** 训练时的 resize 短边长度。 */
+	/**
+	 * 训练时的 resize 短边长度。
+	 */
 	public static final int RESIZE_SHORT = 256;
 
-	/** ImageNet mean（RGB 顺序）。 */
+	/**
+	 * ImageNet mean（RGB 顺序）。
+	 */
 	private static final float[] MEAN = {0.485f, 0.456f, 0.406f};
-	/** ImageNet std（RGB 顺序）。 */
+	/**
+	 * ImageNet std（RGB 顺序）。
+	 */
 	private static final float[] STD = {0.229f, 0.224f, 0.225f};
 	private static final float SCALE = 1.0f / 255.0f;
 

@@ -28,13 +28,19 @@ import lombok.Getter;
 @Builder
 public final class PPOcrV6Config {
 
-	/** 检测模型路径（必填） */
+	/**
+	 * 检测模型路径（必填）
+	 */
 	private String detModelPath;
 
-	/** 识别模型路径（必填） */
+	/**
+	 * 识别模型路径（必填）
+	 */
 	private String recModelPath;
 
-	/** 识别字符字典路径（必填） */
+	/**
+	 * 识别字符字典路径（必填）
+	 */
 	private String recCharDictPath;
 
 	/**
@@ -58,39 +64,57 @@ public final class PPOcrV6Config {
 	@Builder.Default
 	private String detLimitType = "min";
 
-	/** 检测：最大边长限制 */
+	/**
+	 * 检测：最大边长限制
+	 */
 	@Builder.Default
 	private int detMaxSideLimit = 4000;
 
-	/** 检测：DB 后处理二值化阈值 */
+	/**
+	 * 检测：DB 后处理二值化阈值
+	 */
 	@Builder.Default
 	private float detThresh = 0.3f;
 
-	/** 检测：DB 后处理 box 阈值 */
+	/**
+	 * 检测：DB 后处理 box 阈值
+	 */
 	@Builder.Default
 	private float detBoxThresh = 0.6f;
 
-	/** 检测：DB 后处理 unclip 比率 */
+	/**
+	 * 检测：DB 后处理 unclip 比率
+	 */
 	@Builder.Default
 	private float detUnclipRatio = 1.5f;
 
-	/** 识别：输入图像形状 [C, H, W] */
+	/**
+	 * 识别：输入图像形状 [C, H, W]
+	 */
 	@Builder.Default
 	private int[] recImageShape = {3, 48, 320};
 
-	/** 识别：批处理大小 */
+	/**
+	 * 识别：批处理大小
+	 */
 	@Builder.Default
 	private int recBatchSize = 6;
 
-	/** 是否优先使用 GPU 加速（默认 false，强制 CPU） */
+	/**
+	 * 是否优先使用 GPU 加速（默认 false，强制 CPU）
+	 */
 	@Builder.Default
 	private boolean preferAccelerator = false;
 
-	/** 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori） */
+	/**
+	 * 是否启用文档方向分类（PP-OCRv6 use_doc_orientation_classify，对应 PP-LCNet_x1_0_doc_ori）
+	 */
 	@Builder.Default
 	private boolean useDocOrientationClassify = false;
 
-	/** 文档方向分类模型路径（useDocOrientationClassify=true 时必填） */
+	/**
+	 * 文档方向分类模型路径（useDocOrientationClassify=true 时必填）
+	 */
 	private String docOrientationModelPath;
 
 	/**
@@ -110,11 +134,15 @@ public final class PPOcrV6Config {
 	@Builder.Default
 	private float docOrientationThresh = 0.4f;
 
-	/** ONNX Runtime 线程数 */
+	/**
+	 * ONNX Runtime 线程数
+	 */
 	@Builder.Default
 	private int intraOpNumThreads = 1;
 
-	/** ONNX Runtime 线程数 */
+	/**
+	 * ONNX Runtime 线程数
+	 */
 	@Builder.Default
 	private int interOpNumThreads = 1;
 

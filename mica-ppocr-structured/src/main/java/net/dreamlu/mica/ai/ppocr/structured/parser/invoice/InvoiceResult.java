@@ -34,49 +34,89 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class InvoiceResult extends BaseStructuredResult {
-	/** 发票代码 */
+	/**
+	 * 发票代码
+	 */
 	private String invoiceCode;
-	/** 发票号码 */
+	/**
+	 * 发票号码
+	 */
 	private String invoiceNo;
-	/** 开票日期 */
+	/**
+	 * 开票日期
+	 */
 	private String invoiceDate;
 
-	/** 购买方名称 */
+	/**
+	 * 购买方名称
+	 */
 	private String buyerName;
-	/** 购买方税号（统一社会信用代码/纳税人识别号） */
+	/**
+	 * 购买方税号（统一社会信用代码/纳税人识别号）
+	 */
 	private String buyerTaxNo;
-	/** 购买方地址、电话 */
+	/**
+	 * 购买方地址、电话
+	 */
 	private String buyerAddressPhone;
-	/** 购买方开户行、账号 */
+	/**
+	 * 购买方开户行、账号
+	 */
 	private String buyerBankAccount;
 
-	/** 销售方名称 */
+	/**
+	 * 销售方名称
+	 */
 	private String sellerName;
-	/** 销售方税号 */
+	/**
+	 * 销售方税号
+	 */
 	private String sellerTaxNo;
-	/** 销售方地址、电话 */
+	/**
+	 * 销售方地址、电话
+	 */
 	private String sellerAddressPhone;
-	/** 销售方开户行、账号 */
+	/**
+	 * 销售方开户行、账号
+	 */
 	private String sellerBankAccount;
 
-	/** 商品/服务名称（多行合并为单字符串，用换行分隔） */
+	/**
+	 * 商品/服务名称（多行合并为单字符串，用换行分隔）
+	 */
 	private String goodsName;
-	/** 金额（多行合计字符串） */
+	/**
+	 * 金额（多行合计字符串）
+	 */
 	private String amount;
-	/** 税率（多行合并字符串） */
+	/**
+	 * 税率（多行合并字符串）
+	 */
 	private String taxRate;
-	/** 税额（多行合并字符串） */
+	/**
+	 * 税额（多行合并字符串）
+	 */
 	private String taxAmount;
 
-	/** 价税合计（大写） */
+	/**
+	 * 价税合计（大写）
+	 */
 	private String totalAmountUpper;
-	/** 价税合计（小写） */
+	/**
+	 * 价税合计（小写）
+	 */
 	private String totalAmountLower;
 
-	/** 收款人 */
+	/**
+	 * 收款人
+	 */
 	private String payee;
-	/** 复核人 */
+	/**
+	 * 复核人
+	 */
 	private String reviewer;
-	/** 开票人 */
+	/**
+	 * 开票人
+	 */
 	private String issuer;
 }

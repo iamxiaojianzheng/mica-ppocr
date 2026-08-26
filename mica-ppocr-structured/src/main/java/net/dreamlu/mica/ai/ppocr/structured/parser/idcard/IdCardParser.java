@@ -23,7 +23,6 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,6 +67,14 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	 */
 	private static final Pattern VALID_TERM_PATTERN = Pattern.compile(
 		"\\d{4}\\.\\d{2}\\.\\d{2}(-\\d{4}\\.\\d{2}\\.\\d{2})?|长期");
+	/**
+	 * 住址关键字正则（省/市/县/区/镇/村/乡/旗/盟/州），用于无"住址"标签时按内容筛选。
+	 */
+	private static final Pattern ADDR_KEYWORD_PATTERN = Pattern.compile("[省市县区镇乡村旗盟州]");
+	/**
+	 * 日期关键字正则（年/月/日），用于排除被误判为地址的日期框。
+	 */
+	private static final Pattern DATE_KEYWORD_PATTERN = Pattern.compile("[年月日]");
 
 	/**
 	 * 构造身份证解析器，绑定推理引擎。
@@ -76,32 +83,6 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	 */
 	public IdCardParser(PPOcrV6Engine engine) {
 		super(engine);
-	}
-
-	@Override
-	public IdCardResult parseResults(List<PPOcrV6Result> results) {
-		IdCardSide side = detectSide(results);
-		IdCardResult r = new IdCardResult();
-		r.setRawResults(new ArrayList<>(results));
-		r.setSide(side);
-		if (side == IdCardSide.FRONT) {
-			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));
-			r.setGender(parseGender(results));
-			r.setNation(parseNation(results));
-			r.setIdNumber(parseIdNumber(results));
-			r.setBirthDate(parseBirthDate(results, r.getIdNumber()));
-			r.setAddress(parseAddress(results));
-		} else if (side == IdCardSide.BACK) {
-			r.setIssuingAuthority(LabelMatcher.matchValueFromPrefix(results, "签发机关"));
-			r.setValidFrom(null);
-			r.setValidTo(null);
-			String[] term = parseValidTerm(results);
-			if (term != null) {
-				r.setValidFrom(term[0]);
-				r.setValidTo(term[1]);
-			}
-		}
-		return r;
 	}
 
 	/**
@@ -306,6 +287,31 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	}
 
 	/**
+	 * 住址提取：按"住址"标签定位，支持合并框及跨多框/跨行（如"四川省金堂县平桥乡清堰" + "1组"）。
+	 *
+	 * <p>住址可能换行，需要拼接多个几何重叠或延伸的右侧/下方框。
+	 *
+	 * <p>核心算法逻辑：
+	 * <ol>
+	 *   <li>先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
+	 *       则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。</li>
+	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，候选
+	 *       与号码框在 x/y 两方向均有<b>过半重叠</b>时剔除（任意相交会误杀倾斜图片中
+	 *       续行底边与号码行顶边擦边的场景）。这同时覆盖两种布局：
+	 *       <ul>
+	 *         <li>标准布局（号码在地址下方）—— 候选与号码 y 重叠但 x 互不覆盖的情况被自然放过；</li>
+	 *         <li>旋转布局（doc_ori 90° 旋转后号码在地址左侧同 y 范围）—— 原先仅用
+	 *             {@code bottomLimitY = idMinY} 会把"地址续行（位于号码下方）"误剔，
+	 *             区域排斥用 x 不重叠来放过续行、用 y 重叠来剔除真正落入号码列的噪声。</li>
+	 *       </ul>
+	 *   </li>
+	 *   <li>X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，
+	 *       确保左下角短续行（如"1组"）不被误杀。</li>
+	 *   <li>二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。</li>
+	 * </ol>
+	 */
+
+	/**
 	 * 从身份证号推算出生日期（"yyyy 年 MM 月 dd 日" 格式）。
 	 *
 	 * <p>15 位身份证号为 YYMMDD，按 GB 11643-1999 早期签发规则默认按 19YY 补全。
@@ -331,39 +337,6 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 		}
 		return null;
 	}
-
-	/**
-	 * 住址提取：按"住址"标签定位，支持合并框及跨多框/跨行（如"四川省金堂县平桥乡清堰" + "1组"）。
-	 *
-	 * <p>住址可能换行，需要拼接多个几何重叠或延伸的右侧/下方框。
-	 *
-	 * <p>核心算法逻辑：
-	 * <ol>
-	 *   <li>先用 {@link LabelMatcher#findLabelBox} 找"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
-	 *       则返回的 labelBox 是合并框，从中剥出独立的地址第一行（{@code firstLineFromMerged}）。</li>
-	 *   <li><b>区域排斥代替单一 y 下界</b>：用"身份证号码框所在的矩形区域"作为排除区，候选
-	 *       与号码框在 x/y 两方向均有<b>过半重叠</b>时剔除（任意相交会误杀倾斜图片中
-	 *       续行底边与号码行顶边擦边的场景）。这同时覆盖两种布局：
-	 *       <ul>
-	 *         <li>标准布局（号码在地址下方）—— 候选与号码 y 重叠但 x 互不覆盖的情况被自然放过；</li>
-	 *         <li>旋转布局（doc_ori 90° 旋转后号码在地址左侧同 y 范围）—— 原先仅用
-	 *             {@code bottomLimitY = idMinY} 会把"地址续行（位于号码下方）"误剔，
-	 *             区域排斥用 x 不重叠来放过续行、用 y 重叠来剔除真正落入号码列的噪声。</li>
-	 *       </ul>
-	 *   </li>
-	 *   <li>X 轴放宽判定：废除对绝对 labelCenterX 的约束，使用 {@code rMaxX >= labelMinX - 10} 判定，
-	 *       确保左下角短续行（如"1组"）不被误杀。</li>
-	 *   <li>二维几何拓扑排序：同行按 X 升序，跨行按 Y 升序，保证多框拼接顺序准确无误。</li>
-	 * </ol>
-	 */
-	/**
-	 * 住址关键字正则（省/市/县/区/镇/村/乡/旗/盟/州），用于无"住址"标签时按内容筛选。
-	 */
-	private static final Pattern ADDR_KEYWORD_PATTERN = Pattern.compile("[省市县区镇乡村旗盟州]");
-	/**
-	 * 日期关键字正则（年/月/日），用于排除被误判为地址的日期框。
-	 */
-	private static final Pattern DATE_KEYWORD_PATTERN = Pattern.compile("[年月日]");
 
 	private static String parseAddress(List<PPOcrV6Result> results) {
 		// 先用 findLabelBox 找独立"住址"标签；如果 OCR 把"住址"识别成"住址XXX"合并框，
@@ -618,7 +591,7 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 	private static boolean isValidIdNumber(String text) {
 		return text != null
 			&& (ID_NUMBER_18_PATTERN.matcher(text).matches()
-				|| ID_NUMBER_15_PATTERN.matcher(text).matches());
+			|| ID_NUMBER_15_PATTERN.matcher(text).matches());
 	}
 
 	/**
@@ -644,5 +617,31 @@ public class IdCardParser extends BaseStructuredParser<IdCardResult> {
 			return new String[]{parts[0], parts[0]};
 		}
 		return new String[]{parts[0], parts[1]};
+	}
+
+	@Override
+	public IdCardResult parseResults(List<PPOcrV6Result> results) {
+		IdCardSide side = detectSide(results);
+		IdCardResult r = new IdCardResult();
+		r.setRawResults(new ArrayList<>(results));
+		r.setSide(side);
+		if (side == IdCardSide.FRONT) {
+			r.setName(LabelMatcher.matchValueFromPrefix(results, "姓名"));
+			r.setGender(parseGender(results));
+			r.setNation(parseNation(results));
+			r.setIdNumber(parseIdNumber(results));
+			r.setBirthDate(parseBirthDate(results, r.getIdNumber()));
+			r.setAddress(parseAddress(results));
+		} else if (side == IdCardSide.BACK) {
+			r.setIssuingAuthority(LabelMatcher.matchValueFromPrefix(results, "签发机关"));
+			r.setValidFrom(null);
+			r.setValidTo(null);
+			String[] term = parseValidTerm(results);
+			if (term != null) {
+				r.setValidFrom(term[0]);
+				r.setValidTo(term[1]);
+			}
+		}
+		return r;
 	}
 }

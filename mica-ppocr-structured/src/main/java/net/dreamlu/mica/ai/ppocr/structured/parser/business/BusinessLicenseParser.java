@@ -16,13 +16,13 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.business;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher.LabeledMatch;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -64,20 +64,11 @@ import java.util.regex.Pattern;
 @Slf4j
 public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseResult> {
 
-	/**
-	 * 构造营业执照解析器，绑定推理引擎。
-	 *
-	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
-	 */
-	public BusinessLicenseParser(PPOcrV6Engine engine) {
-		super(engine);
-	}
+	private static final String LABEL_CREDIT_CODE = "统一社会信用代码";
 
 	// ========================================================================
 	// 字段标签常量：避免散落的字符串字面量，便于复用与单点修改
 	// ========================================================================
-
-	private static final String LABEL_CREDIT_CODE = "统一社会信用代码";
 	private static final String LABEL_REGISTER_NO = "注册号";
 	private static final String LABEL_NAME = "名称";
 	private static final String LABEL_TYPE = "类型";
@@ -89,55 +80,43 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 	private static final String LABEL_ADDRESS = "住所";
 	private static final String LABEL_ADDRESS_ALIAS = "营业场所";
 	private static final String LABEL_SCOPE = "经营范围";
-
-	// ========================================================================
-	// 正则常量
-	// ========================================================================
-
 	/**
 	 * 统一社会信用代码：18 位大写字母 + 数字（GB 32100-2015）。
 	 * OCR 截断场景放宽到 12-18 位。
 	 */
 	private static final Pattern CREDIT_CODE_PATTERN = Pattern.compile("^[0-9A-Z]{12,18}$");
 
+	// ========================================================================
+	// 正则常量
+	// ========================================================================
 	/**
 	 * 注册号（旧版执照编号，15 位数字）：用于"统一社会信用代码"缺失时兜底。
 	 */
 	private static final Pattern REGISTER_NO_PATTERN = Pattern.compile("^\\d{15}$");
-
 	/**
 	 * 证件编号前缀（如 "编号："/"编号:"），用于 OCR 把 "编号"+代码 合并识别时的剥值。
 	 */
 	private static final Pattern NO_PREFIX_PATTERN = Pattern.compile("^\\s*编号[:：]\\s*");
-
 	/**
 	 * 日期格式：yyyy年MM月dd日 / yyyy-MM-dd / yyyy/MM/dd / yyyy.MM.dd。
 	 */
 	private static final Pattern DATE_PATTERN = Pattern.compile(
 		"\\d{4}[-./年]\\d{1,2}[-./月]\\d{1,2}日?");
-
 	/**
 	 * 有效日期至关键字：长期 / 永久。
 	 */
 	private static final Pattern PERIOD_KEYWORD = Pattern.compile("(长期|永久)");
-
 	/**
 	 * 经营范围黑名单关键词（用于排除 OCR 噪声如"经营范围"标签框本身）。
 	 */
 	private static final Pattern SCOPE_KEYWORD = Pattern.compile(
 		"(经营|销售|生产|服务|开发|咨询|技术|管理|加工|贸易|运输|建筑|工程|施工|安装|维修|设计|租赁|代理|推广|展览|演出|培训|信息|科技)");
-
 	/**
 	 * 公司类型合法关键字（起首匹配），用于全文兜底。
 	 */
 	private static final Pattern TYPE_KEYWORD = Pattern.compile(
 		"^(有限责任公司|股份有限公司|个体工商户|个人独资企业|合伙企业|全民所有制|集体所有制|"
 			+ "国有独资公司|一人有限责任公司|分公司|外商投资|中外合作|中外合资)(.*)$");
-
-	// ========================================================================
-	// 集合常量
-	// ========================================================================
-
 	/**
 	 * 字段标签全集：用于 {@link LabelMatcher#findCleanLabelBox} 时拒绝 fragment 噪声。
 	 * 当 fragment 文本含其中任一标签视为污染。
@@ -152,24 +131,24 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		"经营范围",
 		"统一社会信用代码", "注册号");
 
+	// ========================================================================
+	// 集合常量
+	// ========================================================================
 	/**
 	 * 字段 fragment 单字集合：用于找独立 fragment 标签（"名"/"称"/"类"/"型"/"住"/"所"）。
 	 */
 	private static final Set<String> SINGLE_CHAR_FRAGMENTS = CollUtil.setOf(
 		"名", "称", "类", "型", "住", "所");
-
 	/**
 	 * 法定代表人（含"负责人"）字段标签候选，按优先级列出。
 	 */
 	private static final List<String> LEGAL_PERSON_LABELS = CollUtil.listOf(
 		LABEL_LEGAL_PERSON, LABEL_LEGAL_ALIAS);
-
 	/**
 	 * 住址字段标签候选（含"营业场所"别名）。
 	 */
 	private static final List<String> ADDRESS_LABELS = CollUtil.listOf(
 		LABEL_ADDRESS, LABEL_ADDRESS_ALIAS);
-
 	/**
 	 * 其它字段 label 关键词：用于 legalPerson 等值框校验，
 	 * 避免"营业期限" / "成立日期" 这种跨栏 label 被误选成值。
@@ -177,128 +156,87 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 	private static final Set<String> OTHER_FIELD_LABELS = CollUtil.setOf(
 		"营业期限", "成立日期", "注册资本", "经营范围", "统一社会信用代码",
 		"注册号", "法定代表人", "负责人", "登记机关", "证照编号", "编号", "营业执照");
-
 	/**
 	 * 经营范围专属装配：需要跳过的其它字段 fragment（单字 + 合并前缀）。
 	 */
 	private static final Set<String> SCOPE_SKIP_FRAGMENTS = CollUtil.setOf(
 		"住", "所", "名", "称", "名类", "型", "类", "法定代表人", "负责人");
+	/**
+	 * 信用代码最小长度（用于"编号:"合并框剥前缀后的初筛）。
+	 */
+	private static final int CREDIT_CODE_MIN_LEN = 12;
 
 	// ========================================================================
 	// 调参常量：所有魔术数字集中在此，便于按样本调优
 	// ========================================================================
-
-	/** 信用代码最小长度（用于"编号:"合并框剥前缀后的初筛）。 */
-	private static final int CREDIT_CODE_MIN_LEN = 12;
-
-	/** 法定代表人姓名最大长度（含合并框剥值场景）。 */
+	/**
+	 * 法定代表人姓名最大长度（含合并框剥值场景）。
+	 */
 	private static final int LEGAL_PERSON_MAX_LEN = 15;
-
-	/** 法定代表人姓名 fragment 剥值场景的最大长度（更严格）。 */
+	/**
+	 * 法定代表人姓名 fragment 剥值场景的最大长度（更严格）。
+	 */
 	private static final int LEGAL_PERSON_FRAG_MAX_LEN = 10;
-
-	/** 公司类型文本最大长度（防止误把经营范围当成类型）。 */
+	/**
+	 * 公司类型文本最大长度（防止误把经营范围当成类型）。
+	 */
 	private static final int TYPE_MAX_LEN = 60;
-
-	/** 住址文本最大长度（防止误把经营范围当成住址）。 */
+	/**
+	 * 住址文本最大长度（防止误把经营范围当成住址）。
+	 */
 	private static final int ADDRESS_MAX_LEN = 80;
-
-	/** 经营范围兜底最低 OCR 置信度（低于此视为噪声框）。 */
+	/**
+	 * 经营范围兜底最低 OCR 置信度（低于此视为噪声框）。
+	 */
 	private static final double MIN_SCOPE_FALLBACK_SCORE = 0.5;
-
-	/** 经营范围标签长度。 */
+	/**
+	 * 经营范围标签长度。
+	 */
 	private static final int SCOPE_LABEL_LEN = 4;
-
-	/** 经营范围合并框剥值最小长度。 */
+	/**
+	 * 经营范围合并框剥值最小长度。
+	 */
 	private static final int SCOPE_STRIPPED_MIN_LEN = 2;
-
-	/** 经营范围拼接结果最小长度（少于则视为命中失败）。 */
+	/**
+	 * 经营范围拼接结果最小长度（少于则视为命中失败）。
+	 */
 	private static final int SCOPE_ASSEMBLED_MIN_LEN = 4;
-
-	/** 经营范围装配：候选收集时 label 下方允许的最大行数。 */
+	/**
+	 * 经营范围装配：候选收集时 label 下方允许的最大行数。
+	 */
 	private static final int SCOPE_BELOW_MAX_LINES = 6;
-
-	/** 经营范围装配：行间间距阈值（行高倍数）。 */
+	/**
+	 * 经营范围装配：行间间距阈值（行高倍数）。
+	 */
 	private static final double SCOPE_LINE_GAP_FACTOR = 1.5;
-
-	/** fragment 剥前缀长度容差：剥后长度不超过 标签 + 该值。 */
+	/**
+	 * fragment 剥前缀长度容差：剥后长度不超过 标签 + 该值。
+	 */
 	private static final int SCOPE_FRAG_TAIL_TOLERANCE = 20;
-
-	/** 法定代表人 fragment 剥前缀标签长度。 */
+	/**
+	 * 法定代表人 fragment 剥前缀标签长度。
+	 */
 	private static final int LEGAL_LABEL_LEN = 5;
-
-	/** 法定代表人合并框最小长度（含标签）。 */
+	/**
+	 * 法定代表人合并框最小长度（含标签）。
+	 */
 	private static final int LEGAL_MERGED_MIN_LEN = LEGAL_LABEL_LEN + 1;
-
-	/** 营业期限标签长度。 */
+	/**
+	 * 营业期限标签长度。
+	 */
 	private static final int PERIOD_LABEL_LEN = 4;
+
+	/**
+	 * 构造营业执照解析器，绑定推理引擎。
+	 *
+	 * @param engine PP-OCRv6 推理引擎；可为 null（仅在仅调用 {@link #parseResults(List)} 时）
+	 */
+	public BusinessLicenseParser(PPOcrV6Engine engine) {
+		super(engine);
+	}
 
 	// ========================================================================
 	// 入口
-	// ========================================================================
-
-	@Override
-	public BusinessLicenseResult parseResults(List<PPOcrV6Result> results) {
-		return doParse(results);
-	}
-
-	// ========================================================================
-	// 主流程
-	// ========================================================================
-
-	private BusinessLicenseResult doParse(List<PPOcrV6Result> results) {
-		BusinessLicenseResult license = new BusinessLicenseResult();
-		license.setRawResults(new ArrayList<>(results));
-
-		// 1. 社会信用代码：标签 → "编号:XXX" 合并框 → 注册号兜底
-		LabeledMatch creditMatch = parseCreditCode(results);
-		license.setCreditCode(creditMatch.value());
-		LabelMatcher.applyFieldBox(license, "creditCode", creditMatch);
-
-		// 2. 单位名称
-		LabeledMatch nameMatch = parseName(results);
-		license.setName(nameMatch.value());
-		LabelMatcher.applyFieldBox(license, "name", nameMatch);
-
-		// 3. 类型
-		LabeledMatch typeMatch = parseType(results);
-		license.setType(typeMatch.value());
-		LabelMatcher.applyFieldBox(license, "type", typeMatch);
-
-		// 4. 法定代表人（含"负责人"别名）
-		LabeledMatch legalMatch = parseLegalPerson(results);
-		license.setLegalPerson(legalMatch.value());
-		LabelMatcher.applyFieldBox(license, "legalPerson", legalMatch);
-
-		// 5. 注册资本
-		LabeledMatch capitalMatch = LabelMatcher.matchValueFromPrefixWithBox(results, LABEL_CAPITAL);
-		license.setRegisteredCapital(capitalMatch.value());
-		LabelMatcher.applyFieldBox(license, "registeredCapital", capitalMatch);
-
-		// 6. 成立日期（优先合并框剥值，独立框兜底）
-		LabeledMatch establishMatch = LabelMatcher.matchValueFromPrefixWithBox(results, LABEL_ESTABLISH_DATE);
-		if (!establishMatch.hasValue()) {
-			establishMatch = LabelMatcher.matchValueWithBox(results, LABEL_ESTABLISH_DATE);
-		}
-		license.setEstablishDate(establishMatch.value());
-		LabelMatcher.applyFieldBox(license, "establishDate", establishMatch);
-
-		// 7. 有效日期至
-		LabeledMatch periodMatch = parseOperatingPeriod(results);
-		license.setOperatingPeriod(periodMatch.value());
-		LabelMatcher.applyFieldBox(license, "operatingPeriod", periodMatch);
-
-		// 8. 住址（含"营业场所"别名）
-		license.setAddress(parseAddress(results));
-
-		// 9. 经营范围（跨多行）
-		license.setBusinessScope(parseBusinessScope(results));
-
-		return license;
-	}
-
-	// ========================================================================
-	// 社会信用代码
 	// ========================================================================
 
 	/**
@@ -338,6 +276,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return match;
 	}
 
+	// ========================================================================
+	// 主流程
+	// ========================================================================
+
 	/**
 	 * 信用代码按 "编号:XXX" / "编号：XXX" 合并框兜底。
 	 *
@@ -359,7 +301,7 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 	}
 
 	// ========================================================================
-	// 单位名称
+	// 社会信用代码
 	// ========================================================================
 
 	/**
@@ -412,10 +354,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return LabeledMatch.textOnly(null);
 	}
 
-	// ========================================================================
-	// 类型
-	// ========================================================================
-
 	/**
 	 * 类型提取。处理：
 	 * <ul>
@@ -466,6 +404,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return findTypeByKeyword(results);
 	}
 
+	// ========================================================================
+	// 单位名称
+	// ========================================================================
+
 	/**
 	 * 校验剥前缀后的文本是否像公司类型（含"有限"/"责任"/"公司"/"个体"/"个人"关键字）。
 	 */
@@ -479,6 +421,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 			|| text.contains("个体")
 			|| text.contains("个人");
 	}
+
+	// ========================================================================
+	// 类型
+	// ========================================================================
 
 	/**
 	 * 全文关键词兜底：取以典型公司类型关键字开头的最长框。
@@ -504,10 +450,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		}
 		return LabeledMatch.textOnly(null);
 	}
-
-	// ========================================================================
-	// 法定代表人
-	// ========================================================================
 
 	/**
 	 * 法定代表人提取（含"负责人"别名）。
@@ -559,6 +501,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 			&& !containsOtherLabel(text);
 	}
 
+	// ========================================================================
+	// 法定代表人
+	// ========================================================================
+
 	/**
 	 * 判定文本是否含其它字段的关键字（用于防止跨栏 label 误选）。
 	 */
@@ -573,10 +519,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		}
 		return false;
 	}
-
-	// ========================================================================
-	// 有效日期至
-	// ========================================================================
 
 	/**
 	 * 有效日期至提取。处理合并框（"营业期限2019年01月01日至长期"）+ 独立标签。
@@ -605,10 +547,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		}
 		return LabeledMatch.textOnly(null);
 	}
-
-	// ========================================================================
-	// 住址
-	// ========================================================================
 
 	/**
 	 * 住址提取（含"营业场所"别名）。处理：
@@ -660,6 +598,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return null;
 	}
 
+	// ========================================================================
+	// 有效日期至
+	// ========================================================================
+
 	/**
 	 * 扫所有框，匹配"label + 值"合并框，剥前缀后返回（附带原框便于日志）。
 	 *
@@ -678,6 +620,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return LabeledMatch.textOnly(null);
 	}
 
+	// ========================================================================
+	// 住址
+	// ========================================================================
+
 	/**
 	 * 扫所有框，匹配"prefix + 值"fragment 合并框，剥前缀后返回（附带原框便于日志）。
 	 *
@@ -695,10 +641,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		}
 		return LabeledMatch.textOnly(null);
 	}
-
-	// ========================================================================
-	// 经营范围
-	// ========================================================================
 
 	/**
 	 * 经营范围提取。处理：
@@ -751,6 +693,10 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		}
 		return LabeledMatch.textOnly(null);
 	}
+
+	// ========================================================================
+	// 经营范围
+	// ========================================================================
 
 	/**
 	 * 兜底：取满足"经营范围特征 + 评分足够 + 面积最大"的 OCR 框。
@@ -912,10 +858,6 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 		return Math.abs(rCenterY - prevCenterY) < Math.max(rHeight, oneLine);
 	}
 
-	// ========================================================================
-	// 通用辅助
-	// ========================================================================
-
 	/**
 	 * 给定 label 框（任意 fragment/独立标签），找右侧 y 重叠的首个值框。
 	 *
@@ -961,5 +903,65 @@ public class BusinessLicenseParser extends BaseStructuredParser<BusinessLicenseR
 			}
 		}
 		return best == null ? LabeledMatch.textOnly(null) : LabeledMatch.of(best.text(), best);
+	}
+
+	@Override
+	public BusinessLicenseResult parseResults(List<PPOcrV6Result> results) {
+		return doParse(results);
+	}
+
+	// ========================================================================
+	// 通用辅助
+	// ========================================================================
+
+	private BusinessLicenseResult doParse(List<PPOcrV6Result> results) {
+		BusinessLicenseResult license = new BusinessLicenseResult();
+		license.setRawResults(new ArrayList<>(results));
+
+		// 1. 社会信用代码：标签 → "编号:XXX" 合并框 → 注册号兜底
+		LabeledMatch creditMatch = parseCreditCode(results);
+		license.setCreditCode(creditMatch.value());
+		LabelMatcher.applyFieldBox(license, "creditCode", creditMatch);
+
+		// 2. 单位名称
+		LabeledMatch nameMatch = parseName(results);
+		license.setName(nameMatch.value());
+		LabelMatcher.applyFieldBox(license, "name", nameMatch);
+
+		// 3. 类型
+		LabeledMatch typeMatch = parseType(results);
+		license.setType(typeMatch.value());
+		LabelMatcher.applyFieldBox(license, "type", typeMatch);
+
+		// 4. 法定代表人（含"负责人"别名）
+		LabeledMatch legalMatch = parseLegalPerson(results);
+		license.setLegalPerson(legalMatch.value());
+		LabelMatcher.applyFieldBox(license, "legalPerson", legalMatch);
+
+		// 5. 注册资本
+		LabeledMatch capitalMatch = LabelMatcher.matchValueFromPrefixWithBox(results, LABEL_CAPITAL);
+		license.setRegisteredCapital(capitalMatch.value());
+		LabelMatcher.applyFieldBox(license, "registeredCapital", capitalMatch);
+
+		// 6. 成立日期（优先合并框剥值，独立框兜底）
+		LabeledMatch establishMatch = LabelMatcher.matchValueFromPrefixWithBox(results, LABEL_ESTABLISH_DATE);
+		if (!establishMatch.hasValue()) {
+			establishMatch = LabelMatcher.matchValueWithBox(results, LABEL_ESTABLISH_DATE);
+		}
+		license.setEstablishDate(establishMatch.value());
+		LabelMatcher.applyFieldBox(license, "establishDate", establishMatch);
+
+		// 7. 有效日期至
+		LabeledMatch periodMatch = parseOperatingPeriod(results);
+		license.setOperatingPeriod(periodMatch.value());
+		LabelMatcher.applyFieldBox(license, "operatingPeriod", periodMatch);
+
+		// 8. 住址（含"营业场所"别名）
+		license.setAddress(parseAddress(results));
+
+		// 9. 经营范围（跨多行）
+		license.setBusinessScope(parseBusinessScope(results));
+
+		return license;
 	}
 }

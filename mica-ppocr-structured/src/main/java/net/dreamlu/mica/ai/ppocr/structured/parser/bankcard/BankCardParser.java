@@ -16,12 +16,12 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.bankcard;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -89,18 +89,6 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 	 */
 	public BankCardParser(PPOcrV6Engine engine) {
 		super(engine);
-	}
-
-	@Override
-	public BankCardResult parseResults(List<PPOcrV6Result> results) {
-		BankCardResult r = new BankCardResult();
-		r.setRawResults(new ArrayList<>(results));
-		r.setCardNumber(parseCardNumber(results));
-		r.setValidDate(parseValidDate(results));
-		r.setHolderName(parseHolderName(results));
-		r.setBankName(parseBankName(results));
-		r.setCardType(parseCardType(results));
-		return r;
 	}
 
 	/**
@@ -232,5 +220,17 @@ public class BankCardParser extends BaseStructuredParser<BankCardResult> {
 		}
 		log.warn("银行卡解析：未匹配到卡片类型");
 		return null;
+	}
+
+	@Override
+	public BankCardResult parseResults(List<PPOcrV6Result> results) {
+		BankCardResult r = new BankCardResult();
+		r.setRawResults(new ArrayList<>(results));
+		r.setCardNumber(parseCardNumber(results));
+		r.setValidDate(parseValidDate(results));
+		r.setHolderName(parseHolderName(results));
+		r.setBankName(parseBankName(results));
+		r.setCardType(parseCardType(results));
+		return r;
 	}
 }

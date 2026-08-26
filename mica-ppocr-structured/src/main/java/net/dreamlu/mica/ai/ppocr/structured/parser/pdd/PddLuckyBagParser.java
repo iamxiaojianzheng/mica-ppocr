@@ -16,13 +16,13 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.pdd;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher.LabeledMatch;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,26 +78,6 @@ public class PddLuckyBagParser extends BaseStructuredParser<PddLuckyBagResult> {
 	 */
 	public PddLuckyBagParser(PPOcrV6Engine engine) {
 		super(engine);
-	}
-
-	@Override
-	public PddLuckyBagResult parseResults(List<PPOcrV6Result> results) {
-		PddLuckyBagResult r = new PddLuckyBagResult();
-		r.setRawResults(new ArrayList<>(results));
-
-		// 1) 标签定位：数字邀请码 / 邀请码 / 搜索邀请码
-		LabeledMatch match = matchByLabel(results);
-		// 2) 形态兜底：纯数字 + 面积最大 + y 偏下半
-		if (!match.hasValue()) {
-			match = matchByShape(results);
-		}
-		if (match.hasValue()) {
-			r.setLuckyBagCode(match.value());
-			LabelMatcher.applyFieldBox(r, "luckyBagCode", match);
-		} else {
-			log.warn("拼多多福袋解析：未匹配到福袋码");
-		}
-		return r;
 	}
 
 	/**
@@ -221,5 +201,25 @@ public class PddLuckyBagParser extends BaseStructuredParser<PddLuckyBagResult> {
 			}
 		}
 		return best;
+	}
+
+	@Override
+	public PddLuckyBagResult parseResults(List<PPOcrV6Result> results) {
+		PddLuckyBagResult r = new PddLuckyBagResult();
+		r.setRawResults(new ArrayList<>(results));
+
+		// 1) 标签定位：数字邀请码 / 邀请码 / 搜索邀请码
+		LabeledMatch match = matchByLabel(results);
+		// 2) 形态兜底：纯数字 + 面积最大 + y 偏下半
+		if (!match.hasValue()) {
+			match = matchByShape(results);
+		}
+		if (match.hasValue()) {
+			r.setLuckyBagCode(match.value());
+			LabelMatcher.applyFieldBox(r, "luckyBagCode", match);
+		} else {
+			log.warn("拼多多福袋解析：未匹配到福袋码");
+		}
+		return r;
 	}
 }

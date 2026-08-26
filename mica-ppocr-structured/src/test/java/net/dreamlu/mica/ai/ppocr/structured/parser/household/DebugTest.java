@@ -39,6 +39,30 @@ class DebugTest extends ParserTestSupport {
 		"\"text\":\"((?:[^\"\\\\]|\\\\.)*)\".*?\"box\":\\[" +
 			"\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\],\\[(\\d+),(\\d+)\\]\\]");
 
+	private static List<PPOcrV6Result> load(String name) throws IOException {
+		String path = "/ocr-json/household_register/" + name + ".json";
+		List<PPOcrV6Result> list = new ArrayList<>();
+		try (InputStream is = DebugTest.class.getResourceAsStream(path);
+			 BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				Matcher m = JSON_LINE.matcher(line);
+				if (!m.find()) continue;
+				String text = m.group(1)
+					.replace("\\\"", "\"").replace("\\\\", "\\")
+					.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t");
+				int[][] box = {
+					{Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))},
+					{Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5))},
+					{Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7))},
+					{Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9))}
+				};
+				list.add(new PPOcrV6Result(text, 1.0f, box));
+			}
+		}
+		return list;
+	}
+
 	@Test
 	void debug_print() throws IOException {
 		for (int i = 1; i <= 5; i++) {
@@ -62,29 +86,5 @@ class DebugTest extends ParserTestSupport {
 			System.out.println("  moveToAddress    = " + r.getMoveToAddress());
 			System.out.println("  registrationDate = " + r.getRegistrationDate());
 		}
-	}
-
-	private static List<PPOcrV6Result> load(String name) throws IOException {
-		String path = "/ocr-json/household_register/" + name + ".json";
-		List<PPOcrV6Result> list = new ArrayList<>();
-		try (InputStream is = DebugTest.class.getResourceAsStream(path);
-		     BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-			String line;
-			while ((line = reader.readLine()) != null) {
-				Matcher m = JSON_LINE.matcher(line);
-				if (!m.find()) continue;
-				String text = m.group(1)
-					.replace("\\\"", "\"").replace("\\\\", "\\")
-					.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t");
-				int[][] box = {
-					{Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))},
-					{Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5))},
-					{Integer.parseInt(m.group(6)), Integer.parseInt(m.group(7))},
-					{Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9))}
-				};
-				list.add(new PPOcrV6Result(text, 1.0f, box));
-			}
-		}
-		return list;
 	}
 }

@@ -16,7 +16,6 @@
 
 package net.dreamlu.mica.ai.ppocr.structured.parser.train;
 
-import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
@@ -24,6 +23,7 @@ import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.LabelMatcher.LabeledMatch;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,11 +60,17 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	// 几何兜底阈值（票面顶部区域：始发/到达站；底部区域：售站）
 	// ========================================================================
 
-	/** 票面顶部 y 阈值：始发站/到达站按位置兜底时的 y 上限。 */
+	/**
+	 * 票面顶部 y 阈值：始发站/到达站按位置兜底时的 y 上限。
+	 */
 	private static final int STATION_MAX_Y = 400;
-	/** 始发站左侧 x 阈值：放宽原 300 阈值以适配实际票面（OCR 框偏左）。 */
+	/**
+	 * 始发站左侧 x 阈值：放宽原 300 阈值以适配实际票面（OCR 框偏左）。
+	 */
 	private static final int STATION_LEFT_MAX_X = 500;
-	/** 售站底部阈值：相对全图 y 中位数的偏移比例（最大 y 的 2/3）。 */
+	/**
+	 * 售站底部阈值：相对全图 y 中位数的偏移比例（最大 y 的 2/3）。
+	 */
 	private static final int SELL_STATION_BOTTOM_RATIO_NUM = 2;
 	private static final int SELL_STATION_BOTTOM_RATIO_DEN = 3;
 
@@ -85,13 +91,19 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 */
 	private static final Pattern TICKET_NO_PATTERN = Pattern.compile("\\d{7,10}");
 
-	/** 字母前缀票号：1 字母 + 6-7 位数字（如 E014470 / R093443 / U028534）。 */
+	/**
+	 * 字母前缀票号：1 字母 + 6-7 位数字（如 E014470 / R093443 / U028534）。
+	 */
 	private static final Pattern ALPHA_TICKET_PATTERN = Pattern.compile("[A-Z]\\d{6,7}");
 
-	/** 发票号码：20 位纯数字。 */
+	/**
+	 * 发票号码：20 位纯数字。
+	 */
 	private static final Pattern INVOICE_NO_PATTERN = Pattern.compile("\\d{20}");
 
-	/** 电子客票号：25 位纯数字。 */
+	/**
+	 * 电子客票号：25 位纯数字。
+	 */
 	private static final Pattern ETICKET_NO_PATTERN = Pattern.compile("\\d{25}");
 
 	/**
@@ -101,10 +113,14 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	private static final Pattern DATE_PATTERN = Pattern.compile(
 		"\\d{2,4}[-./年:：]\\d{1,2}[-./月:：]\\d{1,2}日?");
 
-	/** HH:mm 完整片段（不分组）。 */
+	/**
+	 * HH:mm 完整片段（不分组）。
+	 */
 	private static final String HHMM = "(?:[01]?\\d|2[0-3]):[0-5]\\d";
 
-	/** 时间：HH:mm（24 小时制）。 */
+	/**
+	 * 时间：HH:mm（24 小时制）。
+	 */
 	private static final Pattern TIME_PATTERN = Pattern.compile(HHMM);
 
 	/**
@@ -128,7 +144,9 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	private static final Pattern ID_NUMBER_PATTERN = Pattern.compile(
 		"\\d{17}[\\dXx]");
 
-	/** 4~6 字中文姓名（OCR 残缺兜底：2~6 字）。 */
+	/**
+	 * 4~6 字中文姓名（OCR 残缺兜底：2~6 字）。
+	 */
 	private static final Pattern NAME_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{2,6}");
 
 	/**
@@ -154,14 +172,18 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		'会', '学', '校', '厂', '店', '馆', '场',
 		'总', '队', '股', '行', '团', '组', '社');
 
-	/** 席别关键字（按长到短排序，避免"商务座"误匹配"座"）。 */
+	/**
+	 * 席别关键字（按长到短排序，避免"商务座"误匹配"座"）。
+	 */
 	private static final List<String> SEAT_CLASS_KEYWORDS = CollUtil.listOf(
 		"高级软卧", "商务座", "特等座", "二等座", "一等座",
 		"软卧", "硬卧", "二等卧", "一等卧",
 		"软座", "硬座"
 	);
 
-	/** 改签标识关键字。 */
+	/**
+	 * 改签标识关键字。
+	 */
 	private static final List<String> CHANGED_FLAG_KEYWORDS = CollUtil.listOf(
 		"始发改签", "退票", "改签"
 	);
@@ -189,6 +211,25 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	// ========================================================================
 	// 入口
 	// ========================================================================
+	/**
+	 * 乘客姓名兜底中需要排除的车票常见字。
+	 */
+	private static final Set<Character> TRAIN_NOISE_TICKET_CHARS = CollUtil.setOf(
+		'站', '座', '车', '票', '卧', '元', '￥', '¥');
+	/**
+	 * 票号兜底中需要排除的字符（含金额符、身份证 *、小数点）。
+	 */
+	private static final Set<String> TICKET_NOISE_CHARS = CollUtil.setOf("￥", "¥", "元", "*", ".");
+	/**
+	 * 站名兜底中需要排除的机构关键字（单字粒度）。
+	 */
+	private static final Set<Character> STATION_NOISE_CHARS = CollUtil.setOf(
+		'局', '司', '所', '院', '处', '部', '厅', '署', '税',
+		'运', '铁', '国');
+
+	// ========================================================================
+	// 行程：始发/到达/车次/日期/时间/座位/席别
+	// ========================================================================
 
 	/**
 	 * 构造火车票解析器，绑定推理引擎。
@@ -199,47 +240,12 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		super(engine);
 	}
 
-	@Override
-	public TrainTicketResult parseResults(List<PPOcrV6Result> results) {
-		TrainTicketResult r = new TrainTicketResult();
-		r.setRawResults(new ArrayList<>(results));
-
-		// 行程
-		applyField(r, "departure", parseDeparture(results));
-		applyField(r, "arrival", parseArrival(results));
-		applyField(r, "trainNumber", parseTrainNumber(results));
-		applyDepartureDateTime(r, results);
-		applyField(r, "seatNumber", parseSeatNumber(results));
-		applyField(r, "seatClass", parseSeatClass(results));
-
-		// 乘客
-		applyField(r, "passengerName", parsePassengerName(results));
-		applyField(r, "idNumber", parseIdNumber(results));
-
-		// 金额
-		applyField(r, "amount", parseAmount(results, "车票金额"));
-		applyField(r, "amountExcludingTax", parseAmountExcludingTax(results));
-
-		// 票号
-		applyField(r, "ticketNo", parseTicketNo(results));
-		applyField(r, "invoiceNo", parseInvoiceNo(results));
-		applyField(r, "eTicketNo", parseETicketNo(results));
-
-		// 其他
-		applyField(r, "invoiceDate", parseInvoiceDate(results));
-		applyField(r, "sellStation", parseSellStation(results));
-		applyField(r, "serialNumber", parseSerialNumber(results));
-		applyField(r, "changedFlag", parseChangedFlag(results));
-
-		return r;
-	}
-
 	/**
 	 * 设置字段值并回填字段框到 {@code fieldBoxes}。
 	 *
-	 * @param r      结果对象
-	 * @param name   字段名（fieldBoxes key）
-	 * @param match  字段匹配结果
+	 * @param r     结果对象
+	 * @param name  字段名（fieldBoxes key）
+	 * @param match 字段匹配结果
 	 */
 	private static void applyField(TrainTicketResult r, String name, LabeledMatch match) {
 		if (match == null) return;
@@ -301,10 +307,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		}
 		LabelMatcher.applyFieldBox(r, name, match);
 	}
-
-	// ========================================================================
-	// 行程：始发/到达/车次/日期/时间/座位/席别
-	// ========================================================================
 
 	/**
 	 * 始发站解析：
@@ -543,6 +545,10 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		return seat;
 	}
 
+	// ========================================================================
+	// 乘客
+	// ========================================================================
+
 	/**
 	 * 席别：标签定位 + 关键字兜底。
 	 */
@@ -579,10 +585,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		}
 		return null;
 	}
-
-	// ========================================================================
-	// 乘客
-	// ========================================================================
 
 	/**
 	 * 乘客姓名：标签定位 + 合并框（身份证+姓名）剥值 + 兜底扫中文框。
@@ -625,10 +627,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		}
 		return LabeledMatch.textOnly(null);
 	}
-
-	/** 乘客姓名兜底中需要排除的车票常见字。 */
-	private static final Set<Character> TRAIN_NOISE_TICKET_CHARS = CollUtil.setOf(
-		'站', '座', '车', '票', '卧', '元', '￥', '¥');
 
 	/**
 	 * 是否站名/机构名（用于姓名兜底时排除）。
@@ -711,6 +709,10 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		return DATE_PATTERN.matcher(text).matches();
 	}
 
+	// ========================================================================
+	// 金额
+	// ========================================================================
+
 	/**
 	 * 从文本中提取身份证号（仅 18 位精确 或 14-18 位脱敏，剥尾部中文）。
 	 */
@@ -737,10 +739,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		return null;
 	}
 
-	// ========================================================================
-	// 金额
-	// ========================================================================
-
 	/**
 	 * 金额：标签定位 + 关键字兜底。
 	 */
@@ -762,6 +760,10 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		});
 	}
 
+	// ========================================================================
+	// 票号
+	// ========================================================================
+
 	/**
 	 * 不含税金额：标签 "不含税金额" / "税前金额"。
 	 */
@@ -777,10 +779,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		}
 		return LabeledMatch.textOnly(null);
 	}
-
-	// ========================================================================
-	// 票号
-	// ========================================================================
 
 	/**
 	 * 车票号：放宽到 7-10 位（实际纸质票号多为 7-8 位，如 E014470 / R093443 / U028534）。
@@ -837,9 +835,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		if (best == null) return LabeledMatch.textOnly(null);
 		return LabeledMatch.of(bestHit, best);
 	}
-
-	/** 票号兜底中需要排除的字符（含金额符、身份证 *、小数点）。 */
-	private static final Set<String> TICKET_NOISE_CHARS = CollUtil.setOf("￥", "¥", "元", "*", ".");
 
 	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results) {
 		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
@@ -987,14 +982,14 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 	 *
 	 * <p>到达站（right）优先 y 更大的候选（更靠下，OCR 中始发在到达上方）。
 	 *
-	 * @param maxY  票面顶部 y 上限（超过此值不算票面顶部）
-	 * @param maxX  左侧/右侧 x 边界（Integer.MAX_VALUE 表示不限制）
-	 * @param side  "left" / "right"，决定取 x 最小还是 x 大于全图中间
-	 * @param role  日志用场景名（"始发"/"到达"）
+	 * @param maxY 票面顶部 y 上限（超过此值不算票面顶部）
+	 * @param maxX 左侧/右侧 x 边界（Integer.MAX_VALUE 表示不限制）
+	 * @param side "left" / "right"，决定取 x 最小还是 x 大于全图中间
+	 * @param role 日志用场景名（"始发"/"到达"）
 	 * @return 站名（去掉"站"后缀）
 	 */
 	private static LabeledMatch pickStationByPosition(List<PPOcrV6Result> results,
-													   int maxY, int maxX, String side, String role) {
+													  int maxY, int maxX, String side, String role) {
 		int imgMaxX = 0;
 		for (PPOcrV6Result r : results) {
 			imgMaxX = Math.max(imgMaxX, LabelMatcher.maxX(r));
@@ -1048,11 +1043,6 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 		return LabeledMatch.of(bestStation, best);
 	}
 
-	/** 站名兜底中需要排除的机构关键字（单字粒度）。 */
-	private static final Set<Character> STATION_NOISE_CHARS = CollUtil.setOf(
-		'局', '司', '所', '院', '处', '部', '厅', '署', '税',
-		'运', '铁', '国');
-
 	/**
 	 * 判断字符串是否含任一关键字。
 	 */
@@ -1084,6 +1074,41 @@ public class TrainTicketParser extends BaseStructuredParser<TrainTicketResult> {
 			if (v != null) return v;
 		}
 		return null;
+	}
+
+	@Override
+	public TrainTicketResult parseResults(List<PPOcrV6Result> results) {
+		TrainTicketResult r = new TrainTicketResult();
+		r.setRawResults(new ArrayList<>(results));
+
+		// 行程
+		applyField(r, "departure", parseDeparture(results));
+		applyField(r, "arrival", parseArrival(results));
+		applyField(r, "trainNumber", parseTrainNumber(results));
+		applyDepartureDateTime(r, results);
+		applyField(r, "seatNumber", parseSeatNumber(results));
+		applyField(r, "seatClass", parseSeatClass(results));
+
+		// 乘客
+		applyField(r, "passengerName", parsePassengerName(results));
+		applyField(r, "idNumber", parseIdNumber(results));
+
+		// 金额
+		applyField(r, "amount", parseAmount(results, "车票金额"));
+		applyField(r, "amountExcludingTax", parseAmountExcludingTax(results));
+
+		// 票号
+		applyField(r, "ticketNo", parseTicketNo(results));
+		applyField(r, "invoiceNo", parseInvoiceNo(results));
+		applyField(r, "eTicketNo", parseETicketNo(results));
+
+		// 其他
+		applyField(r, "invoiceDate", parseInvoiceDate(results));
+		applyField(r, "sellStation", parseSellStation(results));
+		applyField(r, "serialNumber", parseSerialNumber(results));
+		applyField(r, "changedFlag", parseChangedFlag(results));
+
+		return r;
 	}
 
 	/**
