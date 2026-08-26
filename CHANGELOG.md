@@ -2,6 +2,9 @@
 
 ## 发行版本
 
+### 最新更新
+- refactor(core): 全面支持 Java 8（`record` / `List.of` / `Path.of` 等 Java 9+ API 替换为 `CollUtil` 工具与 Lombok `@Value` 风格，Spring Boot Starter 改用 `@Configuration` 兼容 2.5~4.x）。
+
 ### v1.1.7 - 2026-08-26
 - feat(pdd): 新增拼多多福袋 OCR 结构化解析器（PddLuckyBagParser / PddLuckyBagResult），从「百亿补贴 抽福袋」分享图提取 8 位福袋码（邀请码）。
 - feat(idcard): 优化性别解析和住址提取逻辑，增强兼容性。性别解析支持合并框切割（兼容"性别男民族汉"双标签连写合并框及"性""别"字缺失场景）。github #13 感谢 `@iamxiaojianzheng` 贡献。
