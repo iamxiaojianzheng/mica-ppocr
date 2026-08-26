@@ -57,12 +57,12 @@ import java.util.function.Consumer;
  *
  * <p>典型用法：
  * <pre>{@code
- * var config = PPOcrV6Config.builder()
+ * PPOcrV6Config config = PPOcrV6Config.builder()
  *     .detModelPath("det.onnx")
  *     .recModelPath("rec.onnx")
  *     .recCharDictPath("dict.txt")
  *     .build();
- * try (var engine = new PPOcrV6Engine(config)) {
+ * try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
  *     // 推荐：直接传文件路径 / byte[]，内部自动处理 native 内存释放
  *     List<PPOcrV6Result> results = engine.run("test_images/vehicle/vehicle1.png");
  * }

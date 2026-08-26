@@ -19,4 +19,7 @@ jobs:
           cache: 'maven'
           cache-dependency-path: 'pom.xml'
       - name: Build with Maven
-        run: mvn package -P !develop
+        # -Dmaven.compiler.release=8 强制 javac 按 Java 8 ct.sym 校验标准库调用，
+        # 编译期就拦下 List.of / String.isBlank / Stream.toList 等 Java 9+ API 残留。
+        # JDK 25 的 javac 不再支持 "1.8" 这种旧版本号格式，只能传 "8"，故用命令行注入。
+        run: mvn package -P !develop -Dmaven.compiler.release=8

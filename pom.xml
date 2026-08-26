@@ -39,9 +39,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <!-- 不使用 maven.compiler.release（不设置）。
-             Lombok 1.18.x + JDK 17+ 在 release 1.8 下会触发 "不支持发行版本 1.8"。
-             用 source/target 替代 release 避免 annotation processor 链路被强制升级。 -->
+        <!-- 不设置 maven.compiler.release 时 javac 不会强制按 Java 8 ct.sym 校验标准库调用。
+             Lombok 1.18.46 + JDK 17 + <release> 1.8 在编译器插件里会触发 "不支持发行版本 1.8"（实测）。
+             CI 通过显式 -Dmaven.compiler.release=8 走命令行注入，可绕开该问题。
+             这样既不破坏本地默认构建（source/target 1.8），又能在 CI 卡住 Java 9+ API 残留。 -->
         <maven-flatten.version>1.8.0</maven-flatten.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>

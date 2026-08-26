@@ -19,12 +19,12 @@ package net.dreamlu.mica.ai.ppocr.autoconfigure;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
@@ -36,7 +36,7 @@ import org.springframework.util.StringUtils;
  * <p>在装配 {@link PPOcrV6Config} 之前会按 Spring 顺序应用所有 {@link PPOCRPropertiesCustomizer}，
  * 供业务方在 yml 之外做旁路覆盖（环境变量 / 配置中心 / 路径解析等）。
  */
-@AutoConfiguration
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(PPOcrV6Engine.class)
 @EnableConfigurationProperties(PPOCRProperties.class)
 @ConditionalOnProperty(prefix = "mica.ai.ppocr", name = "enabled", havingValue = "true", matchIfMissing = true)

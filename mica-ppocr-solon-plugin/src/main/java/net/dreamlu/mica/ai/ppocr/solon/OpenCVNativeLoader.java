@@ -31,7 +31,7 @@ import org.opencv.core.Core;
  * 必须在 Spring 容器刷新早期显式调用 OpenCV.loadShared()，否则首次调用
  * Imgproc.xxx 时会抛 UnsatisfiedLinkError。
  *
- * <p>本类以独立的 {@code @AutoConfiguration} 形式注册，并通过
+ * <p>本类以独立的 {@code @Configuration} 形式注册，并通过
  * {@code @AutoConfigureBefore(PPOCRAutoConfiguration.class)}
  * 保证在 PPOCRAutoConfiguration 创建 PPOcrV6Engine 之前完成 native 加载。
  *

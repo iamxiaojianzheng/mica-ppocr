@@ -28,13 +28,13 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.pdd.PddLuckyBagParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.train.TrainTicketParser;
 import net.dreamlu.mica.ai.ppocr.structured.parser.vehicle.VehicleLicenseParser;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * 结构化解析器自动配置。
@@ -57,7 +57,7 @@ import org.springframework.context.annotation.Bean;
  * }
  * }</pre>
  */
-@AutoConfiguration
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(BaseStructuredParser.class)
 @AutoConfigureAfter(PPOCRAutoConfiguration.class)
 public class StructuredParserAutoConfiguration {
