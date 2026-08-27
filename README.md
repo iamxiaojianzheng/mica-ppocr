@@ -381,18 +381,26 @@ public PPOCRPropertiesCustomizer tierEnvCustomizer() {
 
 `intra-op-num-threads`：ONNX 单算子内 OpenMP 并行线程数，建议设置为 CPU 物理核数。
 
-**为什么是物理核数？**
-
-ORT 内部每个 ONNX 算子（conv / matmul / pooling 等）会启动一个 OpenMP 线程池并行执行。当线程数 ≤ 物理核数时，每个线程独占一个物理核，无争抢、cache 命中率高；当线程数 > 物理核数时，OS 会把多个线程挤到同一物理核上，触发严重的 cache 抖动，反而拖慢推理。
-
 | CPU | 物理核 | 逻辑核（含超线程） | 推荐值 | 说明 |
 |-----|--------|------------------|--------|------|
-| 入门笔记本 | 4 | 8 | 4 | i5-1135G7、R5-5500U 等 |
 | 主流 8 核 | 8 | 16 | 8 | R7-5800H/6800H、i7-11800H 等 |
 | 高端笔记本 | 14 | 20 | 14 | i7-12700H / i9-13900H（P 核） |
 | 服务器 | 16~64 | 32~128 | 16~64 | Xeon / EPYC，按物理核数取 |
 
-### 7.2 GPU 注意事项
+
+### 7.2 CPU arena 配置
+
+CPU arena（`enableCpuMemArena`）+ 内存模式优化（`enableMemoryPattern`）在高水位下不归还 OS，动态分辨率场景内存随历史最大图持续增长直至 OOM（Github issue [#14](https://github.com/lets-mica/mica-ppocr/issues/14)），故 **v1.2.0 起默认关闭**（吞吐约损 10%）。输入分辨率固定且追求极致吞吐时可开启（老版本行为），注意容器内存需按历史最大图预留：
+
+```yaml
+mica:
+  ai:
+    ppocr:
+      enable-cpu-mem-arena: true    # 输入分辨率固定 + 追求极致吞吐时开启
+      enable-memory-pattern: true   # 与上面成对开启
+```
+
+### 7.3 GPU 注意事项
 
 1. **切换 GPU 包**：在 `mica-ppocr-core/pom.xml` 把 `onnxruntime` 替换为 `onnxruntime_gpu`（版本对齐 ONNX Runtime 官方发布），并确保主机已安装匹配的 CUDA / cuDNN。
 2. **开启加速**：`PPOcrV6Config.builder().preferAccelerator(true)`，或在 `application.yml` 中设 `mica.ai.ppocr.prefer-accelerator: true`。Provider 选择由 [`OrtProviders`](mica-ppocr-core/src/main/java/net/dreamlu/mica/ai/ppocr/utils/OrtProviders.java) 完成：macOS 优先 `CoreMLExecutionProvider`，否则 `CUDAExecutionProvider`，都不可用时回退 CPU。
