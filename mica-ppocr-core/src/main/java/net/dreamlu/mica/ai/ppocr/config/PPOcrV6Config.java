@@ -16,6 +16,7 @@
 
 package net.dreamlu.mica.ai.ppocr.config;
 
+import ai.onnxruntime.OrtSession.SessionOptions.ExecutionMode;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -145,6 +146,55 @@ public final class PPOcrV6Config {
 	 */
 	@Builder.Default
 	private int interOpNumThreads = 1;
+
+	/**
+	 * 是否启用 ONNX Runtime CPU memory arena（默认 false，关闭）。
+	 *
+	 * <p>arena 会为后续推理预留内存并复用，输入 shape 固定时能减少 malloc 开销；
+	 * 但 OCR 场景输入分辨率随图片变化（det 输入为原始分辨率），
+	 * arena 高水位会随历史出现过的最大图持续抬升，且<b>推理结束后不归还 OS</b>：
+	 * <ul>
+	 *   <li>识别同一张图（固定 shape）→ arena 复用，内存稳定</li>
+	 *   <li>持续识别新图片（新 shape）→ arena 不断扩展，Docker 等内存受限环境下
+	 *       表现为内存持续增长直至 OOM（issue #14）</li>
+	 * </ul>
+	 *
+	 * <p>关闭后每次推理的临时内存用完即释放，内存占用稳定可控，
+	 * 代价是推理吞吐约有 10% 左右的损耗（参考 RapidOCR 实测）。
+	 * 仅当输入分辨率固定且追求极致吞吐时才建议开启。
+	 */
+	@Builder.Default
+	private boolean enableCpuMemArena = false;
+
+	/**
+	 * 是否启用 ONNX Runtime 内存模式优化（默认 false，关闭，与 {@link #enableCpuMemArena} 同步使用）。
+	 *
+	 * <p>内存模式优化会在首次推理时按计算图预分配中间激活张量，
+	 * 后续推理复用，shape 固定时收益明显；shape 变化时会按新图重新规划。
+	 * 与 CPU arena 配合时（默认行为）二者都会持续吃内存；
+	 * 在容器 / 内存受限环境下建议与 {@code enableCpuMemArena} 一起关闭。
+	 *
+	 * <p>关闭后每次推理按需分配/释放临时张量，内存峰值可控，
+	 * 吞吐约有 10% 左右的损耗。
+	 */
+	@Builder.Default
+	private boolean enableMemoryPattern = false;
+
+	/**
+	 * ONNX Runtime 执行模式（默认 "sequential"）：sequential / parallel（大小写不敏感）。
+	 *
+	 * <p>对应 {@code OrtSession.SessionOptions#setExecutionMode}：
+	 * <ul>
+	 *   <li>{@code sequential}（默认）：计算图节点按拓扑序逐个执行，内存占用低；
+	 *       PP-OCR 的 det / rec 是独立 session 且流水线严格串行，串行模式足够。</li>
+	 *   <li>{@code parallel}：计算图内无依赖的节点并行执行，吞吐更高，
+	 *       但需要配合 {@link #interOpNumThreads} &gt; 1，且内存占用更高。</li>
+	 * </ul>
+	 *
+	 * <p>非法值回退 {@code sequential} 并告警。
+	 */
+	@Builder.Default
+	private ExecutionMode execMode = ExecutionMode.SEQUENTIAL;
 
 	/**
 	 * 返回使用全部默认字段的 PPOcrV6Config。

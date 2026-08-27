@@ -79,7 +79,10 @@ public class PPOCRAutoConfiguration {
 			.docOrientationModelPath(properties.getDocOrientationModelPath())
 			.docOrientationThresh(properties.getDocOrientationThresh())
 			.intraOpNumThreads(properties.getIntraOpNumThreads())
-			.interOpNumThreads(properties.getInterOpNumThreads());
+			.interOpNumThreads(properties.getInterOpNumThreads())
+			.execMode(properties.getExecMode())
+			.enableCpuMemArena(properties.isEnableCpuMemArena())
+			.enableMemoryPattern(properties.isEnableMemoryPattern());
 		// 容器顺序应用 customizer（依赖 @Order / Ordered 即可控）
 		customizers.orderedStream().forEach(customizer -> customizer.customize(builder));
 		return builder.build();

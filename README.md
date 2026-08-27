@@ -254,6 +254,9 @@ mica:
       # prefer-accelerator: false                             # 是否优先 GPU（默认 false 强制 CPU，保证 bit-exact）
       # intra-op-num-threads: 1                               # ONNX 单算子内并行线程数；推荐 = 物理核数
       # inter-op-num-threads: 1                               # 默认 1，OCR 流水线严格串行，interOp 设大也没用
+      # exec-mode: sequential                                 # ONNX 执行模式：sequential / parallel（默认 sequential）
+      # enable-cpu-mem-arena: false                           # CPU arena 高水位不归还 OS，动态分辨率下内存持续增长，默认关闭（issue #14）
+      # enable-memory-pattern: false                          # 内存模式优化，shape 变化时同样吃内存，默认关闭
 ```
 
 ### 6.2 PPOcrTemplate API

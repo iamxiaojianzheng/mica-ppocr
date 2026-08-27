@@ -3,6 +3,7 @@
 ## 发行版本
 
 ### 最新更新
+- fix(core): 修复动态分辨率下内存持续增长（github #14 根治）：新增 `enableCpuMemArena`（默认 false）、`enableMemoryPattern`（默认 false）配置，关闭 ONNX Runtime CPU arena / 内存模式优化，临时内存用完即释放，Docker 等内存受限环境不再 OOM；新增 `execMode` 配置（sequential / parallel）暴露 ORT 执行模式。Spring Boot Starter 与 Solon 插件同步暴露三个配置项。
 - refactor(core): 全面支持 Java 8（`record` / `List.of` / `Path.of` 等 Java 9+ API 替换为 `CollUtil` 工具与 Lombok `@Value` 风格，Spring Boot Starter 改用 `@Configuration` 兼容 2.5~4.x）。
 
 ### v1.1.7 - 2026-08-26

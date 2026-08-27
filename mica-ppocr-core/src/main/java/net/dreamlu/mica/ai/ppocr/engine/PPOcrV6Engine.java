@@ -20,6 +20,7 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.OrtSession.SessionOptions.ExecutionMode;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -127,6 +128,25 @@ public final class PPOcrV6Engine implements Closeable {
 		OrtSession recSess = null;
 		OrtSession docOriSess = null;
 		try (OrtSession.SessionOptions opts = new OrtSession.SessionOptions()) {
+			// issue #14：OCR 输入分辨率随图片变化，CPU arena / 内存模式优化
+			// 高水位会随新 shape 持续抬升且不归还 OS，内存受限环境（Docker）
+			// 表现为内存持续增长直至 OOM。默认关闭两项：临时内存用完即释放，
+			// 吞吐损失约 10%（可配置开启，仅当输入分辨率固定且追求极致吞吐时建议）。
+			try {
+				opts.setCPUArenaAllocator(config.isEnableCpuMemArena());
+			} catch (OrtException e) {
+				log.warn("设置 CPU memory arena 失败，使用默认值: {}", e.getMessage());
+			}
+			try {
+				opts.setMemoryPatternOptimization(config.isEnableMemoryPattern());
+			} catch (OrtException e) {
+				log.warn("设置 memory pattern 失败，使用默认值: {}", e.getMessage());
+			}
+			try {
+				opts.setExecutionMode(config.getExecMode());
+			} catch (OrtException e) {
+				log.warn("设置执行模式失败，使用默认值: {}", e.getMessage());
+			}
 			try {
 				opts.setIntraOpNumThreads(Math.max(1, config.getIntraOpNumThreads()));
 				opts.setInterOpNumThreads(Math.max(1, config.getInterOpNumThreads()));
