@@ -26,6 +26,7 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.driver.DriverLicenseResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.household.HouseholdRegisterResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.idcard.IdCardSide;
+import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceItem;
 import net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.pdd.PddLuckyBagResult;
 import net.dreamlu.mica.ai.ppocr.structured.parser.taxi.TaxiReceiptResult;
@@ -632,10 +633,12 @@ public final class BatchOcrMain {
 			pw.println("sellerAddressPhone: " + r.getSellerAddressPhone());
 			pw.println("sellerBankAccount:  " + r.getSellerBankAccount());
 			pw.println();
-			pw.println("goodsName:          " + r.getGoodsName());
-			pw.println("amount:             " + r.getAmount());
-			pw.println("taxRate:            " + r.getTaxRate());
-			pw.println("taxAmount:          " + r.getTaxAmount());
+			for (InvoiceItem item : r.getItems()) {
+				pw.println("goodsName:          " + item.getGoodsName());
+				pw.println("amount:             " + item.getAmount());
+				pw.println("taxRate:            " + item.getTaxRate());
+				pw.println("taxAmount:          " + item.getTaxAmount());
+			}
 			pw.println();
 			pw.println("totalAmountUpper:   " + r.getTotalAmountUpper());
 			pw.println("totalAmountLower:   " + r.getTotalAmountLower());

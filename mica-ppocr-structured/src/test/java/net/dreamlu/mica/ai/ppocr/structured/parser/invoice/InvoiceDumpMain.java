@@ -19,9 +19,9 @@ package net.dreamlu.mica.ai.ppocr.structured.parser.invoice;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Engine;
 import net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result;
-import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseTest;
 import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.opencv.core.Mat;
+import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,12 +31,12 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * 批量跑 invoice1~invoice5 OCR，把原始框坐标保存为 JSON（便于后续测试直接读取，跳过 ONNX 推理），
+ * 批量跑 invoice1~invoice5 老版增值税发票 OCR，把原始框坐标保存为 JSON（便于后续测试直接读取，跳过 ONNX 推理），
  * 同时输出每张发票的结构化解析字段，便于人工核对期望值。
  *
  * <p>输出目录：{@code src/test/resources/ocr-json/invoice/}，文件：{@code invoice{N}.json}。
  */
-public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
+public class InvoiceDumpMain {
 
 	private static final String[] IMAGES = {
 		"test_images/invoice/invoice1.jpg",
@@ -44,19 +44,90 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 		"test_images/invoice/invoice3.jpg",
 		"test_images/invoice/invoice4.jpg",
 		"test_images/invoice/invoice5.jpg",
+		"test_images/invoice/invoice6.jpg",
 	};
 
 	public static void main(String[] args) throws IOException {
 		Path outDir = Paths.get("mica-ppocr-structured/src/test/resources/ocr-json/invoice");
 		Files.createDirectories(outDir);
 		System.out.println("OCR JSON 输出目录: " + outDir.toAbsolutePath());
-		new InvoiceDumpMain().run(outDir);
+
+		nu.pattern.OpenCV.loadLocally();
+
+		PPOcrV6Config config = PPOcrV6Config.builder()
+			.detModelPath("models/ppocr-v6/tiny/det.onnx")
+			.recModelPath("models/ppocr-v6/tiny/rec.onnx")
+			.recCharDictPath("models/ppocr-v6/tiny/dict.txt")
+			.useDocOrientationClassify(true)
+			.docOrientationModelPath("models/ppocr-v6/doc_ori/doc_ori.onnx")
+			.build();
+
+		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
+			InvoiceParser dispatcher = new InvoiceParser(engine);
+			for (String imgPath : IMAGES) {
+				String name = nameOf(imgPath);
+				System.out.println("\n" + CollUtil.repeat("=", 60));
+				System.out.println(">>> " + name + " <<<");
+				System.out.println(CollUtil.repeat("=", 60));
+				Mat img = Imgcodecs.imread(imgPath);
+				if (img == null || img.empty()) {
+					System.err.println("无法读取图片: " + imgPath);
+					continue;
+				}
+				List<PPOcrV6Result> results = engine.runMat(img);
+
+				// 1) 保存 JSON
+				Path jsonPath = outDir.resolve(name + ".json");
+				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
+				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
+
+				// 2) 输出结构化结果（走分发器：电子版优先 → 20 位号码判别失败回退老版）
+				System.out.println("\n--- 结构化解析 [" + name + "] ---");
+				printResult(dispatcher.parseResults(results));
+				img.release();
+			}
+		}
 	}
 
 	private static String nameOf(String imgPath) {
 		String f = Paths.get(imgPath).getFileName().toString();
 		int dot = f.lastIndexOf('.');
 		return dot > 0 ? f.substring(0, dot) : f;
+	}
+
+	private static void printResult(InvoiceResult inv) {
+		System.out.println("发票代码       " + inv.getInvoiceCode());
+		System.out.println("发票号码       " + inv.getInvoiceNo());
+		System.out.println("开票日期       " + inv.getInvoiceDate());
+		System.out.println();
+		System.out.println("--- 购买方 ---");
+		System.out.println("名称           " + inv.getBuyerName());
+		System.out.println("税号           " + inv.getBuyerTaxNo());
+		System.out.println("地址电话       " + inv.getBuyerAddressPhone());
+		System.out.println("开户行账号     " + inv.getBuyerBankAccount());
+		System.out.println();
+		System.out.println("--- 销售方 ---");
+		System.out.println("名称           " + inv.getSellerName());
+		System.out.println("税号           " + inv.getSellerTaxNo());
+		System.out.println("地址电话       " + inv.getSellerAddressPhone());
+		System.out.println("开户行账号     " + inv.getSellerBankAccount());
+		System.out.println();
+		System.out.println("--- 明细 ---");
+		for (InvoiceItem item : inv.getItems()) {
+			System.out.println("商品/服务名称  " + item.getGoodsName());
+			System.out.println("金额           " + item.getAmount());
+			System.out.println("税率           " + item.getTaxRate());
+			System.out.println("税额           " + item.getTaxAmount());
+		}
+		System.out.println();
+		System.out.println("--- 合计 ---");
+		System.out.println("价税合计(大写) " + inv.getTotalAmountUpper());
+		System.out.println("价税合计(小写) " + inv.getTotalAmountLower());
+		System.out.println();
+		System.out.println("--- 底栏 ---");
+		System.out.println("收款人         " + inv.getPayee());
+		System.out.println("复核人         " + inv.getReviewer());
+		System.out.println("开票人         " + inv.getIssuer());
 	}
 
 	private static String toJson(List<PPOcrV6Result> results) {
@@ -115,90 +186,5 @@ public class InvoiceDumpMain extends BaseTest<InvoiceParser, InvoiceResult> {
 		}
 		sb.append('"');
 		return sb.toString();
-	}
-
-	private void run(Path outDir) throws IOException {
-		nu.pattern.OpenCV.loadLocally();
-
-		String detModel = "models/ppocr-v6/" + TIER + "/det.onnx";
-		String recModel = "models/ppocr-v6/" + TIER + "/rec.onnx";
-		String dict = "models/ppocr-v6/" + TIER + "/dict.txt";
-		String docOriModel = "models/ppocr-v6/doc_ori/doc_ori.onnx";
-
-		PPOcrV6Config config = PPOcrV6Config.builder()
-			.detModelPath(detModel)
-			.recModelPath(recModel)
-			.recCharDictPath(dict)
-			.useDocOrientationClassify(USE_DOC_ORIENTATION)
-			.docOrientationModelPath(docOriModel)
-			.build();
-
-		try (PPOcrV6Engine engine = new PPOcrV6Engine(config)) {
-			for (String imgPath : IMAGES) {
-				String name = nameOf(imgPath);
-				System.out.println("\n" + CollUtil.repeat("=", 60));
-				System.out.println(">>> " + name + " <<<");
-				System.out.println(CollUtil.repeat("=", 60));
-				Mat img = org.opencv.imgcodecs.Imgcodecs.imread(imgPath);
-				if (img == null || img.empty()) {
-					System.err.println("无法读取图片: " + imgPath);
-					continue;
-				}
-				List<PPOcrV6Result> results = engine.runMat(img);
-
-				// 1) 保存 JSON
-				Path jsonPath = outDir.resolve(name + ".json");
-				CollUtil.writeString(jsonPath, toJson(results), StandardCharsets.UTF_8);
-				System.out.println("OCR JSON 已保存: " + jsonPath + " (" + results.size() + " boxes)");
-
-				// 2) 输出结构化结果
-				System.out.println("\n--- 结构化解析 [" + name + "] ---");
-				printResults(engine, results);
-				img.release();
-			}
-		}
-	}
-
-	// ====================================================================
-	// 手写 JSON 序列化（无第三方依赖）
-	// ====================================================================
-
-	@Override
-	protected InvoiceParser newParser(PPOcrV6Engine engine) {
-		return new InvoiceParser(engine);
-	}
-
-	@Override
-	protected void printResult(InvoiceResult inv) {
-		System.out.println("发票代码       " + inv.getInvoiceCode());
-		System.out.println("发票号码       " + inv.getInvoiceNo());
-		System.out.println("开票日期       " + inv.getInvoiceDate());
-		System.out.println();
-		System.out.println("--- 购买方 ---");
-		System.out.println("名称           " + inv.getBuyerName());
-		System.out.println("税号           " + inv.getBuyerTaxNo());
-		System.out.println("地址电话       " + inv.getBuyerAddressPhone());
-		System.out.println("开户行账号     " + inv.getBuyerBankAccount());
-		System.out.println();
-		System.out.println("--- 销售方 ---");
-		System.out.println("名称           " + inv.getSellerName());
-		System.out.println("税号           " + inv.getSellerTaxNo());
-		System.out.println("地址电话       " + inv.getSellerAddressPhone());
-		System.out.println("开户行账号     " + inv.getSellerBankAccount());
-		System.out.println();
-		System.out.println("--- 明细 ---");
-		System.out.println("商品/服务名称  " + inv.getGoodsName());
-		System.out.println("金额           " + inv.getAmount());
-		System.out.println("税率           " + inv.getTaxRate());
-		System.out.println("税额           " + inv.getTaxAmount());
-		System.out.println();
-		System.out.println("--- 合计 ---");
-		System.out.println("价税合计(大写) " + inv.getTotalAmountUpper());
-		System.out.println("价税合计(小写) " + inv.getTotalAmountLower());
-		System.out.println();
-		System.out.println("--- 底栏 ---");
-		System.out.println("收款人         " + inv.getPayee());
-		System.out.println("复核人         " + inv.getReviewer());
-		System.out.println("开票人         " + inv.getIssuer());
 	}
 }

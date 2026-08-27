@@ -48,23 +48,34 @@ import java.util.function.Function;
  *
  * <p>由于每个解析器的 Result 类型不同，{@link #writer} 接收 {@code Object}
  * 并在实现里做强制类型转换（保证调度的统一性，运行时 cast 失败概率为 0）。
- *
- * @param key             解析器 key（不区分大小写）
- * @param displayName     中文显示名（用于输出抬头）
- * @param defaultDir      默认图片目录（相对于 user.dir）
- * @param parserClassName 解析器类 FQN（含包路径），用于输出文件头部给 AI 定位源码
- * @param factory         由推理引擎构造一个绑定好 engine 的解析器
- * @param writer          把结构化结果按既定格式写到 {@link PrintWriter}
  */
 @Value
 @Accessors(fluent = true)
 public class ParserSpec {
 
+	/**
+	 * 解析器 key（不区分大小写）
+	 */
 	String key;
+	/**
+	 * 中文显示名（用于输出抬头）
+	 */
 	String displayName;
+	/**
+	 * 默认图片目录（相对于 user.dir）
+	 */
 	String defaultDir;
+	/**
+	 * 解析器类 FQN（含包路径），用于输出文件头部给 AI 定位源码
+	 */
 	String parserClassName;
+	/**
+	 * 由推理引擎构造一个绑定好 engine 的解析器
+	 */
 	Function<PPOcrV6Engine, BaseStructuredParser<?>> factory;
+	/**
+	 * 把结构化结果按既定格式写到 {@link PrintWriter}
+	 */
 	BiConsumer<Object, PrintWriter> writer;
 
 	// ========================================================================
@@ -154,9 +165,9 @@ public class ParserSpec {
 			"net.dreamlu.mica.ai.ppocr.structured.parser.business.BusinessLicenseParser",
 			BusinessLicenseParser::new,
 			BatchOcrMain.Writers::writeBusiness));
-		// 增值税发票
+		// 增值税发票：分发器形态，电子版优先 → 20 位号码判别失败回退老版
 		map.put("invoice", new ParserSpec(
-			"invoice", "增值税发票", "test_images/invoice",
+			"invoice", "发票", "test_images/invoice",
 			"net.dreamlu.mica.ai.ppocr.structured.parser.invoice.InvoiceParser",
 			InvoiceParser::new,
 			BatchOcrMain.Writers::writeInvoice));

@@ -20,10 +20,18 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 
+import java.util.List;
+
 /**
- * 增值税发票 OCR 结构化解析结果（按用户字段清单：发票代码/号码/日期，
- * 购销双方名称/税号/地址电话/开户行账号，商品/金额/税率/税额，
- * 价税合计大写与小写，收款人/复核人/开票人）。
+ * 发票 OCR 结构化解析结果（老版增值税发票 + 新版电子发票统一结果集）。
+ *
+ * <p>老字段：发票代码/号码/日期，购销双方名称/税号/地址电话/开户行账号，
+ * 商品/金额/税率/税额，价税合计大写与小写，收款人/复核人/开票人。
+ *
+ * <p>新版电子发票专属：{@code remark}（备注），以及由分发器标注的 {@code version}（版型）。
+ * 老版没有的字段为 null。
+ *
+ * <p>明细：{@code items} 为行聚类结构化的明细行列表（列对齐正确，两版发票共用）。
  *
  * <p>继承 {@link BaseStructuredResult}：
  * <ul>
@@ -34,6 +42,10 @@ import net.dreamlu.mica.ai.ppocr.structured.parser.core.BaseStructuredResult;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class InvoiceResult extends BaseStructuredResult {
+	/**
+	 * 发票版型（由 {@link InvoiceParser} 分发器标注；直接调用子解析器时为 null）
+	 */
+	private InvoiceVersion version;
 	/**
 	 * 发票代码
 	 */
@@ -82,21 +94,9 @@ public class InvoiceResult extends BaseStructuredResult {
 	private String sellerBankAccount;
 
 	/**
-	 * 商品/服务名称（多行合并为单字符串，用换行分隔）
+	 * 明细行（行聚类结构化，两版发票共用；空表为空列表）
 	 */
-	private String goodsName;
-	/**
-	 * 金额（多行合计字符串）
-	 */
-	private String amount;
-	/**
-	 * 税率（多行合并字符串）
-	 */
-	private String taxRate;
-	/**
-	 * 税额（多行合并字符串）
-	 */
-	private String taxAmount;
+	private List<InvoiceItem> items;
 
 	/**
 	 * 价税合计（大写）
@@ -119,4 +119,8 @@ public class InvoiceResult extends BaseStructuredResult {
 	 * 开票人
 	 */
 	private String issuer;
+	/**
+	 * 备注（新版电子发票专属，老版为 null）
+	 */
+	private String remark;
 }

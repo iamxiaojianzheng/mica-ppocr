@@ -122,10 +122,13 @@ public class StructuredParserAutoConfiguration {
 	}
 
 	/**
-	 * 注册增值税发票解析器。
+	 * 注册发票统一入口解析器（分发器：自动判别新版电子发票 / 老版增值税发票）。
+	 *
+	 * <p>子解析器（{@code VatInvoiceParser} / {@code ElectronicInvoiceParser}）在构造时
+	 * 内部初始化，不作为独立 bean 暴露。
 	 *
 	 * @param engine PP-OCRv6 推理引擎
-	 * @return 发票解析器实例
+	 * @return 发票分发器实例
 	 */
 	@Bean
 	@Condition(onMissingBean = InvoiceParser.class)
