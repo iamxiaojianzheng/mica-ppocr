@@ -60,9 +60,10 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 	// 正则常量
 	// ========================================================================
 	/**
-	 * 发票号码：从 "No14641426" 等合并框剥前缀后取数字。
+	 * 发票号码连续数字串（≥8 位）：密码区噪音数字散落（如 +29<65>6...），
+	 * 不构成连续 8 位数字，天然免疫。
 	 */
-	private static final Pattern INVOICE_NO_PATTERN = Pattern.compile("(\\d{8,12})");
+	private static final Pattern INVOICE_NO_DIGITS = Pattern.compile("\\d{8,}");
 	/**
 	 * 开票日期：yyyy年MM月dd日 / yyyy-MM-dd / yyyy/MM/dd。
 	 */
@@ -107,6 +108,17 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		"发票代码", "发票号码", "开票日期",
 		"购买方", "销售方", "备注");
 
+	/**
+	 * 需要右侧多框拼接取值的标签：值常被 OCR 切成两个相邻框
+	 * （地址 + 电话、开户行 + 账号），只取一框会丢后半段。
+	 */
+	private static final Set<String> JOIN_LABELS = CollUtil.setOf("地址、电话", "开户行及账号");
+
+	/**
+	 * 多框拼接间距阈值（px）：相邻值框 x 间隙 ≤ 该值才允许拼接。
+	 */
+	private static final int MAX_JOIN_GAP = 60;
+
 	// ========================================================================
 	// 入口
 	// ========================================================================
@@ -149,33 +161,34 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 	// 顶部：发票代码 / 号码 / 日期
 	// ========================================================================
 
-	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results) {
-		// 1) 标签 "发票号码"
-		LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
-		if (m.hasValue()) {
-			Matcher mm = INVOICE_NO_PATTERN.matcher(m.value());
-			if (mm.find()) {
-				return LabeledMatch.of(mm.group(1), m.matches());
-			}
-		}
-		// 2) 兜底：扫所有含 "No" 前缀的框剥前缀
-		for (PPOcrV6Result r : results) {
-			String text = r.text();
-			if (text.startsWith("No") || text.startsWith("N0")) {
-				String stripped = text.substring(2).replaceAll("\\s+", "");
-				Matcher mm = INVOICE_NO_PATTERN.matcher(stripped);
-				if (mm.find()) {
-					log.debug("发票解析：发票号码按 No 前缀剥值 \"{}\"", mm.group(1));
-					return LabeledMatch.of(mm.group(1), r);
+	private static LabeledMatch parseInvoiceNo(List<PPOcrV6Result> results, String invoiceCode) {
+		// 1) 标签 "发票号码"（仅完整/前缀标签可信；"码"等单字 fragment
+		//    会被密码区噪声框污染，值框取到 "+29<65>6..." 噪音）
+		if (hasInvoiceNoLabel(results)) {
+			LabeledMatch m = LabelMatcher.matchValueFromPrefixWithBox(results, "发票号码");
+			if (m.hasValue()) {
+				String no = normalizeInvoiceNo(m.value(), invoiceCode);
+				if (no != null) {
+					return LabeledMatch.of(no, m.matches());
 				}
 			}
 		}
-		// 3) 兜底：右上区域（minX 最大）的 8~12 位数字框
+		// 2) No/N0/Ne 前缀框：剥前缀取数字，不足 8 位时向右拼接同行数字框
+		for (PPOcrV6Result r : results) {
+			if (!isInvoiceNoPrefix(r.text())) continue;
+			String no = matchInvoiceNoByPrefix(results, r, invoiceCode);
+			if (no != null) {
+				log.debug("发票解析：发票号码按前缀框 \"{}\" 取 \"{}\"", r.text(), no);
+				return LabeledMatch.of(no, r);
+			}
+		}
+		// 3) 兜底：右上区域（maxX 最大）的 8~12 位数字框，排除发票代码
 		PPOcrV6Result best = null;
 		int bestX = Integer.MIN_VALUE;
 		for (PPOcrV6Result r : results) {
 			String text = r.text().trim();
 			if (!text.matches("\\d{8,12}")) continue;
+			if (text.equals(invoiceCode)) continue;
 			int x = LabelMatcher.maxX(r);
 			if (x > bestX) {
 				bestX = x;
@@ -187,6 +200,83 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 			return LabeledMatch.of(best.text(), best);
 		}
 		return LabeledMatch.textOnly(null);
+	}
+
+	/**
+	 * 是否存在完整/前缀形式的 "发票号码" 标签（fragment 不可信）。
+	 */
+	private static boolean hasInvoiceNoLabel(List<PPOcrV6Result> results) {
+		for (PPOcrV6Result r : results) {
+			String t = r.text();
+			if (t.equals("发票号码") || t.startsWith("发票号码")) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * 判断是否为发票号码前缀框：No / N0 / Ne（OCR 常把 o 识别为 0/e）。
+	 */
+	private static boolean isInvoiceNoPrefix(String text) {
+		return text.startsWith("No") || text.startsWith("N0") || text.startsWith("Ne");
+	}
+
+	/**
+	 * 从前缀框取发票号码：剥前缀抽数字；不足 8 位时向右拼接
+	 * 同行（y 重叠）且连续（gap ≤ {@link #MAX_JOIN_GAP}）的纯数字框；
+	 * 号码与发票代码粘连（如 009989594200162130）时归一化取前 8 位。
+	 */
+	private static String matchInvoiceNoByPrefix(List<PPOcrV6Result> results,
+												 PPOcrV6Result prefixBox,
+												 String invoiceCode) {
+		String digits = prefixBox.text().substring(2).replaceAll("\\D+", "");
+		if (digits.length() < 8) {
+			// 向右拼接同行数字框，凑足 8 位即止
+			int prefixMinY = LabelMatcher.minY(prefixBox);
+			int prefixMaxY = LabelMatcher.maxY(prefixBox);
+			int curMaxX = LabelMatcher.maxX(prefixBox);
+			List<PPOcrV6Result> ordered = new ArrayList<>();
+			for (PPOcrV6Result r : results) {
+				if (r == prefixBox) continue;
+				String text = r.text().replaceAll("\\s+", "");
+				if (!text.matches("\\d+")) continue;
+				int x0 = LabelMatcher.minX(r);
+				if (x0 <= curMaxX) continue;
+				if (LabelMatcher.maxY(r) < prefixMinY || LabelMatcher.minY(r) > prefixMaxY) continue;
+				if (x0 - curMaxX > MAX_JOIN_GAP) continue;
+				ordered.add(r);
+			}
+			ordered.sort(Comparator.comparingInt(LabelMatcher::minX));
+			for (PPOcrV6Result r : ordered) {
+				int x0 = LabelMatcher.minX(r);
+				if (x0 - curMaxX > MAX_JOIN_GAP) break;
+				digits += r.text().replaceAll("\\D+", "");
+				curMaxX = Math.max(curMaxX, LabelMatcher.maxX(r));
+				if (digits.length() >= 8) break;
+			}
+		}
+		return normalizeInvoiceNo(digits, invoiceCode);
+	}
+
+	/**
+	 * 归一化发票号码：抽首个 ≥8 位连续数字串（号码框数字连续；
+	 * 密码区噪音数字散落不构成连续 8 位，不会误命中），剥离粘连的
+	 * 发票代码后缀（009989594200162130 → 00998959），取前 8 位；
+	 * 不足 8 位返回 null。
+	 */
+	private static String normalizeInvoiceNo(String value, String invoiceCode) {
+		if (value == null) return null;
+		Matcher mm = INVOICE_NO_DIGITS.matcher(value);
+		if (!mm.find()) return null;
+		String d = mm.group();
+		if (invoiceCode != null && !invoiceCode.isEmpty() && d.endsWith(invoiceCode)) {
+			d = d.substring(0, d.length() - invoiceCode.length());
+		}
+		if (d.length() > 8) {
+			d = d.substring(0, 8);
+		}
+		return d.length() == 8 ? d : null;
 	}
 
 	private static LabeledMatch parseInvoiceDate(List<PPOcrV6Result> results) {
@@ -281,7 +371,7 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		String text = labelBox.text();
 		// 1) 独立标签
 		if (text.equals(label)) {
-			return matchRightByCenter(results, labelBox);
+			return matchRightValue(results, labelBox, label, false);
 		}
 		// 2) 合并框：text 以 label 开头
 		if (text.startsWith(label) && text.length() > label.length()) {
@@ -292,7 +382,7 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 			if (stripped.isEmpty() || PUNCT_TAIL.contains(stripped)) {
 				log.debug("发票解析 [{}]：标签 \"{}\" 合并框 \"{}\" 仅含标点，改走右侧 y 重叠兜底",
 					debugTag, label, text);
-				return matchRightByCenter(results, labelBox);
+				return matchRightValue(results, labelBox, label, false);
 			}
 			if (stripped.length() >= 1) {
 				log.debug("发票解析 [{}]：标签 \"{}\" 从合并框 \"{}\" 剥出值 \"{}\"",
@@ -304,9 +394,26 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		// 3) fragment 标签（label 包含 text）：传完整 label 用于 fragment 续段合并框剥前缀（称：值）
 		if (label.contains(text) && text.length() >= 1) {
 			log.debug("发票解析 [{}]：标签 \"{}\" 按 fragment \"{}\" 取右侧 y 重叠值", debugTag, label, text);
-			return matchRightByCenter(results, labelBox, label);
+			return matchRightValue(results, labelBox, label, true);
 		}
 		return LabeledMatch.textOnly(null);
+	}
+
+	/**
+	 * 取标签右侧值：地址电话 / 开户行账号 类标签值常被 OCR 切成多框，
+	 * 走 {@link #matchRightJoinByCenter} 拼接；其余标签走单框 {@link #matchRightByCenter}。
+	 *
+	 * @param fragmentMode 是否 fragment 标签模式（仅对非拼接标签生效，
+	 *                     传完整 label 启用续段合并框剥前缀逻辑）
+	 */
+	private static LabeledMatch matchRightValue(List<PPOcrV6Result> results,
+												PPOcrV6Result labelBox,
+												String label,
+												boolean fragmentMode) {
+		if (JOIN_LABELS.contains(label)) {
+			return matchRightJoinByCenter(results, labelBox);
+		}
+		return matchRightByCenter(results, labelBox, fragmentMode ? label : null);
 	}
 
 	/**
@@ -500,6 +607,107 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		return LabeledMatch.of(best.text(), best);
 	}
 
+	/**
+	 * 右侧 y 重叠多框拼接取值（地址电话 / 开户行账号专用）。
+	 *
+	 * <p>值被 OCR 切成多个相邻框（如 地址 + 电话、开户行 + 账号）时，
+	 * 仅取一个框会丢后半段。本方法先按 {@link #matchRightByCenter} 的评分
+	 * 选出起点框（y 中心差最小、尽量紧邻标签右侧），再从起点框右边缘起
+	 * 按 x 连续性（gap ≤ {@link #MAX_JOIN_GAP}）向后拼接同行的相邻框。
+	 *
+	 * <p>拼接仅向 x 增大方向，且要求 y 中心差 ≤ 行高（不跨行），
+	 * 避免把下一行字段或标签左侧内容卷入。
+	 */
+	private static LabeledMatch matchRightJoinByCenter(List<PPOcrV6Result> results,
+													   PPOcrV6Result labelBox) {
+		if (labelBox == null) return LabeledMatch.textOnly(null);
+		int labelCenterX = (LabelMatcher.minX(labelBox) + LabelMatcher.maxX(labelBox)) / 2;
+		int labelMinX = LabelMatcher.minX(labelBox);
+		int labelMinY = LabelMatcher.minY(labelBox);
+		int labelMaxY = LabelMatcher.maxY(labelBox);
+		int labelCenterY = (labelMinY + labelMaxY) / 2;
+		int labelMaxX = LabelMatcher.maxX(labelBox);
+
+		// 1) 收集 label 右侧 y 重叠的候选框（过滤规则沿用 matchRightByCenter）
+		List<PPOcrV6Result> candidates = new ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			if (r == labelBox) continue;
+			String text = r.text();
+			if (text.isEmpty()) continue;
+			// 跳过纯字母
+			if (text.matches("[A-Za-z\\s]+")) continue;
+			// 跳过其它字段标签框
+			if (isOtherLabel(text)) continue;
+			int x0 = LabelMatcher.minX(r);
+			int centerX = (x0 + LabelMatcher.maxX(r)) / 2;
+			int minYr = LabelMatcher.minY(r);
+			int maxYr = LabelMatcher.maxY(r);
+			// 右侧 + y 重叠
+			if (centerX <= labelCenterX) continue;
+			if (maxYr < labelMinY || minYr > labelMaxY) continue;
+			// x 距离约束（与 matchRightByCenter 一致）
+			int xDistFromLabelRight = x0 > labelMaxX ? x0 - labelMaxX : 0;
+			int xDistLimit = Math.max(300, (labelMaxX - labelMinX) * 3);
+			if (xDistFromLabelRight > xDistLimit) continue;
+			candidates.add(r);
+		}
+		if (candidates.isEmpty()) return LabeledMatch.textOnly(null);
+
+		// 2) 起点：y 中心差最小、且尽量紧邻标签右侧（评分与 matchRightByCenter 一致）
+		PPOcrV6Result start = null;
+		int bestScore = Integer.MAX_VALUE;
+		for (PPOcrV6Result r : candidates) {
+			int centerYr = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
+			int yCenterDiff = Math.abs(centerYr - labelCenterY);
+			int xDistFromLabelRight = Math.max(0, LabelMatcher.minX(r) - labelMaxX);
+			int score = yCenterDiff * 1000 + xDistFromLabelRight;
+			if (score < bestScore) {
+				bestScore = score;
+				start = r;
+			}
+		}
+		if (start == null) return LabeledMatch.textOnly(null);
+
+		// 3) 从起点框右边缘向后连续拼接
+		List<PPOcrV6Result> ordered = new ArrayList<>(candidates);
+		ordered.remove(start);
+		ordered.sort(Comparator.comparingInt(LabelMatcher::minX));
+
+		List<PPOcrV6Result> joined = new ArrayList<>();
+		joined.add(start);
+		int prevMaxX = LabelMatcher.maxX(start);
+		int startMinY = LabelMatcher.minY(start);
+		int startMaxY = LabelMatcher.maxY(start);
+		for (PPOcrV6Result r : ordered) {
+			int x0 = LabelMatcher.minX(r);
+			int minYr = LabelMatcher.minY(r);
+			int maxYr = LabelMatcher.maxY(r);
+			// 同行：与起点框严格垂直重叠（同一行文本框共享基线，必相交；
+			// 相邻行斜框即使贴边也不相交，防止误吞上行/下行字段）
+			if (maxYr <= startMinY || minYr >= startMaxY) continue;
+			// 左缘窗口：新框必须紧跟当前拼接右缘（允许最大 MAX_JOIN_GAP 的重叠）。
+			// 防止拼到下一行从更左侧起始的字段（如 开户行 从 x676 起始，
+			// 而地址框右缘已到 x1188，二者 y 因斜框贴边重叠但列起点完全不同）
+			if (x0 < prevMaxX - MAX_JOIN_GAP) continue;
+			// 右向间隙：新框不能离当前右缘太远（已按 x0 升序，后续更远，直接断开）
+			if (x0 - prevMaxX > MAX_JOIN_GAP) break;
+			joined.add(r);
+			prevMaxX = Math.max(prevMaxX, LabelMatcher.maxX(r));
+		}
+
+		if (joined.size() == 1) {
+			return LabeledMatch.of(start.text(), start);
+		}
+		// 无分隔拼接：地址/电话、开户行/账号 本为同一字段的连续文本，OCR 切框不引入分隔
+		StringBuilder sb = new StringBuilder();
+		for (PPOcrV6Result r : joined) {
+			sb.append(r.text().trim());
+		}
+		log.debug("发票解析：\"{}\" 右侧多框拼接 \"{}\"（{} 框）",
+			labelBox.text(), sb, joined.size());
+		return LabeledMatch.of(sb.toString(), joined);
+	}
+
 	private static boolean isOtherLabel(String text) {
 		String t = text.trim();
 		for (String lbl : OTHER_LABEL_KEYWORDS) {
@@ -527,6 +735,73 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		// 纯标点跳过
 		if (t.matches("[\\p{Punct}\\s：、,，。.（）()【】\\[\\]\"\"''\\-—/\\\\]+")) return false;
 		return true;
+	}
+
+	/**
+	 * 残缺表头识别：表头标签被 OCR 切成单字 fragment（如 "金"+"额"、"税"+"额"）时，
+	 * 收集同行内由 label 字符组成的 fragment 框，按 x 升序做子序列匹配还原表头，
+	 * 返回合成框（x 跨首尾 fragment，y 为包围盒）。
+	 *
+	 * <p>子序列匹配保证："金额" 列只取第一个"金"后紧跟的"额"，"税额" 列跳过
+	 * "金额" 列的"额"再匹配"税"+"额"，两列互不串位。
+	 *
+	 * <p>通过紧凑性校验（拼接宽度 ≤ label 字符数 × 2 倍行高）防止跨列/跨行误拼。
+	 */
+	private static PPOcrV6Result findFragmentHeaderBox(List<PPOcrV6Result> results, String label) {
+		if (label.length() < 2) return null;
+		List<PPOcrV6Result> candidates = new ArrayList<>();
+		for (PPOcrV6Result r : results) {
+			String text = r.text().replaceAll("\\s+", "");
+			if (text.isEmpty() || text.length() > label.length()) continue;
+			boolean allLabelChars = true;
+			for (int i = 0; i < text.length(); i++) {
+				if (label.indexOf(text.charAt(i)) < 0) {
+					allLabelChars = false;
+					break;
+				}
+			}
+			if (allLabelChars) candidates.add(r);
+		}
+		if (candidates.size() < label.length()) return null;
+		candidates.sort(Comparator.comparingInt(LabelMatcher::minX));
+		List<PPOcrV6Result> matched = new ArrayList<>();
+		int p = 0;
+		int anchorMinY = Integer.MAX_VALUE;
+		int anchorMaxY = Integer.MIN_VALUE;
+		int anchorCenterY = 0;
+		for (PPOcrV6Result r : candidates) {
+			if (p == label.length()) break;
+			String text = r.text().replaceAll("\\s+", "");
+			if (!text.equals(String.valueOf(label.charAt(p)))) continue;
+			if (matched.isEmpty()) {
+				anchorMinY = LabelMatcher.minY(r);
+				anchorMaxY = LabelMatcher.maxY(r);
+				anchorCenterY = (anchorMinY + anchorMaxY) / 2;
+			} else {
+				// 后续 fragment 必须与首个 fragment 同行（y 中心差 ≤ 行高）
+				int centerY = (LabelMatcher.minY(r) + LabelMatcher.maxY(r)) / 2;
+				int oneLine = Math.max(1, anchorMaxY - anchorMinY);
+				if (Math.abs(centerY - anchorCenterY) > oneLine) continue;
+			}
+			matched.add(r);
+			p++;
+		}
+		if (matched.size() < label.length()) return null;
+		int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+		int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+		float score = Float.MAX_VALUE;
+		for (PPOcrV6Result r : matched) {
+			minX = Math.min(minX, LabelMatcher.minX(r));
+			maxX = Math.max(maxX, LabelMatcher.maxX(r));
+			minY = Math.min(minY, LabelMatcher.minY(r));
+			maxY = Math.max(maxY, LabelMatcher.maxY(r));
+			score = Math.min(score, r.score());
+		}
+		// 紧凑性校验：拼接宽度不能超过 label 字符数 × 2 倍行高（防止跨列误拼）
+		int oneLine = Math.max(1, maxY - minY);
+		if (maxX - minX > label.length() * oneLine * 2) return null;
+		int[][] box = {{minX, minY}, {maxX, minY}, {maxX, maxY}, {minX, maxY}};
+		return new PPOcrV6Result(label, score, box);
 	}
 
 	/**
@@ -559,7 +834,17 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 			}
 		}
 		if (labelBox == null) {
-			// 兜底B：残缺识别，text 是 normalized 的后缀（如 "金额" → 只剩 "额"）
+			// 兜底B：残缺表头 fragment 按 x 拼接（如 "金"+"额" → "金额"、"税"+"额" → "税额"）
+			PPOcrV6Result joined = findFragmentHeaderBox(results, normalized);
+			if (joined != null) {
+				labelBox = joined;
+				bestText = label;
+				log.debug("发票解析：表列 \"{}\" 采用 fragment 拼接表头（x {}~{}）",
+					label, LabelMatcher.minX(joined), LabelMatcher.maxX(joined));
+			}
+		}
+		if (labelBox == null) {
+			// 兜底C：单字后缀降级（fragment 拼接失败时的最后兜底）
 			// 避免匹配过短噪音：要求至少 1 个字，且属于 label 尾部子串
 			int minLen = 1;
 			PPOcrV6Result best = null;
@@ -620,7 +905,9 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 			// 列宽限制：centerX 落在表头列内或稍右
 			if (centerX < labelMinX - 5 || centerX > labelMaxX + xTolerance) continue;
 			int y0 = LabelMatcher.minY(r);
-			if (y0 < labelMinY - oneLine) continue;
+			// 收紧 y 下限：仅允许值框略高于表头（半行），防止误收表头上方的
+			// 购/销方开户行等字段（如发票5 货物名称列误收 "中国工商银行上海市嘉定支行"）
+			if (y0 < labelMinY - oneLine / 2) continue;
 			if (y0 > labelMaxY + oneLine * 4) continue;
 			candidates.add(r);
 		}
@@ -793,8 +1080,8 @@ public class InvoiceParser extends BaseStructuredParser<InvoiceResult> {
 		r.setInvoiceCode(codeMatch.value());
 		LabelMatcher.applyFieldBox(r, "invoiceCode", codeMatch);
 
-		// 发票号码
-		LabeledMatch noMatch = parseInvoiceNo(results);
+		// 发票号码（传入发票代码：号码与代码粘连时剥离代码后缀）
+		LabeledMatch noMatch = parseInvoiceNo(results, codeMatch.value());
 		r.setInvoiceNo(noMatch.value());
 		LabelMatcher.applyFieldBox(r, "invoiceNo", noMatch);
 

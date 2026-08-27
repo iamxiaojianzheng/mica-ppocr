@@ -3,12 +3,8 @@
 ## 发行版本
 
 ### 未发布
-- fix(test): MemoryLeakReproTest 判定逻辑修正。`getCommittedVirtualMemorySize()` 在 Windows 返回的是
-  committed virtual memory（含 JVM heap committed / CodeCache / Metaspace），warmup 后 heap 首次扩展到
-  `-Xms`（如 16GB 机器默认 256MB）会造成一次性 +256MB 伪增长，并非 issue #14 回归（arena 泄漏特征是
-  **持续单调上涨**）。改为：baseline 前 `stabilizeJvmMemory()` 把堆 committed 推到稳态；
-  断言用「稳态斜率」（round 5 → round 20 的 RSS 增量 ≤ 80MB），一次性抬升仅打印 peak 差供观察；
-  baseline 补充 heap_committed / max_heap 打印便于诊断。
+- fix(structured): 修复发票解析器地址电话/开户行账号多框拼接与发票号码解析：
+  新增 `matchRightJoinByCenter` 按 x 连续性拼接相邻框（gap ≤ 60），以「与起点框严格垂直重叠 + 左缘窗口约束」双重判定防止斜框贴边误吞上下行字段（如发票号码吞税号、地址吞开户行）；重写 `parseInvoiceNo`：仅当完整「发票号码」标签存在时才走标签匹配（fragment 单字标签如"码"不可信，会命中密码区噪音），支持 `No`/`N0`/`Ne` 前缀框剥前缀抽数字、`\d{8,}` 连续数字串免疫密码区噪音（`+29<65>6...`）、号码与发票代码粘连时剥离代码后缀，不足 8 位向右拼接同行数字框；发票代码/日期解析同步收敛。测试覆盖 5 张真实发票 OCR JSON 样本，200 个测试全绿。
 
 ### v1.2.0 - 2026-08-27
 - fix(core): 修复动态分辨率下内存持续增长（github #14 根治）：新增 `enableCpuMemArena`（默认 false）、`enableMemoryPattern`（默认 false）配置，关闭 ONNX Runtime CPU arena / 内存模式优化，临时内存用完即释放，Docker 等内存受限环境不再 OOM；新增 `execMode` 配置（sequential / parallel）暴露 ORT 执行模式。Spring Boot Starter 与 Solon 插件同步暴露三个配置项。
