@@ -13,11 +13,10 @@ package net.dreamlu.mica.ai.ppocr.engine;
 import com.sun.management.OperatingSystemMXBean;
 import com.sun.management.ThreadMXBean;
 import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
+import net.dreamlu.mica.ai.ppocr.utils.CollUtil;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.opencv.core.Mat;
-import org.opencv.imgcodecs.Imgcodecs;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
@@ -134,9 +133,9 @@ class MemoryLeakReproTest {
 	private static Path findRepositoryRoot() {
 		String multiModuleDir = System.getProperty("maven.multiModuleProjectDirectory");
 		if (multiModuleDir != null) {
-			return Path.of(multiModuleDir);
+			return CollUtil.pathOf(multiModuleDir);
 		}
-		Path current = Path.of("").toAbsolutePath();
+		Path current = CollUtil.pathOf("").toAbsolutePath();
 		while (current != null && !Files.isDirectory(current.resolve("models/ppocr-v6/tiny"))) {
 			current = current.getParent();
 		}
