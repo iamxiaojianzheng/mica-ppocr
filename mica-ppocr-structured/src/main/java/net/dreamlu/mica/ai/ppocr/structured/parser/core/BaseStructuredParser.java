@@ -41,20 +41,20 @@ import java.util.List;
  * <p>5 个 {@code parse(...)} 重载已实现为 {@code final}，避免子类误覆盖而绕过 engine 调用。
  *
  * <p>典型实现：
- * <pre>{@code
- * public final class IdCardParser extends BaseStructuredParser<IdCardResult> {
+ * <pre>
+ * public final class IdCardParser extends BaseStructuredParser&lt;IdCardResult&gt; {
  *     public IdCardParser(PPOcrV6Engine engine) {
  *         super(engine);
  *     }
  *
- *     @Override
- *     public IdCardResult parseResults(List<PPOcrV6Result> results) {
+ *     &#64;Override
+ *     public IdCardResult parseResults(List&lt;PPOcrV6Result&gt; results) {
  *         IdCardResult r = new IdCardResult();
  *         r.setName(LabelMatcher.matchValue(results, "姓名"));
  *         return r;
  *     }
  * }
- * }</pre>
+ * </pre>
  *
  * <p>Spring / Solon 场景下由容器注入 engine；非容器场景可通过 {@code PPOcrTemplate}
  * 的 {@code vehicleLicense()} / {@code idCard()} 等方法获取已绑定 engine 的实例。

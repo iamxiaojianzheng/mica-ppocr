@@ -601,7 +601,7 @@ public class LabelMatcher {
 	 * 找含任一 keyword 的 OCR 框，再按 valueExtractor 从框文本里切值。
 	 * 返回首个非空提取结果。
 	 *
-	 * <p>典型场景：OCR 把"上车K0000>21:17"识别成单框，label 找不到，
+	 * <p>典型场景：OCR 把"上车K0000&gt;21:17"识别成单框，label 找不到，
 	 * 但"上车"作为 fragment 命中此框；用 {@code text -> extractTime(text)} 从
 	 * 中切出"21:17"。
 	 *
@@ -831,7 +831,7 @@ public class LabelMatcher {
 	 * 字段匹配结果：字段值 + 对应 OCR 结果（含 box 坐标）。
 	 *
 	 * <p>一个字段可能由多个 OCR 框拼接/提取而来（例如长地址跨多行），
-	 * 因此用 {@link #matches()} 承载多个值框（通常只有一个）。
+	 * 因此用 {@link LabeledMatch#matches} 承载多个值框（通常只有一个）。
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)
@@ -901,15 +901,15 @@ public class LabelMatcher {
 	 * </ul>
 	 *
 	 * <p>典型用法（发票金额行）：
-	 * <pre>{@code
-	 * List<LabelDef> defs = Arrays.asList(
+	 * <pre>
+	 * List&lt;LabelDef&gt; defs = Arrays.asList(
 	 *     new LabelDef("amount",        "金额",   "金"),
 	 *     new LabelDef("fuelSurcharge", "附加费", "附"),
 	 *     new LabelDef("total",         "总金额", "总")
 	 * );
-	 * Map<String, String> fields = LabelMatcher.assignExclusiveValues(
+	 * Map&lt;String, String&gt; fields = LabelMatcher.assignExclusiveValues(
 	 *     results, defs, InvoiceParser::extractMoney, 5);
-	 * }</pre>
+	 * </pre>
 	 */
 	@lombok.Value
 	@Accessors(fluent = true)

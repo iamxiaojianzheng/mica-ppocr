@@ -50,12 +50,12 @@ import org.noear.solon.core.AppContext;
  * Solon 4.x 的参数注入对嵌套 wildcard 泛型解析不稳定，构造期收集还受 Bean 注册顺序影响。
  *
  * <p>使用示例：
- * <pre>{@code
- * @Autowired
+ * <pre>
+ * &#64;Autowired
  * private PPOcrTemplate ppocr;
  *
  * VehicleLicenseResult result = ppocr.vehicleLicense().parse(imageBytes);
- * }</pre>
+ * </pre>
  */
 @Configuration
 @Condition(onClass = BaseStructuredParser.class, onExpression = "${mica.ai.ppocr.enabled:true} == true")

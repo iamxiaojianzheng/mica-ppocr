@@ -39,18 +39,18 @@ import java.util.Map;
  * </ul>
  *
  * <p>典型可视化流程：
- * <pre>{@code
+ * <pre>
  * VehicleLicenseResult r = ppocr.parseVehicleLicense(imagePath);
  * // 画所有文字框
  * for (PPOcrV6Result ocr : r.getRawResults()) {
  *     drawBox(ocr.box(), Color.GREEN);
  * }
  * // 高亮车牌字段
- * List<int[][]> plateBoxes = r.getFieldBoxes().get("plateNo");
+ * List&lt;int[][]&gt; plateBoxes = r.getFieldBoxes().get("plateNo");
  * if (plateBoxes != null) {
  *     for (int[][] box : plateBoxes) drawBox(box, Color.RED);
  * }
- * }</pre>
+ * </pre>
  */
 @Data
 public abstract class BaseStructuredResult {
@@ -71,10 +71,10 @@ public abstract class BaseStructuredResult {
 	 * 角点顺序参考 {@link net.dreamlu.mica.ai.ppocr.engine.PPOcrV6Result#box()}。
 	 *
 	 * <p>示例（行驶证）：
-	 * <pre>{@code
+	 * <pre>
 	 * fieldBoxes.get("plateNo")  → [[[x0,y0],[x1,y1],[x2,y2],[x3,y3]]]  (外层 List 表示 1 个框)
 	 * fieldBoxes.get("vin")      → 同上
-	 * }</pre>
+	 * </pre>
 	 *
 	 * <p>一个字段可能由多个 OCR 框拼接/提取而来（例如长地址跨 2~3 行），
 	 * 因此 value 是 List 而不是单个 box。

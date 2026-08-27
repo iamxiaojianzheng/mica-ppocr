@@ -60,18 +60,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>内部按 {@code parser.getClass()} 建索引，相同类型重复注册以首次为准（{@link LinkedHashMap} 保序）。
  *
  * <p>典型用法（Solon 上传）：
- * <pre>{@code
- * @Autowired
+ * <pre>
+ * &#64;Autowired
  * private PPOcrTemplate ppocr;
  *
- * @PostMapping("/vehicle")
- * public VehicleLicenseResult recognize(@RequestParam("file") MultipartFile file) throws IOException {
+ * &#64;PostMapping("/vehicle")
+ * public VehicleLicenseResult recognize(&#64;RequestParam("file") MultipartFile file) throws IOException {
  *     return ppocr.vehicleLicense().parse(file.getBytes());
  * }
  *
  * // 自定义解析器或不想加 getter 的场景
  * MyCustomResult r = ppocr.get(MyCustomParser.class).parse(bytes);
- * }</pre>
+ * </pre>
  *
  * <p>本类不接管 {@link PPOcrV6Engine} 的生命周期：
  * Solon 场景下由容器管理 engine 的关闭；非 Solon 场景由调用方自行关闭 engine。

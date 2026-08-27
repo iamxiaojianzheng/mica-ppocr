@@ -25,10 +25,10 @@ import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
  * 允许业务方对配置进行旁路覆盖（例如从环境变量 / Nacos / 自定义路径解析规则动态设置模型路径）。
  *
  * <p>使用示例：
- * <pre>{@code
- * @Component
+ * <pre>
+ * &#64;Component
  * public class TierCustomizer implements PPOCRPropertiesCustomizer {
- *     @Override
+ *     &#64;Override
  *     public void customize(PPOcrV6Config.PPOcrV6ConfigBuilder builder) {
  *         String tier = System.getenv("PPOCR_TIER");
  *         if ("small".equals(tier)) {
@@ -38,7 +38,7 @@ import net.dreamlu.mica.ai.ppocr.config.PPOcrV6Config;
  *         }
  *     }
  * }
- * }</pre>
+ * </pre>
  *
  * <p>实现按 Spring 容器顺序生效；多个 customizer 时建议使用 {@code @Order} 显式控制。
  */

@@ -47,15 +47,15 @@ import org.springframework.context.annotation.Configuration;
  * 业务方可精确 override 单个解析器实现。
  *
  * <p>使用示例：
- * <pre>{@code
- * @Autowired
+ * <pre>
+ * &#64;Autowired
  * private PPOcrTemplate ppocr;
  *
- * @PostMapping("/vehicle")
- * public VehicleLicenseResult recognize(@RequestParam("file") MultipartFile file) throws IOException {
+ * &#64;PostMapping("/vehicle")
+ * public VehicleLicenseResult recognize(&#64;RequestParam("file") MultipartFile file) throws IOException {
  *     return ppocr.vehicleLicense().parse(file.getBytes());
  * }
- * }</pre>
+ * </pre>
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(BaseStructuredParser.class)

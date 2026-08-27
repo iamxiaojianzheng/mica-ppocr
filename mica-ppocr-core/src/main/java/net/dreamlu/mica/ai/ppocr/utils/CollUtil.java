@@ -35,10 +35,11 @@ import java.util.stream.Stream;
  *
  * <p>包含两类静态方法：
  * <ol>
- *   <li>{@link #listOf}/{@link #setOf}/{@link #mapOf}：与 Java 9+
- *       {@code List.of}/{@code Set.of}/{@code Map.of} 行为一致的不可变集合工厂。</li>
- *   <li>{@link #stripTrailing}/{@link #repeat}/{@link #readAllBytes}/
- *       {@link #writeString}/{@link #pathOf}：Java 9/11 标准库 API 的 Java 8 回退实现。</li>
+ *   <li>{@link #listOf(Object)}/{@link #setOf(Object)}/{@link #mapOf(Object, Object)}：
+ *       与 Java 9+ {@code List.of}/{@code Set.of}/{@code Map.of} 行为一致的不可变集合工厂。</li>
+ *   <li>{@link #stripTrailing(String)}/{@link #repeat(String, int)}/{@link #readAllBytes(InputStream)}/
+ *       {@link #writeString(Path, CharSequence, Charset, OpenOption...)}/{@link #pathOf(String, String...)}：
+ *       Java 9/11 标准库 API 的 Java 8 回退实现。</li>
  * </ol>
  *
  * <p>使用 Java 11+ API（{@code String.stripTrailing}/{@code String.repeat}、
@@ -62,8 +63,13 @@ import java.util.stream.Stream;
 @UtilityClass
 public class CollUtil {
 
+	// ========== List ==========
+
 	/**
 	 * 返回空的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @return 空的不可变 List
 	 */
 	public static <T> List<T> listOf() {
 		return Collections.emptyList();
@@ -71,6 +77,10 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 1 个元素的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  元素
+	 * @return 包含指定元素的不可变 List
 	 */
 	public static <T> List<T> listOf(T e1) {
 		return Collections.singletonList(e1);
@@ -78,6 +88,11 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 2 个元素的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  第 1 个元素
+	 * @param e2  第 2 个元素
+	 * @return 包含指定元素的不可变 List
 	 */
 	public static <T> List<T> listOf(T e1, T e2) {
 		return Collections.unmodifiableList(Arrays.asList(e1, e2));
@@ -85,6 +100,12 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 3 个元素的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  第 1 个元素
+	 * @param e2  第 2 个元素
+	 * @param e3  第 3 个元素
+	 * @return 包含指定元素的不可变 List
 	 */
 	public static <T> List<T> listOf(T e1, T e2, T e3) {
 		return Collections.unmodifiableList(Arrays.asList(e1, e2, e3));
@@ -92,6 +113,13 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 4 个元素的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  第 1 个元素
+	 * @param e2  第 2 个元素
+	 * @param e3  第 3 个元素
+	 * @param e4  第 4 个元素
+	 * @return 包含指定元素的不可变 List
 	 */
 	public static <T> List<T> listOf(T e1, T e2, T e3, T e4) {
 		return Collections.unmodifiableList(Arrays.asList(e1, e2, e3, e4));
@@ -99,6 +127,14 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 5 个元素的不可变 List。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  第 1 个元素
+	 * @param e2  第 2 个元素
+	 * @param e3  第 3 个元素
+	 * @param e4  第 4 个元素
+	 * @param e5  第 5 个元素
+	 * @return 包含指定元素的不可变 List
 	 */
 	public static <T> List<T> listOf(T e1, T e2, T e3, T e4, T e5) {
 		return Collections.unmodifiableList(Arrays.asList(e1, e2, e3, e4, e5));
@@ -106,6 +142,10 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 N 个元素的不可变 List。
+	 *
+	 * @param <T>      元素类型
+	 * @param elements 元素数组
+	 * @return 包含指定元素的不可变 List
 	 */
 	@SafeVarargs
 	public static <T> List<T> listOf(T... elements) {
@@ -117,6 +157,10 @@ public class CollUtil {
 
 	/**
 	 * 将 {@link Collection} 转为不可变 List。允许 null 入参（返回空列表）。
+	 *
+	 * @param <T>  元素类型
+	 * @param coll 源集合，可为 null
+	 * @return 不可变 List；入参为 null 时返回空 List
 	 */
 	public static <T> List<T> unmodifiableList(Collection<? extends T> coll) {
 		if (coll == null) {
@@ -129,6 +173,9 @@ public class CollUtil {
 
 	/**
 	 * 返回空的不可变 Set。
+	 *
+	 * @param <T> 元素类型
+	 * @return 空的不可变 Set
 	 */
 	public static <T> Set<T> setOf() {
 		return Collections.emptySet();
@@ -136,13 +183,22 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 1 个元素的不可变 Set。
+	 *
+	 * @param <T> 元素类型
+	 * @param e1  元素
+	 * @return 包含指定元素的不可变 Set
 	 */
 	public static <T> Set<T> setOf(T e1) {
 		return Collections.singleton(e1);
 	}
 
 	/**
-	 * 返回包含 N 个元素的不可变 Set，重复元素抛 IllegalArgumentException。
+	 * 返回包含 N 个元素的不可变 Set，重复元素抛 {@link IllegalArgumentException}。
+	 *
+	 * @param <T>      元素类型
+	 * @param elements 元素数组
+	 * @return 包含指定元素的不可变 Set
+	 * @throws IllegalArgumentException 元素重复
 	 */
 	@SafeVarargs
 	public static <T> Set<T> setOf(T... elements) {
@@ -162,6 +218,10 @@ public class CollUtil {
 
 	/**
 	 * 返回空的不可变 Map。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @return 空的不可变 Map
 	 */
 	public static <K, V> Map<K, V> mapOf() {
 		return Collections.emptyMap();
@@ -169,6 +229,12 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 1 个键值对的不可变 Map。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @param k1  键
+	 * @param v1  值
+	 * @return 包含指定键值对的不可变 Map
 	 */
 	public static <K, V> Map<K, V> mapOf(K k1, V v1) {
 		Map<K, V> map = new LinkedHashMap<>();
@@ -178,6 +244,15 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 2 个键值对的不可变 Map。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @param k1  第 1 个键
+	 * @param v1  第 1 个值
+	 * @param k2  第 2 个键
+	 * @param v2  第 2 个值
+	 * @return 包含指定键值对的不可变 Map
+	 * @throws IllegalArgumentException 键重复
 	 */
 	public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2) {
 		Map<K, V> map = new LinkedHashMap<>();
@@ -188,6 +263,17 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 3 个键值对的不可变 Map。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @param k1  第 1 个键
+	 * @param v1  第 1 个值
+	 * @param k2  第 2 个键
+	 * @param v2  第 2 个值
+	 * @param k3  第 3 个键
+	 * @param v3  第 3 个值
+	 * @return 包含指定键值对的不可变 Map
+	 * @throws IllegalArgumentException 键重复
 	 */
 	public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
 		Map<K, V> map = new LinkedHashMap<>();
@@ -199,6 +285,19 @@ public class CollUtil {
 
 	/**
 	 * 返回包含 4 个键值对的不可变 Map。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @param k1  第 1 个键
+	 * @param v1  第 1 个值
+	 * @param k2  第 2 个键
+	 * @param v2  第 2 个值
+	 * @param k3  第 3 个键
+	 * @param v3  第 3 个值
+	 * @param k4  第 4 个键
+	 * @param v4  第 4 个值
+	 * @return 包含指定键值对的不可变 Map
+	 * @throws IllegalArgumentException 键重复
 	 */
 	public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4) {
 		Map<K, V> map = new LinkedHashMap<>();
@@ -232,6 +331,12 @@ public class CollUtil {
 
 	/**
 	 * 简单的 {@code Map.Entry} 实现，工厂方法。
+	 *
+	 * @param <K>   键类型
+	 * @param <V>   值类型
+	 * @param key   键
+	 * @param value 值
+	 * @return 不可变的 {@link Map.Entry}
 	 */
 	public static <K, V> Map.Entry<K, V> entry(K key, V value) {
 		return new AbstractEntry<>(key, value);
@@ -243,24 +348,42 @@ public class CollUtil {
 		}
 	}
 
+	// ========== 可变工厂 ==========
+
 	/**
-	 * 提供 {@link HashSet}/{@link HashMap} 形式的可变工厂。
+	 * 提供 {@link HashSet} 形式的可变工厂。
 	 * 用于在源码中替换 {@code new HashSet<>(Arrays.asList(...))} 的冗长写法。
+	 *
+	 * @param <T>      元素类型
+	 * @param elements 初始元素
+	 * @return 包含初始元素的 {@link HashSet}
 	 */
 	@SafeVarargs
 	public static <T> Set<T> newHashSet(T... elements) {
 		return new HashSet<>(Arrays.asList(elements));
 	}
 
+	/**
+	 * 提供 {@link HashMap} 形式的可变工厂。
+	 *
+	 * @param <K> 键类型
+	 * @param <V> 值类型
+	 * @return 空的 {@link HashMap}
+	 */
 	public static <K, V> Map<K, V> newHashMap() {
 		return new HashMap<>();
 	}
+
+	// ========== 字符串 / IO / NIO 回退实现 ==========
 
 	/**
 	 * Java 11+ {@code String.stripTrailing} 的 Java 8 实现。
 	 *
 	 * <p>仅去掉尾部 {@link Character#isWhitespace(char) 空白字符}，不剔除 BOM、不剔除零宽字符。
 	 * null 视为空串。
+	 *
+	 * @param s 源字符串
+	 * @return 去掉尾部空白后的字符串；入参为 null 时返回 null
 	 */
 	public static String stripTrailing(String s) {
 		if (s == null || s.isEmpty()) {
@@ -336,9 +459,13 @@ public class CollUtil {
 	}
 
 	/**
-	 * Java 11+ {@code CollUtil.pathOf(String, String...)} 的 Java 8 替代：{@code Paths.get}。
+	 * Java 11+ {@code Path.of(String, String...)} 的 Java 8 替代：{@code Paths.get}。
 	 *
 	 * <p>已签名为 {@code pathOf} 以保证替代品在调用点统一可识别。
+	 *
+	 * @param first 路径首段
+	 * @param more  路径剩余段
+	 * @return 拼接得到的 {@link Path}
 	 */
 	public static Path pathOf(String first, String... more) {
 		return Paths.get(first, more);
@@ -349,6 +476,10 @@ public class CollUtil {
 	 *
 	 * <p>注意：与 {@code Stream.toList()} 不可变语义不同，{@code Collectors.toList()} 返回可变 ArrayList。
 	 * 在仅消费场景下语义等价。
+	 *
+	 * @param <T>    元素类型
+	 * @param stream 源流
+	 * @return 收集得到的 {@link List}
 	 */
 	public static <T> List<T> toList(Stream<T> stream) {
 		return stream.collect(Collectors.toList());
