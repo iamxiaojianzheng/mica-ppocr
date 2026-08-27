@@ -2,6 +2,14 @@
 
 ## 发行版本
 
+### 未发布
+- fix(test): MemoryLeakReproTest 判定逻辑修正。`getCommittedVirtualMemorySize()` 在 Windows 返回的是
+  committed virtual memory（含 JVM heap committed / CodeCache / Metaspace），warmup 后 heap 首次扩展到
+  `-Xms`（如 16GB 机器默认 256MB）会造成一次性 +256MB 伪增长，并非 issue #14 回归（arena 泄漏特征是
+  **持续单调上涨**）。改为：baseline 前 `stabilizeJvmMemory()` 把堆 committed 推到稳态；
+  断言用「稳态斜率」（round 5 → round 20 的 RSS 增量 ≤ 80MB），一次性抬升仅打印 peak 差供观察；
+  baseline 补充 heap_committed / max_heap 打印便于诊断。
+
 ### v1.2.0 - 2026-08-27
 - fix(core): 修复动态分辨率下内存持续增长（github #14 根治）：新增 `enableCpuMemArena`（默认 false）、`enableMemoryPattern`（默认 false）配置，关闭 ONNX Runtime CPU arena / 内存模式优化，临时内存用完即释放，Docker 等内存受限环境不再 OOM；新增 `execMode` 配置（sequential / parallel）暴露 ORT 执行模式。Spring Boot Starter 与 Solon 插件同步暴露三个配置项。
 - refactor(core): 全面支持 Java 8（`record` / `List.of` / `Path.of` 等 Java 9+ API 替换为 `CollUtil` 工具与 Lombok `@Value` 风格，Spring Boot Starter 改用 `@Configuration` 兼容 2.5~4.x）。
