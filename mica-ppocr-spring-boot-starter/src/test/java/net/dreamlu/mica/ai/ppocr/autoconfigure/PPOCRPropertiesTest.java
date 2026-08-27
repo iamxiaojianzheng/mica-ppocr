@@ -40,7 +40,6 @@ class PPOCRPropertiesTest {
 		assertFalse(props.isPreferAccelerator());
 		assertEquals(1, props.getIntraOpNumThreads());
 		assertEquals(1, props.getInterOpNumThreads());
-		assertEquals("sequential", props.getExecMode());
 		assertFalse(props.isEnableCpuMemArena());
 		assertFalse(props.isEnableMemoryPattern());
 	}
@@ -76,7 +75,6 @@ class PPOCRPropertiesTest {
 		props.setPreferAccelerator(true);
 		props.setIntraOpNumThreads(4);
 		props.setInterOpNumThreads(2);
-		props.setExecMode("parallel");
 		props.setEnableCpuMemArena(true);
 		props.setEnableMemoryPattern(true);
 
@@ -89,7 +87,6 @@ class PPOCRPropertiesTest {
 		assertTrue(props.isPreferAccelerator());
 		assertEquals(4, props.getIntraOpNumThreads());
 		assertEquals(2, props.getInterOpNumThreads());
-		assertEquals("parallel", props.getExecMode());
 		assertTrue(props.isEnableCpuMemArena());
 		assertTrue(props.isEnableMemoryPattern());
 	}

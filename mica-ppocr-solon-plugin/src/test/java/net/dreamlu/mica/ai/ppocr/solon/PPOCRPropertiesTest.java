@@ -40,7 +40,6 @@ class PPOCRPropertiesTest {
 		assertFalse(props.isPreferAccelerator());
 		assertEquals(1, props.getIntraOpNumThreads());
 		assertEquals(1, props.getInterOpNumThreads());
-		assertEquals("sequential", props.getExecMode());
 		assertFalse(props.isEnableCpuMemArena());
 		assertFalse(props.isEnableMemoryPattern());
 	}
